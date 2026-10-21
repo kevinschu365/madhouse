@@ -2,7 +2,7 @@
 // Strategie: sofort aus dem Cache (schneller Start, auch bei schlechtem WLAN am Board),
 // im Hintergrund aktualisieren. Neue Versionen sind damit beim übernächsten Öffnen aktiv.
 // Bei jeder Veröffentlichung VERSION erhöhen und neue Dateien in FILES eintragen.
-const VERSION = 'madhouse-v1.0.1';
+const VERSION = 'madhouse-v1.0.2';
 const FILES = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg',
@@ -16,7 +16,7 @@ const FILES = [
   './src/ui/screens/calibrate.js', './src/ui/screens/game.js', './src/ui/screens/home.js', './src/ui/screens/players.js',
   './src/ui/screens/settings.js', './src/ui/screens/setup.js', './src/ui/screens/stats.js',
   './src/vision/align.js', './src/vision/calibration.js', './src/vision/camera.js', './src/vision/cameraGame.js',
-  './src/vision/detector.js', './src/vision/homography.js', './src/vision/refine.js',
+  './src/vision/detector.js', './src/vision/homography.js', './src/vision/refine.js', './src/vision/autocal.js',
 ];
 
 self.addEventListener('install', (event) => {

@@ -7,6 +7,7 @@ import { lsGet, lsSet } from '../../core/storage.js';
 import { STANDARD_DIMENSIONS } from '../../core/board.js';
 import { estimateShift } from '../../vision/align.js';
 import { refineImagePoints } from '../../vision/refine.js';
+import { autoCalibrate } from '../../vision/autocal.js';
 
 export function render(root, params, nav) {
   const mode = params.mode || 'full';
@@ -94,8 +95,78 @@ export function render(root, params, nav) {
         h('p', { style: { margin: 0 } }, '1. iPhone fest hinstellen, sodass die ganze Scheibe gut zu sehen ist (seitlich/schräg ist ok).'),
         h('p', { class: 'dim', style: { margin: '6px 0 0' } }, 'Tipp: Querformat sperren/halten wie beim Spiel. Keine Darts im Board.')),
       view.el,
-      h('button', { class: 'btn primary', onclick: () => tapPoints(camera.grab()) }, 'Standbild aufnehmen'),
+      h('button', { class: 'btn primary', onclick: () => autoPoints(camera.grab()) }, 'Standbild aufnehmen'),
     );
+  }
+
+  // ---------- Schnelle Kalibrierung: 2 Tipps, Rest automatisch ----------
+  function autoPoints(still) {
+    if (!still) { toast('Kein Kamerabild.'); return; }
+    view.stop();
+    const stillCanvas = h('canvas', { width: still.width, height: still.height });
+    stillCanvas.getContext('2d').putImageData(still, 0, 0);
+    const size = { width: still.width, height: still.height };
+    const taps = [];
+    let cal = null;
+    const instr = h('div', { class: 'card', style: { fontSize: '18px', fontWeight: 600 } });
+    const actions = h('div', { class: 'stack' });
+    const loupe = h('canvas', { width: 140, height: 140, style: { position: 'fixed', width: '140px', height: '140px', borderRadius: '70px', border: '3px solid #22c55e', pointerEvents: 'none', display: 'none', zIndex: 80, background: '#000' } });
+    document.body.appendChild(loupe);
+    cleanupFns.push(() => loupe.remove());
+    view = new CamView({ source: stillCanvas, frameSize: size, aspect: `${size.width} / ${size.height}` });
+    const boardPts = CAL_POINTS.map((c) => boardPointFor(c, STANDARD_DIMENSIONS));
+
+    const run = () => {
+      instr.replaceChildren('Suche das Board …');
+      actions.replaceChildren();
+      // kurz warten, damit die Anzeige aktualisiert wird
+      setTimeout(() => {
+        let res = null;
+        try { res = autoCalibrate(still, taps[0], taps[1], boardPts, STANDARD_DIMENSIONS); } catch (e) { console.warn(e); }
+        if (!res) {
+          cal = null;
+          toast('Board nicht automatisch gefunden – bitte nochmal tippen oder 5 Punkte setzen.', 4000);
+          taps.length = 0;
+          update();
+          return;
+        }
+        cal = buildCalibration({ boardPoints: boardPts, imagePoints: res.imagePoints, width: size.width, height: size.height, dims: STANDARD_DIMENSIONS });
+        update();
+      }, 30);
+    };
+
+    attachLoupe(view, stillCanvas, loupe, (p) => {
+      if (taps.length >= 2) return;
+      taps.push(p);
+      if (taps.length === 2) run(); else update();
+    });
+
+    const update = () => {
+      view.setCalibration(cal);
+      view.setPoints(taps.map(([x, y], i) => ({ x, y, label: i === 0 ? 'Bull' : '20' })));
+      view.draw();
+      if (taps.length === 0) instr.replaceChildren('1. Tippe genau auf das Bullseye', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Mit der Lupe auf die Mitte schieben, loslassen. Keine Darts im Board.'));
+      else if (taps.length === 1) instr.replaceChildren('2. Tippe irgendwo in das Feld der 20', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Am besten mitten ins große Single-Feld der 20.'));
+      else if (cal) instr.replaceChildren('Liegt das grüne Raster auf den Drähten?', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Die „20“ im Raster muss bei der echten 20 stehen.'));
+      actions.replaceChildren(
+        cal ? h('button', { class: 'btn primary', style: { minHeight: '60px' }, onclick: () => save(cal, still) }, 'Passt – speichern') : null,
+        taps.length ? h('button', { class: 'btn', onclick: () => { taps.length = 0; cal = null; update(); } }, 'Nochmal tippen') : null,
+        h('button', { class: 'btn ghost', onclick: () => { loupe.remove(); tapPoints(still); } }, 'Stattdessen 5 Punkte von Hand setzen'),
+        h('button', { class: 'btn ghost', onclick: () => { loupe.remove(); fullCalibration(); } }, 'Neues Standbild'),
+      );
+    };
+    body.replaceChildren(header('Kalibrierung'), instr, view.el, actions);
+    update();
+  }
+
+  function save(cal, still) {
+    const data = serializeCalibration(cal);
+    data.createdAt = Date.now();
+    data.snapshot = imageDataToJpeg(still, 480, 0.7);
+    lsSet('calibration', data);
+    document.querySelectorAll('canvas[style*="border-radius: 70px"]').forEach((c) => c.remove());
+    toast('Kalibrierung gespeichert');
+    proceed(true);
   }
 
   function tapPoints(still) {

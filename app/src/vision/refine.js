@@ -25,6 +25,42 @@ function gradientImage(img) {
   return { w, h, m };
 }
 
+function blurred(G, r) {
+  // zweimal Kastenfilter (horizontal + vertikal) -> breiteres „Einzugsgebiet“ für die Grobsuche
+  let src = G.m;
+  const { w, h } = G;
+  for (let pass = 0; pass < 2; pass++) {
+    const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      let acc = 0;
+      for (let x = -r; x <= r; x++) acc += src[y * w + Math.min(w - 1, Math.max(0, x))];
+      for (let x = 0; x < w; x++) {
+        tmp[y * w + x] = acc / (2 * r + 1);
+        acc += src[y * w + Math.min(w - 1, x + r + 1)] - src[y * w + Math.max(0, x - r)];
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+      for (let y = 0; y < h; y++) {
+        out[y * w + x] = acc / (2 * r + 1);
+        acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+      }
+    }
+    src = out;
+  }
+  return { w, h, m: src };
+}
+
+const gradCacheAll = new WeakMap();
+function getGrad(img, blur = 0) {
+  let c = gradCacheAll.get(img);
+  if (!c) { c = {}; gradCacheAll.set(img, c); }
+  if (!c[0]) c[0] = gradientImage(img);
+  if (blur && !c[blur]) c[blur] = blurred(c[0], blur);
+  return c[blur || 0];
+}
+
 function bilinear(G, x, y) {
   const x0 = Math.floor(x), y0 = Math.floor(y);
   if (x0 < 1 || y0 < 1 || x0 >= G.w - 2 || y0 >= G.h - 2) return 0;
@@ -89,8 +125,33 @@ function nelderMead(f, x0, step, iters) {
  * img: ImageData (leeres Board), boardPoints/imagePoints wie bei buildCalibration.
  * Liefert { imagePoints, score0, score1, moved } – score = mittlere Kantenstärke (höher = besser).
  */
-export function refineImagePoints(img, boardPoints, imagePoints, dims = STANDARD_DIMENSIONS, { maxShift = 10 } = {}) {
-  const G = gradientImage(img);
+
+/** Mittlere Kantenstärke entlang des Rasters für eine gegebene Homographie (höher = besser). */
+export function edgeScoreH(img, H, dims = STANDARD_DIMENSIONS, which = 'all', blur = 0) {
+  const G = getGrad(img, blur);
+  const key = `${which}:${dims.doubleOuter}:${dims.trebleInner}`;
+  let S = sampleCache.get(key);
+  if (!S) { S = which === 'radial' ? radialPoints(dims) : samplePoints(dims); sampleCache.set(key, S); }
+  let s = 0;
+  for (const [bx, by] of S) { const [u, v] = applyH(H, bx, by); s += bilinear(G, u, v); }
+  return s / S.length;
+}
+const sampleCache = new Map();
+
+function radialPoints(dims) {
+  const pts = [];
+  for (let i = 0; i < 20; i++) {
+    const a = (81 - i * 18) * Math.PI / 180;
+    for (let r = dims.bullOuter + 8; r < dims.doubleOuter - 1; r += 2) {
+      if (Math.abs(r - dims.trebleInner) < 3 || Math.abs(r - dims.trebleOuter) < 3 || Math.abs(r - dims.doubleInner) < 3) continue;
+      pts.push([r * Math.cos(a), r * Math.sin(a)]);
+    }
+  }
+  return pts;
+}
+
+export function refineImagePoints(img, boardPoints, imagePoints, dims = STANDARD_DIMENSIONS, { maxShift = 10, step = 1.5, iters = 400, force = false, blur = 0 } = {}) {
+  const G = getGrad(img, blur);
   const S = samplePoints(dims);
   const x0 = imagePoints.flat();
   const score = (x) => {
@@ -103,13 +164,14 @@ export function refineImagePoints(img, boardPoints, imagePoints, dims = STANDARD
     return -s / S.length;
   };
   const s0 = -score(x0);
-  let res = nelderMead(score, x0, 1.5, 400);
-  res = nelderMead(score, res.x, 0.5, 300);
+  let res = nelderMead(score, x0, step, iters);
+  res = nelderMead(score, res.x, step / 3, Math.round(iters * 0.75));
   const s1 = -res.fx;
   const out = pairs(res.x);
   const moved = Math.max(...out.map(([x, y], i) => Math.hypot(x - imagePoints[i][0], y - imagePoints[i][1])));
   // Nur übernehmen, wenn es wirklich besser ist
-  if (!(s1 > s0 * 1.02)) return { imagePoints, score0: s0, score1: s0, moved: 0, improved: false };
+  if (!force && !(s1 > s0 * 1.02)) return { imagePoints, score0: s0, score1: s0, moved: 0, improved: false };
+  if (force && !(s1 > s0)) return { imagePoints, score0: s0, score1: s0, moved: 0, improved: false };
   return { imagePoints: out, score0: s0, score1: s1, moved, improved: true };
 }
 
