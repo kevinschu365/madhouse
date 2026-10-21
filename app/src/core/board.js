@@ -4,13 +4,16 @@
 // Reihenfolge im Uhrzeigersinn, beginnend oben.
 export const SEGMENT_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
 
-// Standardmaße (WDF/BDO-Regelwerk, Radien bis Draht-Mitte, gerundet).
+// Maße in mm (Radien). Außenkanten nach Regelwerk (Triple 107, Doppel 170).
+// Die Ringbreite ist mit 10 mm etwas großzügiger als die 8 mm Innenmaß der Regel:
+// So messen echte Boards inkl. Draht (z. B. im dartscribe-Datensatz), und die erkannte
+// Spitze liegt bei Treffern am Draht sonst zu oft knapp außerhalb.
 export const STANDARD_DIMENSIONS = {
   bullInner: 6.35,     // Bullseye (50)
   bullOuter: 15.9,     // Single Bull (25)
-  trebleInner: 99,
+  trebleInner: 97,
   trebleOuter: 107,
-  doubleInner: 162,
+  doubleInner: 160,
   doubleOuter: 170,
   boardRadius: 225,
 };

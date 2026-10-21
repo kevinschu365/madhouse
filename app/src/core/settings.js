@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   beeps: true,               // Warntöne
   cameraEnabled: true,       // Kamera-Erkennung im Spiel
   cameraDeviceId: null,      // gewählte Rückkamera (null = Standard)
+  cameraDebug: false,        // Diagnose-Zeile unter dem Kamerabild
   saveCorrectionImages: true,// Bild speichern, wenn ein erkannter Dart korrigiert wird
   autoAdvance: true,         // automatisch weiter, wenn Board leer
   performance: 'auto',       // 'auto' | 'low' | 'high'

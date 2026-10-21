@@ -59,6 +59,7 @@ export function render(root, params, nav) {
       h('div', { class: 'card' },
         h('h3', {}, 'Kamera'),
         toggle('autoAdvance', 'Automatisch weiter, wenn Board leer'),
+        toggle('cameraDebug', 'Kamera-Diagnose anzeigen', 'Zeile unter dem Kamerabild: Bilder/s, Analysen/s, Bewegung – hilft bei der Fehlersuche'),
         toggle('saveCorrectionImages', 'Bild bei Korrektur speichern', `Für späteres Testmaterial. Gespeichert: ${imgCount}`),
         h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Leistung', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Automatisch passt die Bildrate an das Gerät an')),
           h('div', { class: 'chips' }, [['auto', 'Auto'], ['low', 'Sparsam'], ['high', 'Hoch']].map(([k, l]) =>

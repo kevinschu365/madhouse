@@ -62,9 +62,20 @@ export class CameraGame {
     this.view.setCalibration(this.cal);
     this.showGrid = false;
     this.view.setCalibration(null);
-    const gridBtn = h('button', { class: 'iconbtn', style: { position: 'absolute', right: '6px', top: '6px', height: '36px', minWidth: '36px', fontSize: '15px', zIndex: 3 }, onclick: (e) => { e.stopPropagation(); this.showGrid = !this.showGrid; this.view.setCalibration(this.showGrid ? this.cal : null); } }, '▦');
-    this.view.el.appendChild(gridBtn);
-    this.o.container.replaceChildren(this.view.el);
+    const btnStyle = (right) => ({ position: 'absolute', right, top: '6px', height: '36px', minWidth: '36px', fontSize: '15px', zIndex: 3 });
+    const gridBtn = h('button', { class: 'iconbtn', style: btnStyle('6px'), onclick: (e) => { e.stopPropagation(); this.showGrid = !this.showGrid; this.view.setCalibration(this.showGrid ? this.cal : null); } }, '▦');
+    // Kamerabild klein (Standard) oder groß
+    this.big = false;
+    const ratio = size.width / size.height;
+    const applySize = () => {
+      const maxH = this.big ? '70dvh' : '28dvh';
+      Object.assign(this.view.el.style, { maxHeight: maxH, width: `min(100%, calc(${maxH} * ${ratio.toFixed(4)}))`, margin: '0 auto' });
+    };
+    const sizeBtn = h('button', { class: 'iconbtn', style: btnStyle('48px'), onclick: (e) => { e.stopPropagation(); this.big = !this.big; applySize(); } }, '⤢');
+    applySize();
+    this.view.el.append(gridBtn, sizeBtn);
+    this.dbgEl = h('div', { class: 'dim num', style: { fontSize: '12px', textAlign: 'center', minHeight: '0' } });
+    this.o.container.replaceChildren(this.view.el, this.dbgEl);
     this.view.start();
 
     this.cameraEvents = camera.on((type) => {
@@ -134,7 +145,27 @@ export class CameraGame {
     try { this.tick(); } catch (e) { console.warn('Erkennung', e); }
     const dt = performance.now() - t0;
     this.procMs = this.procMs * 0.8 + dt * 0.2;
+    this.ticks = (this.ticks || 0) + 1;
+    this.updateDiagnostics();
     this.timer = setTimeout(() => this.loop(), document.visibilityState === 'visible' ? this.interval() : 1000);
+  }
+
+  /** Diagnose-Zeile unter dem Kamerabild (Einstellungen › Kamera-Diagnose). */
+  updateDiagnostics() {
+    const now = performance.now();
+    if (this.lastDiag && now - this.lastDiag < 1000) return;
+    const dtS = this.lastDiag ? (now - this.lastDiag) / 1000 : 1;
+    const tps = ((this.ticks || 0) - (this.lastTicks || 0)) / dtS;
+    this.lastDiag = now; this.lastTicks = this.ticks || 0;
+    // Hängt das Kamerabild? (keine neuen Videobilder seit 1,5 s)
+    if (camera.lastFrameAt && now - camera.lastFrameAt > 1500) {
+      camera.ensurePlaying();
+      this.setStatus('warn', 'Kamerabild steht – wird neu gestartet …');
+    }
+    if (!getSettings().cameraDebug) { if (this.dbgEl.textContent) this.dbgEl.textContent = ''; return; }
+    const fps = camera.fps();
+    const d = this.dbg || {};
+    this.dbgEl.textContent = `Kamera ${fps == null ? '?' : fps.toFixed(0)} B/s · Analyse ${tps.toFixed(1)}/s (${this.procMs.toFixed(0)} ms) · Bewegung ${((d.motion || 0) * 1000).toFixed(1)}‰ · Änderung ${((d.vsRef || 0) * 1000).toFixed(1)}‰ · ${d.state || ''}`;
   }
 
   // ---------- Hauptschleife ----------
@@ -152,6 +183,7 @@ export class CameraGame {
 
     const motion = changeAmount(this.prevSmall, small, this.mask, P.minThresh);
     this.prevSmall = small;
+    this.dbg = { motion, vsRef: this.dbg ? this.dbg.vsRef : 0, state: '' };
     if (motion > MOTION_MIN) {
       if (this.motionStart == null) this.motionStart = now;
       this.lastMotionAt = now;
@@ -171,11 +203,13 @@ export class CameraGame {
     }
     if (this.lostSince && this.lostReason === 'Bild zu dunkel oder Kamera verdeckt') this.clearLost();
 
-    if (now - this.lastMotionAt < STABLE_MS) { this.setStatus('warn', 'Bewegung …'); return; }
+    if (now - this.lastMotionAt < STABLE_MS) { this.dbg.state = 'Bewegung'; this.setStatus('warn', 'Bewegung …'); return; }
     // Dauer der letzten Bewegung: Ein Dart steckt nach einem kurzen Moment, eine Hand bewegt sich länger.
     if (this.motionStart != null) { this.lastMotionDur = this.lastMotionAt - this.motionStart; this.motionStart = null; }
 
     const vsRef = changeAmount(this.refSmall, small, this.mask, P.minThresh);
+    this.dbg.vsRef = vsRef;
+    this.dbg.state = vsRef < NOCHANGE ? 'ruhig' : 'prüfe';
     if (vsRef < NOCHANGE) {
       this.checkBoardEmpty(cur, small);
       this.idleStatus();

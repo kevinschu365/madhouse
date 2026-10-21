@@ -61,6 +61,14 @@ class Camera {
       this.video.setAttribute('muted', '');
       this.video.muted = true;
       this.video.autoplay = true;
+      // iOS liefert neue Videobilder oft nur, wenn das Video-Element in der Seite hängt und
+      // (minimal) sichtbar ist. Sonst bleibt das Bild für die Erkennung stehen, bis man den
+      // Bildschirm berührt. Darum: winzig und fast durchsichtig einhängen, nicht display:none.
+      Object.assign(this.video.style, {
+        position: 'fixed', right: '0', bottom: '0', width: '2px', height: '2px',
+        opacity: '0.01', pointerEvents: 'none', zIndex: '-1',
+      });
+      document.body.appendChild(this.video);
     }
     this.video.srcObject = this.stream;
     for (const t of this.stream.getVideoTracks()) {
@@ -83,13 +91,38 @@ class Camera {
 
   ensurePlaying() {
     if (this.video && this.stream && this.video.paused) this.video.play().catch(() => {});
+    // Bildzähler: Wie viele neue Videobilder kommen an? (für Diagnose und Hänger-Erkennung)
+    if (this.video && 'requestVideoFrameCallback' in this.video && !this.frameCb) {
+      const onFrame = () => {
+        this.frames = (this.frames || 0) + 1;
+        this.lastFrameAt = performance.now();
+        if (this.stream) this.frameCb = this.video.requestVideoFrameCallback(onFrame);
+        else this.frameCb = null;
+      };
+      this.frameCb = this.video.requestVideoFrameCallback(onFrame);
+    }
+  }
+
+  /** Neue Videobilder pro Sekunde (grob), null wenn nicht messbar. */
+  fps() {
+    if (!('requestVideoFrameCallback' in (this.video || {}))) return null;
+    const now = performance.now();
+    if (!this.fpsT) { this.fpsT = now; this.fpsN = this.frames || 0; return null; }
+    if (now - this.fpsT < 1000) return this.lastFps ?? null;
+    this.lastFps = ((this.frames || 0) - this.fpsN) * 1000 / (now - this.fpsT);
+    this.fpsT = now; this.fpsN = this.frames || 0;
+    return this.lastFps;
   }
 
   stop() {
     clearInterval(this.watchdog);
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
     this.stream = null;
-    if (this.video) this.video.srcObject = null;
+    if (this.video) {
+      if (this.frameCb && this.video.cancelVideoFrameCallback) this.video.cancelVideoFrameCallback(this.frameCb);
+      this.frameCb = null;
+      this.video.srcObject = null;
+    }
   }
 
   /** Größe der Bilder, die grab() liefert. */

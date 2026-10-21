@@ -44,7 +44,8 @@ export function restoreCalibration(saved, width = saved.width, height = saved.he
     const sx = width / saved.width, sy = height / saved.height;
     H = [H[0] * sx, H[1] * sx, H[2] * sx, H[3] * sy, H[4] * sy, H[5] * sy, H[6], H[7], H[8]];
   }
-  return finishCalibration({ ...saved, H, width, height });
+  // Immer die aktuellen Ringmaße verwenden (die Kalibrierpunkte liegen am äußeren Doppeldraht, der gleich bleibt)
+  return finishCalibration({ ...saved, H, width, height, dims: STANDARD_DIMENSIONS });
 }
 
 /** Nur die speicherbaren Teile (ohne Funktionen). */
