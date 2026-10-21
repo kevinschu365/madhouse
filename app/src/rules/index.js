@@ -5,7 +5,8 @@
 //   id, label, dartsPerTurn, defaultOptions
 //   describe(options)                                   -> Text
 //   newLeg(options, playerCount)                        -> Leg-Zustand
-//   evaluateTurn(options, leg, playerIdx, darts)        -> { points, bust, finished, closed, usedDarts, ... }
+//   evaluateTurn(options, leg, playerIdx, darts, total) -> { points, bust, finished, closed, usedDarts, ... }
+//                                                          (total = { points, darts } bei Summen-Eingabe, sonst null)
 //   applyTurn(options, leg, playerIdx, evaluation)      -> neuer Leg-Zustand
 //   displayScore(leg, playerIdx)                        -> Zahl für die große Anzeige
 //   hint(options, leg, playerIdx, evalSoFar, dartsLeft) -> z. B. ['T20','D20'] oder null

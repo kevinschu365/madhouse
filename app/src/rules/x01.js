@@ -31,8 +31,25 @@ export const X01 = {
    *  remaining   – Rest nach der Aufnahme (bei Bust: Rest vor der Aufnahme)
    *  running     – Rest nach jedem Dart (für die Anzeige)
    */
-  evaluateTurn(options, leg, playerIdx, darts) {
+  evaluateTurn(options, leg, playerIdx, darts, total = null) {
     const start = leg.remaining[playerIdx];
+    // Aufnahme als Summe eingegeben (ohne einzelne Darts)
+    if (total) {
+      const after = start - total.points;
+      const finished = after === 0;
+      const bust = after < 0 || (options.doubleOut && after === 1);
+      return {
+        points: bust ? 0 : total.points,
+        bust,
+        finished: finished && !bust,
+        closed: true,
+        usedDarts: finished ? total.darts : 3,
+        remaining: bust ? start : after,
+        startRemaining: start,
+        running: [bust ? start : after],
+        isTotal: true,
+      };
+    }
     let rest = start;
     let bust = false;
     let finished = false;
@@ -79,6 +96,11 @@ export const X01 = {
     const rest = evaluationSoFar ? evaluationSoFar.remaining : leg.remaining[playerIdx];
     if (!options.doubleOut || dartsLeft <= 0 || rest > 170) return null;
     return checkoutPath(rest, dartsLeft);
+  },
+
+  /** Ist diese Summe mit 3 Darts überhaupt werfbar? */
+  isPossibleTotal(points) {
+    return points >= 0 && points <= 180 && ![163, 166, 169, 172, 173, 175, 176, 178, 179].includes(points);
   },
 
   /** Für Statistik: War ein Ein-Dart-Finish möglich (Wurf „aufs Doppel“)? */

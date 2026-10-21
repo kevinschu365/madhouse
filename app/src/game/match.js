@@ -60,8 +60,8 @@ export function derive(match) {
     const t = match.turns[i];
     if (finished) break;
     const before = leg;
-    const ev = mode.evaluateTurn(match.options, leg, current, t.darts);
-    const info = { index: i, player: current, darts: t.darts, ev, set: setNo, legInSet, legOverall, startRemaining: mode.displayScore(before, current) };
+    const ev = mode.evaluateTurn(match.options, leg, current, t.darts, t.total || null);
+    const info = { index: i, player: current, darts: t.darts, total: t.total || null, ts: t.closedAt || t.openedAt, ev, set: setNo, legInSet, legOverall, startRemaining: mode.displayScore(before, current) };
     if (!t.closed) {
       openTurn = info;
       break;
@@ -168,12 +168,28 @@ function finalize(m) {
   return m;
 }
 
+/**
+ * Aufnahme als Summe eintragen (z. B. 85) und abschließen.
+ * darts: bei Checkout die Zahl der benötigten Darts (1–3), sonst 3.
+ * Eine offene Aufnahme mit einzelnen Darts wird dabei ersetzt.
+ */
+export function enterTotal(match, points, darts = 3) {
+  const st = derive(match);
+  if (st.finished) return null;
+  const m = clone(match);
+  const turn = { player: st.current, darts: [], total: { points, darts }, closed: true, openedAt: Date.now(), closedAt: Date.now(), ts: Date.now() };
+  if (st.openTurnIndex >= 0) m.turns[st.openTurnIndex] = turn;
+  else m.turns.push(turn);
+  return finalize(m);
+}
+
 /** Letzten Dart zurücknehmen (öffnet bei Bedarf die vorige Aufnahme wieder). */
 export function undoDart(match) {
   const m = clone(match);
   // aufgefüllte Fehlwürfe der letzten Aufnahme zählen nicht als „echter“ letzter Dart
   for (let i = m.turns.length - 1; i >= 0; i--) {
     const t = m.turns[i];
+    if (t.total) { m.turns.splice(i, 1); return finalize(m); } // Summen-Aufnahme ganz zurücknehmen
     if (t.closed) {
       t.closed = false;
       delete t.closedAt;
@@ -224,6 +240,39 @@ export function throwRows(match) {
   const mode = st.mode;
   for (const leg of st.legs) {
     leg.turns.forEach((info, turnNo) => {
+      if (info.total) {
+        // Summen-Eingabe: eine Zeile je Dart, ohne Feld (unbekannt). Punkte stehen in turnPoints.
+        for (let k = 0; k < info.ev.usedDarts; k++) {
+          const last = k === info.ev.usedDarts - 1;
+          rows.push({
+            id: `${match.id}:${info.index}:${k}`,
+            matchId: match.id,
+            mode: match.mode,
+            playerId: match.players[info.player],
+            set: leg.set,
+            leg: leg.legInSet,
+            legOverall: leg.legOverall,
+            turn: turnNo + 1,
+            dart: k + 1,
+            segment: null,
+            multiplier: null,
+            score: null,
+            ts: info.ts,
+            source: 'total',
+            fromTotal: true,
+            correctedFromCamera: false,
+            imageId: null,
+            counted: true,
+            restBefore: info.startRemaining,
+            turnPoints: info.ev.points,
+            turnBust: info.ev.bust,
+            checkout: info.ev.finished && last,
+            // Wie viele Darts aufs Doppel gingen, ist bei Summen unbekannt: nur der Checkout-Dart zählt als Versuch
+            onFinish: info.ev.finished && last,
+          });
+        }
+        return;
+      }
       info.darts.forEach((d, k) => {
         const counted = k < info.ev.usedDarts;
         const restBefore = k === 0 ? info.startRemaining : info.ev.running[k - 1];

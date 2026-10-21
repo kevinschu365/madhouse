@@ -3,6 +3,7 @@ import { h, banner, toast, sheet, confirmDialog } from '../dom.js';
 import { createMatch, throwRows } from '../../game/match.js';
 import { GameSession } from '../../game/session.js';
 import { hitLabel } from '../../core/board.js';
+import { checkoutPath } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings } from '../../core/settings.js';
@@ -17,7 +18,9 @@ export function render(root, params, nav) {
   session.match.camera = useCamera;
   let selected = null;       // { turnIndex, dartIndex } zum Korrigieren
   let mult = 1;              // Eingabe-Multiplikator
-  let showBoard = false;     // Board-Eingabe statt Zahlen
+  let inputMode = getSettings().inputMode || 'dart'; // 'dart' | 'board' | 'total'
+  let showBoard = inputMode === 'board';             // Board-Eingabe statt Zahlen
+  let typed = '';                                    // Summen-Eingabe
   let padOpen = !useCamera;  // Mit Kamera ist das Zahlenfeld eingeklappt
   let cam = null;            // Kamera-Steuerung (Stufe 3)
   let disposed = false;
@@ -65,7 +68,7 @@ export function render(root, params, nav) {
     h('div', { class: 'bar' },
       h('button', { class: 'iconbtn', onclick: openMenu, 'aria-label': 'Menü' }, '☰'),
       infoEl,
-      h('button', { class: 'iconbtn', onclick: () => { showBoard = !showBoard; padOpen = true; drawPad(); }, 'aria-label': 'Eingabeart' }, '◎'),
+      h('button', { class: 'iconbtn', onclick: () => { inputMode = inputMode === 'dart' ? 'board' : inputMode === 'board' ? 'total' : 'dart'; showBoard = inputMode === 'board'; padOpen = true; drawPad(); }, 'aria-label': 'Eingabeart' }, '◎'),
     ),
     left, right,
   );
@@ -117,6 +120,13 @@ export function render(root, params, nav) {
       return;
     }
     if (useCamera) padEl.appendChild(h('button', { class: 'btn ghost', style: { minHeight: '40px', fontSize: '15px' }, onclick: () => { padOpen = false; selected = null; drawPad(); draw(); } }, 'Eingabe einklappen'));
+    // Umschalter Eingabeart
+    const modeBtn = (key, label) => h('button', {
+      class: `key ${inputMode === key ? 'on' : ''}`,
+      onclick: () => { inputMode = key; showBoard = key === 'board'; typed = ''; if (key === 'total') selected = null; updateSettings({ inputMode: key }); drawPad(); draw(); },
+    }, label);
+    padEl.appendChild(h('div', { class: 'mults' }, modeBtn('dart', 'Pro Dart'), modeBtn('board', 'Scheibe'), modeBtn('total', 'Summe')));
+    if (inputMode === 'total' && !selected) { drawTotalPad(); return; }
     if (showBoard) {
       const wrap = h('div', { html: boardSvg() });
       const svg = wrap.firstChild;
@@ -124,7 +134,7 @@ export function render(root, params, nav) {
       padEl.appendChild(wrap);
       padEl.appendChild(h('div', { class: 'mults' },
         h('button', { class: 'key', onclick: () => enter({ segment: 0, multiplier: 0 }) }, '0 / Daneben'),
-        h('button', { class: 'key', onclick: () => { showBoard = false; drawPad(); } }, 'Zahlenfeld')));
+        h('button', { class: 'key', onclick: () => { showBoard = false; inputMode = 'dart'; drawPad(); } }, 'Zahlenfeld')));
       return;
     }
     const mk = (m, label) => h('button', { class: `key ${mult === m ? 'on' : ''}`, onclick: () => { mult = mult === m ? 1 : m; drawPad(); } }, label);
@@ -136,8 +146,77 @@ export function render(root, params, nav) {
     padEl.appendChild(h('div', { class: 'mults' },
       h('button', { class: 'key', onclick: () => enter({ segment: 25, multiplier: 1 }) }, '25'),
       h('button', { class: 'key', onclick: () => enter({ segment: 25, multiplier: 2 }) }, 'BULL'),
-      h('button', { class: 'key', onclick: () => { showBoard = true; drawPad(); } }, 'Scheibe'),
+      h('button', { class: 'key', onclick: () => { showBoard = true; inputMode = 'board'; drawPad(); } }, 'Scheibe'),
     ));
+  }
+
+  // ---------- Summen-Eingabe ----------
+  const QUICK = [26, 41, 45, 60, 81, 85, 100, 140, 180];
+  function drawTotalPad() {
+    const st = session.state;
+    const rest = st.turnEval.startRemaining;
+    const val = typed === '' ? null : parseInt(typed, 10);
+    let info = 'Summe der Aufnahme eintippen';
+    if (val != null) {
+      const after = rest - val;
+      if (!st.mode.isPossibleTotal(val)) info = `${val} ist mit 3 Darts nicht möglich`;
+      else if (after === 0) info = 'Checkout!';
+      else if (after < 0 || after === 1) info = 'Überworfen';
+      else info = `Rest danach: ${after}`;
+    }
+    const display = h('div', { class: 'totaldisplay num' }, h('div', { class: 'tv' }, typed || '–'), h('div', { class: 'ti' }, info));
+    const digit = (d) => h('button', { class: 'key num', onclick: () => { if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); } }, d);
+    const keys = h('div', { class: 'tkeys' },
+      ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit),
+      h('button', { class: 'key', onclick: () => { typed = typed.slice(0, -1); drawPad(); } }, '⌫'),
+      digit(0),
+      h('button', { class: 'key on', onclick: () => submitTotal(val) }, 'OK'),
+    );
+    const quick = h('div', { class: 'tquick' },
+      ...QUICK.map((q) => h('button', { class: 'key num', onclick: () => submitTotal(q) }, q)),
+      rest <= 170 && rest > 1 ? h('button', { class: 'key on', onclick: () => submitTotal(rest) }, `Rest ${rest}`) : null,
+    );
+    padEl.appendChild(display);
+    padEl.appendChild(h('div', { class: 'totalpad' }, keys, quick));
+  }
+
+  async function submitTotal(points) {
+    unlock();
+    if (points == null || Number.isNaN(points)) { toast('Bitte eine Zahl eintippen.'); return; }
+    const st = session.state;
+    if (st.finished) return;
+    if (!st.mode.isPossibleTotal(points)) { toast(`${points} ist mit 3 Darts nicht möglich.`); return; }
+    const rest = st.turnEval.startRemaining;
+    let darts = 3;
+    if (points === rest) {
+      // Checkout: Mit wie vielen Darts? (nur mögliche Anzahl anbieten)
+      const options = [1, 2, 3].filter((n) => checkoutPath(rest, n));
+      if (!options.length) { toast(`${rest} ist mit Double-Out nicht auszuchecken.`); return; }
+      darts = options.length === 1 ? options[0] : await askDarts(options);
+      if (!darts) return;
+    }
+    const before = session.state;
+    const name = session.match.playerNames;
+    typed = '';
+    selected = null;
+    const ev = await session.enterTotal(points, darts);
+    if (!ev) return;
+    const now = session.state;
+    if (!now.finished && now.legOverall === before.legOverall) banner(`${ev.bust ? 'Überworfen' : points}\n${name[now.current]} ist dran`, 1500);
+    if (cam) cam.turnClosed();
+    drawPad();
+  }
+
+  function askDarts(options) {
+    return new Promise((resolve) => {
+      let s;
+      const pick = (n) => { resolve(n); s.close(); };
+      s = sheet(h('div', { class: 'stack' },
+        h('h2', {}, 'Checkout! Mit wie vielen Darts?'),
+        h('div', { class: 'mults' }, ...[1, 2, 3].map((n) => h('button', { class: 'key', disabled: !options.includes(n), style: { minHeight: '64px', fontSize: '26px' }, onclick: () => pick(n) }, n))),
+        h('button', { class: 'btn ghost', onclick: () => pick(null) }, 'Abbrechen'),
+      ), { onClose: () => resolve(null) });
+    });
   }
 
   // ---------- Anzeige ----------

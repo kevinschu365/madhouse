@@ -137,3 +137,13 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
   .game .left { gap: 6px; }
 }
 @media (orientation: portrait) { .game .left, .game .right { display: contents; } }
+
+/* Summen-Eingabe */
+.totaldisplay { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; background: var(--surface2); border-radius: 12px; padding: 6px 12px; }
+.totaldisplay .tv { font-size: 34px; font-weight: 900; }
+.totaldisplay .ti { font-size: 15px; color: var(--text-dim); text-align: right; }
+.totalpad { display: grid; grid-template-columns: 3fr 2fr; gap: 6px; }
+.tkeys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tkeys .key { min-height: 52px; font-size: 24px; }
+.tquick { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 6px; }
+.tquick .key { min-height: 40px; font-size: 18px; padding: 0 2px; }

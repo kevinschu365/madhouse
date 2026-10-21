@@ -94,6 +94,29 @@ export class GameSession {
     else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: before.current, setWon: st.setNo !== before.setNo });
   }
 
+  /** Aufnahme als Summe eintragen (z. B. 85) und zum nächsten Spieler wechseln. */
+  async enterTotal(points, darts = 3) {
+    if (this.state.finished) return false;
+    const before = this.state;
+    const m = M.enterTotal(this.match, points, darts);
+    if (!m) return false;
+    // Ergebnis vorab bewerten, um die Ansage zu machen
+    const ev = before.mode.evaluateTurn(m.options, before.leg, before.current, [], { points, darts });
+    const after = M.derive(m);
+    const p = before.current;
+    announceTurn({
+      points: ev.points, bust: ev.bust, finished: ev.finished, remaining: ev.remaining,
+      legWon: ev.finished, setWon: ev.finished && after.setsWon[p] > before.setsWon[p], matchWon: after.finished,
+    });
+    this.announcedTurnKey = null;
+    this.set(m, 'next', { reason: 'total', before });
+    await this.persist();
+    const st = this.state;
+    if (st.finished) this.emit('matchWon', { winner: st.winner });
+    else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: before.current, setWon: st.setNo !== before.setNo });
+    return ev;
+  }
+
   async persist() {
     try {
       await saveMatchWithThrows(this.match, M.throwRows(this.match));

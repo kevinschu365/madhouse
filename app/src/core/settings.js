@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   saveCorrectionImages: true,// Bild speichern, wenn ein erkannter Dart korrigiert wird
   autoAdvance: true,         // automatisch weiter, wenn Board leer
   performance: 'auto',       // 'auto' | 'low' | 'high'
+  inputMode: 'dart',         // Handeingabe: 'dart' (pro Dart) | 'board' (Scheibe) | 'total' (Summe)
   lastSetup: { startScore: 501, setsBestOf: 1, legsBestOf: 3 },
 };
 

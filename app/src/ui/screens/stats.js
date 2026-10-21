@@ -51,7 +51,7 @@ export function render(root, params, nav) {
       ));
       const det = detectionStats(pr);
       if (det.total) body.appendChild(h('p', { class: 'dim' }, `Kamera-Erkennung bei diesem Spieler: ${det.total - det.corrected} von ${det.total} Darts ohne Korrektur (${(det.rate * 100).toFixed(0)} %).`));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden.'));
+      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe ist unbekannt, wie viele Darts aufs Doppel gingen – dort zählt nur der Checkout-Dart, die Quote fällt dann zu gut aus.'));
 
       body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
       const table = h('table', { class: 'hist' });
