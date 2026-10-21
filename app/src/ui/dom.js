@@ -54,7 +54,8 @@ export function sheet(content, { onClose, dismissable = true } = {}) {
 export function confirmDialog(title, text, { ok = 'OK', cancel = 'Abbrechen', danger = false } = {}) {
   return new Promise((resolve) => {
     let s;
-    const done = (v) => { s.close(); resolve(v); };
+    // Erst das Ergebnis melden, dann schließen (close() meldet sonst „Abbrechen“)
+    const done = (v) => { resolve(v); s.close(); };
     s = sheet(h('div', { class: 'stack' },
       h('h2', {}, title),
       text ? h('p', { class: 'dim' }, text) : null,
@@ -68,7 +69,8 @@ export function promptDialog(title, value = '', { ok = 'Speichern', placeholder 
   return new Promise((resolve) => {
     let s;
     const input = h('input', { value, placeholder, maxlength: 24, autocapitalize: 'words', enterkeyhint: 'done' });
-    const done = (v) => { s.close(); resolve(v); };
+    // Erst das Ergebnis melden, dann schließen (close() meldet sonst „Abbrechen“)
+    const done = (v) => { resolve(v); s.close(); };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(input.value); });
     s = sheet(h('div', { class: 'stack' },
       h('h2', {}, title), input,

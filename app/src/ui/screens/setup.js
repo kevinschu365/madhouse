@@ -25,7 +25,7 @@ export function render(root, params, nav) {
     body.append(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Neues Spiel')),
       h('div', { class: 'card' },
-        h('h3', {}, 'Spieler wählen (2)'),
+        h('h3', {}, 'Zwei Spieler wählen'),
         players.length ? null : h('p', { class: 'dim' }, 'Lege zuerst Spieler an.'),
         h('div', { class: 'chips' },
           players.map((p) => {
