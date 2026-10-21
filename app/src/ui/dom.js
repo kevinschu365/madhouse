@@ -1,5 +1,16 @@
 // Kleine DOM-Hilfen ohne Framework.
 
+// replaceChildren/append würden null/false als Text „null“ einfügen. Bedingte Elemente
+// (z. B. „Knopf nur wenn …“) sind hier aber üblich – deshalb leere Einträge überall herausfiltern.
+for (const name of ['replaceChildren', 'append']) {
+  const orig = Element.prototype[name];
+  if (orig && !orig.__madhouse) {
+    const wrapped = function (...kids) { return orig.apply(this, kids.flat(Infinity).filter((k) => k != null && k !== false)); };
+    wrapped.__madhouse = true;
+    Element.prototype[name] = wrapped;
+  }
+}
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {

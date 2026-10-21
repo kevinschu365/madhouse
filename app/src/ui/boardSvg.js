@@ -35,7 +35,8 @@ export function boardSvg({ numbers = true, highlight = [] } = {}) {
   parts.push(`<circle r="${D.bullOuter}" fill="${C.green}"/>`);
   parts.push(`<circle r="${D.bullInner}" fill="${C.red}"/>`);
   for (const pt of highlight) {
-    parts.push(`<circle cx="${pt.x}" cy="${-pt.y}" r="7" fill="none" stroke="#22c55e" stroke-width="4"/>`);
+    parts.push(`<circle cx="${pt.x}" cy="${-pt.y}" r="${pt.r || 18}" fill="none" stroke="#ffcc00" stroke-width="7"/>`);
+    parts.push(`<circle cx="${pt.x}" cy="${-pt.y}" r="6" fill="#ffcc00"/>`);
   }
   return `<svg class="boardpick" viewBox="-${R} -${R} ${2 * R} ${2 * R}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
 }

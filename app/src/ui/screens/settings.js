@@ -1,6 +1,6 @@
 import { h, toast, confirmDialog } from '../dom.js';
 import { getSettings, updateSettings, reloadSettings } from '../../core/settings.js';
-import { availableVoices, say, t as speechText, unlock, speechSupported } from '../../audio/speech.js';
+import { availableVoices, unlock, speechSupported, announceTurn } from '../../audio/speech.js';
 import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/storage.js';
 import { wakeLockSupported } from '../../core/wakelock.js';
 import { BRAND } from '../../config.js';
@@ -41,7 +41,16 @@ export function render(root, params, nav) {
           })()),
         h('label', { class: 'field' }, h('span', {}, `Sprechtempo: ${s.speechRate.toFixed(1)}`),
           h('input', { type: 'range', min: '0.6', max: '1.5', step: '0.1', value: String(s.speechRate), onchange: (e) => { updateSettings({ speechRate: parseFloat(e.target.value) }); draw(); } })),
-        h('button', { class: 'btn', onclick: () => { unlock(); say(speechText().test, { interrupt: true }); } }, 'Ansage testen'),
+        h('label', { class: 'field' }, h('span', {}, `Pause zwischen Summe und Rest: ${(s.restPause ?? 1).toFixed(1)} s`),
+          h('input', { type: 'range', min: '0', max: '2.5', step: '0.1', value: String(s.restPause ?? 1), onchange: (e) => { updateSettings({ restPause: parseFloat(e.target.value) }); draw(); } })),
+        h('button', {
+          class: 'btn',
+          onclick: () => {
+            unlock();
+            window.speechSynthesis && window.speechSynthesis.cancel();
+            announceTurn({ points: 140, bust: false, finished: false, remaining: 361 });
+          },
+        }, 'Ansage testen („140“ … „Rest 361“)'),
         !speechSupported() ? h('p', { class: 'dim' }, 'Dieser Browser bietet keine Sprachausgabe an.') :
           voices.length === 0 ? h('p', { class: 'dim' }, 'Keine passende Stimme gefunden. Auf dem iPhone: Einstellungen › Bedienungshilfen › Gesprochene Inhalte › Stimmen – dort eine Stimme laden (z. B. „Anna (Erweitert)“).') : null,
         toggle('beeps', 'Warntöne', 'z. B. wenn die Kamera das Board verliert'),

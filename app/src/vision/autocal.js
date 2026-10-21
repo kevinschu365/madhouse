@@ -30,21 +30,46 @@ function ringMask(img) {
   return { m, w, h, f };
 }
 
-/** Äußerster Ring-Pixel je Strahl (in Arbeitsauflösung). */
-function rayPoints(mask, bx, by) {
+/**
+ * Außenkante des Doppelrings je Strahl (in Arbeitsauflösung).
+ * Entlang jedes Strahls werden die farbigen Abschnitte gesucht: Bull, Triple-Ring, Doppel-Ring,
+ * evtl. Deko (grüner Zahlenring, Schilder …). Gewählt wird das erste Paar Triple/Doppel, dessen
+ * Abstandsverhältnis zum echten Board passt (Doppel außen 170 mm : Triple außen 107 mm ≈ 1,59).
+ */
+function rayPoints(mask, bx, by, ratio = 170 / 107) {
   const { m, w, h } = mask;
   const pts = [];
   const maxR = Math.hypot(w, h);
   for (let k = 0; k < 360; k++) {
     const a = k * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    // Äußerster farbiger Pixel; Ausreißer (rote Logos, Flights …) fängt die robuste Ellipse ab
-    let last = -1;
-    for (let r = 4; r < maxR; r += 1) {
+    // farbige Abschnitte [Anfang, Ende]; kleine Lücken (Drähte) überbrücken
+    const runs = [];
+    let start = -1, lastOn = -10;
+    for (let r = 1; r < maxR; r += 1) {
       const x = Math.round(bx + ca * r), y = Math.round(by + sa * r);
       if (x < 0 || y < 0 || x >= w || y >= h) break;
-      if (m[y * w + x]) last = r;
+      if (m[y * w + x]) {
+        if (start < 0 || r - lastOn > 3) { if (start >= 0) runs.push([start, lastOn]); start = r; }
+        lastOn = r;
+      }
     }
-    if (last > 0) pts.push([bx + ca * last, by + sa * last]);
+    if (start >= 0) runs.push([start, lastOn]);
+    // Bull-Abschnitt (beginnt direkt am Mittelpunkt) überspringen
+    const rings = runs.filter(([s]) => s > 3);
+    let found = null;
+    for (let i = 0; i < rings.length && !found; i++) {
+      for (let j = i + 1; j < rings.length; j++) {
+        const q = rings[j][1] / rings[i][1];
+        if (q < ratio * 0.85) continue;
+        if (q > ratio * 1.2) break;
+        // beide Ringe sind schmal (je ca. 8–10 mm bei 107/170 mm Radius)
+        const wi = rings[i][1] - rings[i][0], wj = rings[j][1] - rings[j][0];
+        if (wi > rings[i][1] * 0.3 || wj > rings[j][1] * 0.25) continue;
+        found = rings[j][1];
+        break;
+      }
+    }
+    if (found) pts.push([bx + ca * found, by + sa * found]);
   }
   return pts;
 }
@@ -161,33 +186,48 @@ function homographyFromEllipse(el, bull, t20, dims, flip) {
  * calBoardPoints: Board-Punkte der Kalibrierung (Bull + 4 Punkte am Doppelring).
  * Liefert { imagePoints, H, score } oder null, wenn es nicht klappt.
  */
-/** Bull-Mitte genauer bestimmen: Schwerpunkt der farbigen Pixel (rotes Bull + grüner 25er-Ring) nahe dem Tipp. */
-function refineBull(mask, tap) {
-  const { m, w, h, f } = mask;
-  const tx = tap[0] / f, ty = tap[1] / f;
-  let best = null;
-  // Erst grob (großer Radius), dann im kleineren Radius um den neuen Schwerpunkt
-  let cx = tx, cy = ty;
-  for (const R of [14, 9, 7]) {
-    let sx = 0, sy = 0, n = 0;
-    for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(h - 1, Math.ceil(cy + R)); y++) {
-      for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(w - 1, Math.ceil(cx + R)); x++) {
-        if (m[y * w + x] && (x - cx) ** 2 + (y - cy) ** 2 <= R * R) { sx += x; sy += y; n++; }
+/**
+ * Bull-Mitte genau bestimmen: In voller Auflösung vom Tipp aus Strahlen schicken, je Strahl das Ende
+ * des farbigen Bull-Flecks (rotes Bull + grüner 25er-Ring) suchen und eine Ellipse hineinlegen.
+ * Deren Mittelpunkt ist die Bull-Mitte (der Ring ist klein, Perspektive spielt kaum eine Rolle).
+ */
+function bullCenter(img, tap) {
+  const { width: W, height: H, data } = img;
+  const colored = (x, y) => {
+    const o = (y * W + x) * 4;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx - mn < 45 || mx < 60) return false;
+    return (r > g + 40 && r > b + 30) || (g > r + 25 && g > b + 10);
+  };
+  let c = tap.slice();
+  for (let pass = 0; pass < 2; pass++) {
+    const pts = [];
+    for (let k = 0; k < 72; k++) {
+      const a = k * 5 * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+      let inRun = false, end = -1, started = false;
+      for (let r = 0; r < 120; r += 0.5) {
+        const x = Math.round(c[0] + ca * r), y = Math.round(c[1] + sa * r);
+        if (x < 0 || y < 0 || x >= W || y >= H) break;
+        const on = colored(x, y);
+        if (on) { inRun = true; started = true; end = r; }
+        else if (inRun && r - end > 2) break; // Ende des Bull-Flecks (kleine Drahtlücken überbrücken)
+        if (!started && r > 30) break;        // Tipp lag weit neben dem Bull
       }
+      if (end > 2) pts.push([c[0] + ca * end, c[1] + sa * end]);
     }
-    if (n < 6) break;
-    cx = sx / n; cy = sy / n;
-    best = [(cx + 0.5) * f, (cy + 0.5) * f];
+    if (pts.length < 30) return tap;
+    const el = robustEllipse(pts, c[0], c[1]);
+    if (!el || Math.hypot(el.cx - tap[0], el.cy - tap[1]) > 40) return tap;
+    c = [el.cx, el.cy];
   }
-  // Nur übernehmen, wenn es nahe am Tipp bleibt
-  if (best && Math.hypot(best[0] - tap[0], best[1] - tap[1]) < 20 * f) return best;
-  return tap;
+  return c;
 }
 
 export function autoCalibrate(img, bullTapRaw, twentyTap, calBoardPoints, dims = STANDARD_DIMENSIONS) {
   const mask = ringMask(img);
   const f = mask.f;
-  const bullTap = refineBull(mask, bullTapRaw);
+  const bullTap = bullCenter(img, bullTapRaw);
   const pts = rayPoints(mask, bullTap[0] / f, bullTap[1] / f).map(([x, y]) => [(x + 0.5) * f, (y + 0.5) * f]);
   if (pts.length < 60) return null;
   const el = robustEllipse(pts, bullTap[0], bullTap[1]);
@@ -199,38 +239,29 @@ export function autoCalibrate(img, bullTapRaw, twentyTap, calBoardPoints, dims =
   for (const flip of [true]) {
     const H0 = homographyFromEllipse(el, bullTap, twentyTap, dims, flip);
     if (!H0) continue;
-    // Drehung suchen (±12°): die Segmentdrähte müssen auf Kanten liegen. Mehrere gute Lagen als Startpunkte.
-    const scores = [];
-    for (let deg = -12; deg <= 12; deg += 0.25) scores.push([deg, edgeScoreH(img, multiplyH(H0, rot(deg * Math.PI / 180)), dims, 'radial', 2)]);
-    const peaks = scores.filter(([, s], i) => (i === 0 || s >= scores[i - 1][1]) && (i === scores.length - 1 || s >= scores[i + 1][1]))
-      .sort((a, b) => b[1] - a[1]).slice(0, 3);
-    for (const [deg] of peaks) {
-      const H = multiplyH(H0, rot(deg * Math.PI / 180));
-      const init = calBoardPoints.map(([x, y]) => applyH(H, x, y));
-      // grob mit weichgezeichneten Kanten (breiter Einzugsbereich), dann fein
-      let r = refineImagePoints(img, calBoardPoints, init, dims, { maxShift: 40, step: 6, iters: 500, force: true, blur: 4 });
-      r = refineImagePoints(img, calBoardPoints, r.imagePoints, dims, { maxShift: 12, step: 2, iters: 400, force: true, blur: 1 });
-      r = refineImagePoints(img, calBoardPoints, r.imagePoints, dims, { maxShift: 4, step: 0.7, iters: 300, force: true });
-      const score = edgeScoreH(img, solveHomography(calBoardPoints, r.imagePoints), dims);
-      if (!best || score > best.score) best = { imagePoints: r.imagePoints, score, flip, initPoints: init };
+    // 1. Grobe Drehung aus dem 20er-Tipp: Tipp genau auf die Mitte der 20 (90°) drehen.
+    //    Da der Tipp irgendwo im 20er-Feld liegt, ist die echte Drehung danach höchstens ±9° entfernt.
+    const [tbx, tby] = applyH(invertH(H0), twentyTap[0], twentyTap[1]);
+    const coarse = Math.atan2(tby, tbx) - Math.PI / 2;
+    const H1 = multiplyH(H0, rot(coarse));
+    // 2. Feine Drehung: ±9,5° so drehen, dass die Segmentdrähte auf Kanten liegen
+    let bestDeg = 0, bestS = -1;
+    for (let deg = -9.5; deg <= 9.5; deg += 0.1) {
+      const s = edgeScoreH(img, multiplyH(H1, rot(deg * Math.PI / 180)), dims, 'radial', 1);
+      if (s > bestS) { bestS = s; bestDeg = deg; }
     }
+    // (Keine Farbprobe für die 20: Je nach Board-Modell hat die 20 rote ODER grüne Felder.)
+    const H2 = multiplyH(H1, rot(bestDeg * Math.PI / 180));
+    const init = calBoardPoints.map(([x, y]) => applyH(H2, x, y));
+    // 3. Nur noch minimal nachschieben (die Ellipse sitzt schon; größere Sprünge würden sich
+    //    von Deko-Kanten wie grünen Zahlenringen oder Schildern anziehen lassen)
+    let r = refineImagePoints(img, calBoardPoints, init, dims, { maxShift: 10, step: 2, iters: 400, blur: 1 });
+    r = refineImagePoints(img, calBoardPoints, r.imagePoints, dims, { maxShift: 3, step: 0.7, iters: 300 });
+    const score = edgeScoreH(img, solveHomography(calBoardPoints, r.imagePoints), dims);
+    if (!best || score > best.score) best = { imagePoints: r.imagePoints, score, flip, initPoints: init };
   }
   if (!best) return null;
-  let H = solveHomography(calBoardPoints, best.imagePoints);
-  // Das Drahtraster sieht nach jeder Drehung um 18° gleich aus. Welche Lage stimmt, entscheidet
-  // der 20er-Tipp: Er muss im Segment liegen, dessen Mitte bei 90° (oben) liegt.
-  const [tbx, tby] = applyH(invertH(H), twentyTap[0], twentyTap[1]);
-  const tapAngle = Math.atan2(tby, tbx) * 180 / Math.PI;
-  const k = Math.round((tapAngle - 90) / 18);
-  if (k !== 0) {
-    const a = k * 18 * Math.PI / 180;
-    const Rk = [Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a), 0, 0, 0, 1];
-    H = multiplyH(H, Rk);
-    best.imagePoints = calBoardPoints.map(([x, y]) => applyH(H, x, y));
-    H = solveHomography(calBoardPoints, best.imagePoints);
-  }
-  best.rotatedBy = k * 18;
-  best.H = H;
+  best.H = solveHomography(calBoardPoints, best.imagePoints);
   return best;
 }
 

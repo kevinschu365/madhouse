@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   announceRest: true,        // Rest nach der Aufnahme ansagen
   voiceURI: null,            // gewählte Stimme (null = automatisch)
   speechRate: 1.0,
+  restPause: 1.0,            // Pause (Sekunden) zwischen Summe und Rest
   beeps: true,               // Warntöne
   cameraEnabled: true,       // Kamera-Erkennung im Spiel
   cameraDeviceId: null,      // gewählte Rückkamera (null = Standard)

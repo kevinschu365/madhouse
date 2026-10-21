@@ -9,10 +9,10 @@ import { STANDARD_DIMENSIONS, hitFromPoint } from '../core/board.js';
 // Winkel in Grad (0 = rechts, gegen den Uhrzeigersinn).
 export const CAL_POINTS = [
   { key: 'bull', label: 'Bullseye (Mitte)', angle: null, r: 0 },
-  { key: '20-1', label: 'Außen am Doppel, zwischen 20 und 1 (oben)', angle: 81, r: 'doubleOuter' },
-  { key: '6-10', label: 'Außen am Doppel, zwischen 6 und 10 (rechts)', angle: -9, r: 'doubleOuter' },
-  { key: '3-19', label: 'Außen am Doppel, zwischen 3 und 19 (unten)', angle: -99, r: 'doubleOuter' },
-  { key: '11-14', label: 'Außen am Doppel, zwischen 11 und 14 (links)', angle: 171, r: 'doubleOuter' },
+  { key: '20-1', label: 'Außenkante Doppelring, Draht zwischen 20 und 1 (oben, knapp rechts der Mitte)', angle: 81, r: 'doubleOuter' },
+  { key: '6-10', label: 'Außenkante Doppelring, Draht zwischen 6 und 10 (rechts, knapp unter der Mitte)', angle: -9, r: 'doubleOuter' },
+  { key: '3-19', label: 'Außenkante Doppelring, Draht zwischen 3 und 19 (unten, knapp links der Mitte)', angle: -99, r: 'doubleOuter' },
+  { key: '11-14', label: 'Außenkante Doppelring, Draht zwischen 11 und 14 (links, knapp über der Mitte)', angle: 171, r: 'doubleOuter' },
 ];
 
 export function boardPointFor(cp, dims = STANDARD_DIMENSIONS) {

@@ -8,6 +8,7 @@ import { STANDARD_DIMENSIONS } from '../../core/board.js';
 import { estimateShift } from '../../vision/align.js';
 import { refineImagePoints } from '../../vision/refine.js';
 import { autoCalibrate } from '../../vision/autocal.js';
+import { boardSvg } from '../boardSvg.js';
 
 export function render(root, params, nav) {
   const mode = params.mode || 'full';
@@ -145,8 +146,8 @@ export function render(root, params, nav) {
       view.setCalibration(cal);
       view.setPoints(taps.map(([x, y], i) => ({ x, y, label: i === 0 ? 'Bull' : '20' })));
       view.draw();
-      if (taps.length === 0) instr.replaceChildren('1. Tippe genau auf das Bullseye', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Mit der Lupe auf die Mitte schieben, loslassen. Keine Darts im Board.'));
-      else if (taps.length === 1) instr.replaceChildren('2. Tippe irgendwo in das Feld der 20', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Am besten mitten ins große Single-Feld der 20.'));
+      if (taps.length === 0) instr.replaceChildren(miniBoard(0, 0), '1. Tippe genau auf das Bullseye',h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Mit der Lupe auf die Mitte schieben, loslassen. Keine Darts im Board.'));
+      else if (taps.length === 1) instr.replaceChildren(miniBoard(0, 135, 30), '2. Tippe irgendwo in das Feld der 20',h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Am besten mitten ins große Single-Feld der 20.'));
       else if (cal) instr.replaceChildren('Liegt das grüne Raster auf den Drähten?', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Die „20“ im Raster muss bei der echten 20 stehen.'));
       actions.replaceChildren(
         cal ? h('button', { class: 'btn primary', style: { minHeight: '60px' }, onclick: () => save(cal, still) }, 'Passt – speichern') : null,
@@ -214,7 +215,7 @@ export function render(root, params, nav) {
       view.draw();
       const idx = editIndex != null ? editIndex : points.length;
       if (idx < CAL_POINTS.length) {
-        instr.replaceChildren(`Punkt ${idx + 1}/5: ${CAL_POINTS[idx].label}`, h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Finger auflegen, mit der Lupe genau auf den Draht schieben, loslassen.'));
+        instr.replaceChildren(miniBoard(...boardPointFor(CAL_POINTS[idx], STANDARD_DIMENSIONS)), `Punkt ${idx + 1}/5: ${CAL_POINTS[idx].label}`,h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Finger auflegen, mit der Lupe genau auf den Draht schieben, loslassen.'));
       } else {
         instr.replaceChildren('Liegt das grüne Raster auf den Drähten?', h('div', { class: 'dim', style: { fontSize: '14px', fontWeight: 400 } }, 'Sonst einen Punkt antippen zum Korrigieren.'));
       }
@@ -251,6 +252,11 @@ export function render(root, params, nav) {
     if (view) view.stop();
     cleanupFns.forEach((f) => f());
   };
+}
+
+/** Kleine Scheibe neben der Anweisung, die gelb zeigt, wohin getippt werden soll. */
+function miniBoard(x, y, r) {
+  return h('div', { html: boardSvg({ numbers: true, highlight: [{ x, y, r }] }), style: { float: 'right', width: '110px', marginLeft: '10px' } });
 }
 
 /** Lupe beim Antippen: zeigt die Umgebung vergrößert über dem Finger. */

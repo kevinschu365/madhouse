@@ -84,6 +84,7 @@ export function say(text, { interrupt = false } = {}) {
   // iOS bleibt manchmal im Pausenzustand hängen
   if (synth.paused) synth.resume();
   synth.speak(u);
+  return u;
 }
 
 export function dartText(hit) {
@@ -96,6 +97,9 @@ export function dartText(hit) {
 }
 
 export function announceDart(hit) {
+  // Ein neuer Dart überholt eine noch ausstehende Rest-Ansage
+  restGen++;
+  clearTimeout(restTimer);
   if (getSettings().announceDart) say(dartText(hit));
 }
 
@@ -112,9 +116,25 @@ export function announceTurn({ points, bust, finished, remaining, legWon, setWon
   } else if (s.announceTurn) {
     parts.push(bust ? T.bust : points === 0 ? T.noScore : String(points));
   }
-  if (!finished && s.announceRest && remaining > 0) parts.push(T.youRequire(remaining));
-  if (parts.length) say(parts.join('. '));
+  const restText = !finished && s.announceRest && remaining > 0 ? T.youRequire(remaining) : null;
+  clearTimeout(restTimer);
+  const gen = ++restGen; // ältere, noch ausstehende Rest-Ansagen verfallen
+  if (!parts.length) { if (restText) say(restText); return; }
+  const u = say(parts.join('. '));
+  if (!restText) return;
+  // Rest erst nach einer Pause ansagen (einstellbar), damit Summe und Rest nicht ineinander laufen
+  const pauseMs = Math.round((s.restPause ?? 1) * 1000);
+  let done = false;
+  const sayRest = () => { if (done || gen !== restGen) return; done = true; restTimer = setTimeout(() => { if (gen === restGen) say(restText); }, pauseMs); };
+  if (u) {
+    u.addEventListener('end', sayRest);
+    u.addEventListener('error', sayRest);
+  }
+  // Sicherheitsnetz: iOS meldet „end“ nicht immer zuverlässig
+  restTimer = setTimeout(sayRest, 2500 + pauseMs);
 }
+let restTimer = null;
+let restGen = 0;
 
 // ---------- Töne ----------
 let audioCtx = null;
