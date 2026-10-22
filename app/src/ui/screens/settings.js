@@ -1,6 +1,6 @@
 import { h, toast, confirmDialog } from '../dom.js';
 import { getSettings, updateSettings, reloadSettings } from '../../core/settings.js';
-import { availableVoices, unlock, speechSupported, announceTurn } from '../../audio/speech.js';
+import { availableVoices, unlock, speechSupported, announceTurn, say, t, voiceLangOf, SPEECH_LANGS } from '../../audio/speech.js';
 import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/storage.js';
 import { wakeLockSupported } from '../../core/wakelock.js';
 import { BRAND } from '../../config.js';
@@ -19,16 +19,27 @@ export function render(root, params, nav) {
 
   const draw = async () => {
     const s = getSettings();
-    const voices = availableVoices(s.speechLang);
+    const voices = availableVoices(voiceLangOf(s.speechLang));
     const imgCount = (await dbGetAll('images').catch(() => [])).length;
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Einstellungen')),
 
       h('div', { class: 'card' },
         h('h3', {}, 'Ansage'),
-        h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Sprache der Ansage'),
-          h('div', { class: 'chips' },
-            ['de', 'en'].map((l) => h('button', { class: `chip ${s.speechLang === l ? 'on' : ''}`, onclick: () => { updateSettings({ speechLang: l, voiceURI: null }); draw(); } }, l === 'de' ? 'Deutsch' : 'Englisch')))),
+        h('label', { class: 'field' }, h('span', {}, 'Sprache / Dialekt der Ansage'),
+          h('select', {
+            onchange: (e) => {
+              const l = e.target.value;
+              // Gewählte Stimme nur zurücksetzen, wenn die Stimmen-Sprache wechselt (Deutsch <-> Englisch)
+              const keepVoice = voiceLangOf(l) === voiceLangOf(s.speechLang);
+              updateSettings({ speechLang: l, ...(keepVoice ? {} : { voiceURI: null }) });
+              unlock();
+              window.speechSynthesis && window.speechSynthesis.cancel();
+              say(t().test);
+              draw();
+            },
+          }, SPEECH_LANGS.map(([k, label]) => h('option', { value: k, selected: k === s.speechLang }, label)))),
+        toggle('quips', 'Witzige Sprüche', 'z. B. bei 180, Überwerfen, 0 Punkten und Game shot'),
         toggle('announceDart', 'Jeden Dart ansagen', '„Triple 20“'),
         toggle('announceTurn', 'Summe der Aufnahme ansagen', '„180“'),
         toggle('announceRest', 'Rest ansagen', '„Rest 141“'),
@@ -48,9 +59,9 @@ export function render(root, params, nav) {
           onclick: () => {
             unlock();
             window.speechSynthesis && window.speechSynthesis.cancel();
-            announceTurn({ points: 140, bust: false, finished: false, remaining: 361 });
+            announceTurn({ points: 180, bust: false, finished: false, remaining: 321 });
           },
-        }, 'Ansage testen („140“ … „Rest 361“)'),
+        }, 'Ansage testen („180“ … „Rest 321“)'),
         !speechSupported() ? h('p', { class: 'dim' }, 'Dieser Browser bietet keine Sprachausgabe an.') :
           voices.length === 0 ? h('p', { class: 'dim' }, 'Keine passende Stimme gefunden. Auf dem iPhone: Einstellungen › Bedienungshilfen › Gesprochene Inhalte › Stimmen – dort eine Stimme laden (z. B. „Anna (Erweitert)“).') : null,
         toggle('beeps', 'Warntöne', 'z. B. wenn die Kamera das Board verliert'),

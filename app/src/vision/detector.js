@@ -40,6 +40,7 @@ export const DEFAULT_PARAMS = {
   tipOffset: 5,          // feste Verschiebung der Spitze Richtung Flight (px bei 1280 Breite)
   selectBy: 0,           // 0 = größte Fläche, >0 = Fläche + Linienlänge (Gewicht)
   maxAreaRel: 0.04,      // größte Dart-Fläche relativ zum Suchbereich (0 = aus); größer = Hand
+  shiftTol: false,       // Differenz verschiebungstolerant (Wackeln um 1 px); in der App an, siehe cameraGame.js
 };
 
 /** Bild auf Arbeitsbreite verkleinern (Box-Mittelung), liefert RGB-Float-Arrays. */
@@ -88,11 +89,22 @@ function gains(a, b, mask) {
   return [clamp(br / (ar || 1)), clamp(bg / (ag || 1)), clamp(bb / (ab || 1))];
 }
 
-/** Differenzbild (max. Kanaldifferenz), 3x3 geglättet. */
-export function diffImage(ref, cur, mask) {
+/** Differenzbild (max. Kanaldifferenz), 3x3 geglättet.
+ *  shiftTol: Differenz zur Spanne der 3x3-Nachbarschaft im Referenzbild statt zum Einzelpixel
+ *  (unempfindlich gegen Wackeln um 1 Pixel, siehe stableChange). */
+export function diffImage(ref, cur, mask, shiftTol = false) {
   const [gr, gg, gb] = gains(ref, cur, mask);
   const n = ref.w * ref.h;
   const d = new Float32Array(n);
+  if (shiftTol) {
+    const w = ref.w;
+    for (let i = w + 1; i < n - w - 1; i++) {
+      if (!mask[i]) continue;
+      const dr = outOfRange(ref.r, cur.r[i], i, w, gr), dg = outOfRange(ref.g, cur.g[i], i, w, gg), db = outOfRange(ref.b, cur.b[i], i, w, gb);
+      d[i] = dr > dg ? (dr > db ? dr : db) : (dg > db ? dg : db);
+    }
+    return boxBlur3(d, ref.w, ref.h);
+  }
   for (let i = 0; i < n; i++) {
     const dr = Math.abs(cur.r[i] - ref.r[i] * gr);
     const dg = Math.abs(cur.g[i] - ref.g[i] * gg);
@@ -341,7 +353,7 @@ export function detectNewDart(ref, cur, cal, params = DEFAULT_PARAMS, cache = {}
   const a = cache.refSmall || downscale(ref, P.procWidth);
   const b = downscale(cur, P.procWidth);
   const mask = cache.mask || roiMask(cal, a.w, a.h, a.f, dims.doubleOuter * P.roiRadius);
-  const d = diffImage(a, b, mask);
+  const d = diffImage(a, b, mask, !!P.shiftTol);
   const T = threshold(d, mask, P);
   let bin = new Uint8Array(d.length);
   let changed = 0, roiN = 0;
@@ -416,6 +428,40 @@ function confidenceOf(best, cands, changedFrac) {
   if (cands.length > 1 && cands[1].area > best.area * 0.5) c *= 0.6;
   if (changedFrac > 0.05) c *= 0.7;
   return c;
+}
+
+/**
+ * Wie changeAmount, aber unempfindlich gegen 1-Pixel-Verschiebungen (Bildstabilisierung,
+ * Autofokus, Wackeln): Ein Pixel zählt nur als verändert, wenn sein Wert außerhalb der
+ * Spanne der 3x3-Nachbarschaft im Referenzbild liegt. Kanten und Drähte, die nur
+ * zittern, zählen dadurch nicht als Bewegung. step > 1 prüft nur jedes n-te Pixel (schneller).
+ */
+export function stableChange(refSmall, curSmall, mask, minThresh = 22, step = 1) {
+  const [gr, gg, gb] = gains(refSmall, curSmall, mask);
+  const w = refSmall.w, h = refSmall.h;
+  let n = 0, c = 0;
+  for (let y = 1; y < h - 1; y += step) {
+    for (let x = 1; x < w - 1; x += step) {
+      const i = y * w + x;
+      if (!mask[i]) continue;
+      n++;
+      if (outOfRange(refSmall.r, curSmall.r[i], i, w, gr) >= minThresh
+        || outOfRange(refSmall.g, curSmall.g[i], i, w, gg) >= minThresh
+        || outOfRange(refSmall.b, curSmall.b[i], i, w, gb) >= minThresh) c++;
+    }
+  }
+  return n ? c / n : 0;
+}
+
+/** Abstand des Werts v zur Spanne [min, max] der 3x3-Nachbarschaft um i (0 = innerhalb). */
+function outOfRange(src, v, i, w, g) {
+  let lo = src[i], hi = lo;
+  for (let k = i - w - 1, e = i - w + 1; k <= e; k++) { const s = src[k]; if (s < lo) lo = s; else if (s > hi) hi = s; }
+  { const s = src[i - 1]; if (s < lo) lo = s; else if (s > hi) hi = s; }
+  { const s = src[i + 1]; if (s < lo) lo = s; else if (s > hi) hi = s; }
+  for (let k = i + w - 1, e = i + w + 1; k <= e; k++) { const s = src[k]; if (s < lo) lo = s; else if (s > hi) hi = s; }
+  lo *= g; hi *= g;
+  return v > hi ? v - hi : v < lo ? lo - v : 0;
 }
 
 /** Wie stark unterscheidet sich das Bild vom Referenzbild (Anteil veränderter Pixel im Board-Bereich). */

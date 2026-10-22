@@ -4,7 +4,7 @@
 
 import { camera, imageDataToJpeg } from './camera.js';
 import { restoreCalibration, hitAtImage } from './calibration.js';
-import { detectNewDart, downscale, roiMask, changeAmount, DEFAULT_PARAMS } from './detector.js';
+import { detectNewDart, downscale, roiMask, changeAmount, stableChange, DEFAULT_PARAMS } from './detector.js';
 import { CamView } from '../ui/camView.js';
 import { h, sheet } from '../ui/dom.js';
 import { beep, say, t as speechText } from '../audio/speech.js';
@@ -16,14 +16,26 @@ import { hitLabel, STANDARD_DIMENSIONS } from '../core/board.js';
 // Werte aus der Auswertung an den Testbildern (siehe werkzeuge/ und BERICHT.md)
 export const DETECTION_PARAMS = { ...DEFAULT_PARAMS };
 
+// Wackelt das Kamerabild (Bildstabilisierung/Autofokus, um Pixel zitternde Kanten), sucht die
+// Erkennung verschiebungstolerant (shiftTol). Ohne das wurde beim Wackeln fast jeder Dart als
+// „Verdeckung“ verworfen. Bei ruhigem Bild bleibt die pixelgenaue Suche (dort etwas besser).
+const JITTER_RAW = 0.0005;      // pixelgenaue Veränderung zwischen zwei Bildern, ab der ein Bild „wackelt“
+const JITTER_SHARE = 0.25;      // Kamera gilt als wackelig, wenn das in mind. 25 % der letzten Bilder so war
+
+// Veränderungen werden verschiebungstolerant gemessen (stableChange): Zittern von Kanten durch
+// Bildstabilisierung/Autofokus des iPhones zählt nicht. Vorher stand die App dadurch fast
+// dauernd auf „Bewegung …“ und hat Darts als „lange Bewegung“ verworfen (Kevins Video, 21.10.2026).
 const MOTION_MIN = 0.0008;      // Anteil veränderter Pixel zwischen zwei Bildern = Bewegung
+const MOTION_NOISE_X = 3;       // Bewegung erst ab dem 3-fachen des gemessenen Grundrauschens
 const STABLE_MS = 350;          // so lange muss das Bild ruhig sein
-const NOCHANGE = 0.0012;        // weniger Veränderung zur Referenz = nichts passiert
+const NOCHANGE = 0.0005;        // weniger Veränderung zur Referenz = nichts passiert (vorher 0,0012: dünne Darts bei frontaler Kamera lagen darunter)
+const HAND_PEAK = 0.02;         // Bewegung über 2 % der Board-Fläche = Hand/Arm; ein fliegender Dart ist viel kleiner
+const NOTICE = 0.002;           // ab dieser Veränderung ohne erkannten Dart: Hinweis „bitte antippen“
 const LOCAL_EMPTY = 14;         // mittlere Farbdifferenz an einer Dart-Stelle: darunter = Stelle wieder leer
 const BOARD_LOST_FRAC = 0.35;   // Anteil veränderter Board-Fläche gegenüber dem Kalibrierbild
 const LOST_MS = 4000;
 const DARK_LUM = 14;
-const LONG_MOTION_MS = 1500;    // längere Bewegung vor einer Veränderung = Hand, kein Dart (nicht an Daten geprüft)
+const LONG_MOTION_MS = 1500;    // längere UND großflächige Bewegung vor einer Veränderung = Hand, kein Dart
 
 export class CameraGame {
   constructor(opts) {
@@ -35,6 +47,10 @@ export class CameraGame {
     this.turnDarts = [];         // erkannte Darts der aktuellen Aufnahme {tip, hit, before, after, ts}
     this.sawOcclusion = false;
     this.lastMotionAt = 0;
+    this.motionHist = [];        // letzte Bewegungswerte -> Grundrauschen der Kamera
+    this.jitterHist = [];        // 1 = Bild hat gegenüber dem vorigen pixelgenau „gewackelt“
+    this.jittery = true;
+    this.noneCount = 0;
     this.lostSince = null;
     this.lostAlerted = 0;
     this.lostReason = '';
@@ -165,7 +181,7 @@ export class CameraGame {
     if (!getSettings().cameraDebug) { if (this.dbgEl.textContent) this.dbgEl.textContent = ''; return; }
     const fps = camera.fps();
     const d = this.dbg || {};
-    this.dbgEl.textContent = `Kamera ${fps == null ? '?' : fps.toFixed(0)} B/s · Analyse ${tps.toFixed(1)}/s (${this.procMs.toFixed(0)} ms) · Bewegung ${((d.motion || 0) * 1000).toFixed(1)}‰ · Änderung ${((d.vsRef || 0) * 1000).toFixed(1)}‰ · ${d.state || ''}`;
+    this.dbgEl.textContent = `Kamera ${fps == null ? '?' : fps.toFixed(0)} B/s · Analyse ${tps.toFixed(1)}/s (${this.procMs.toFixed(0)} ms) · Bewegung ${((d.motion || 0) * 1000).toFixed(1)}‰ (Rauschen ${((d.floor || 0) * 1000).toFixed(1)}‰) · ${this.jittery ? 'wackelt' : 'ruhig'} · Änderung ${((d.vsRef || 0) * 1000).toFixed(1)}‰ · ${d.state || ''}${d.last ? ` · zuletzt: ${d.last}` : ''}`;
   }
 
   // ---------- Hauptschleife ----------
@@ -181,11 +197,22 @@ export class CameraGame {
     // Helligkeit (Objektiv verdeckt / dunkel)
     if (meanLum(small, this.boardMask) < DARK_LUM) { this.markLost('Bild zu dunkel oder Kamera verdeckt'); return; }
 
-    const motion = changeAmount(this.prevSmall, small, this.mask, P.minThresh);
+    const motion = stableChange(this.prevSmall, small, this.mask, P.minThresh, 2);
+    // Wackelt das Bild? (pixelgenauer Vergleich zum vorigen Bild)
+    this.jitterHist.push(changeAmount(this.prevSmall, small, this.mask, P.minThresh) > JITTER_RAW ? 1 : 0);
+    if (this.jitterHist.length > 40) this.jitterHist.shift();
+    // Solange zu wenig Messwerte da sind (Spielstart), sicherheitshalber tolerant suchen
+    this.jittery = this.jitterHist.length < 10 || this.jitterHist.reduce((s, v) => s + v, 0) / this.jitterHist.length >= JITTER_SHARE;
     this.prevSmall = small;
-    this.dbg = { motion, vsRef: this.dbg ? this.dbg.vsRef : 0, state: '' };
-    if (motion > MOTION_MIN) {
-      if (this.motionStart == null) this.motionStart = now;
+    // Grundrauschen = unteres Viertel der letzten ~40 Werte. Rauscht die Kamera, steigt die Schwelle mit.
+    this.motionHist.push(motion);
+    if (this.motionHist.length > 40) this.motionHist.shift();
+    const floor = this.motionHist.length >= 10 ? [...this.motionHist].sort((x, y) => x - y)[Math.floor(this.motionHist.length / 4)] : 0;
+    const motionLimit = Math.max(MOTION_MIN, floor * MOTION_NOISE_X);
+    this.dbg = { motion, floor, vsRef: this.dbg ? this.dbg.vsRef : 0, state: '', last: this.dbg ? this.dbg.last : '' };
+    if (motion > motionLimit) {
+      if (this.motionStart == null) { this.motionStart = now; this.motionPeak = 0; }
+      this.motionPeak = Math.max(this.motionPeak, motion);
       this.lastMotionAt = now;
     }
 
@@ -205,18 +232,25 @@ export class CameraGame {
 
     if (now - this.lastMotionAt < STABLE_MS) { this.dbg.state = 'Bewegung'; this.setStatus('warn', 'Bewegung …'); return; }
     // Dauer der letzten Bewegung: Ein Dart steckt nach einem kurzen Moment, eine Hand bewegt sich länger.
-    if (this.motionStart != null) { this.lastMotionDur = this.lastMotionAt - this.motionStart; this.motionStart = null; }
+    if (this.motionStart != null) {
+      this.lastMotionDur = this.lastMotionAt - this.motionStart;
+      this.lastMotionPeak = this.motionPeak;
+      this.motionStart = null;
+    }
 
-    const vsRef = changeAmount(this.refSmall, small, this.mask, P.minThresh);
+    const vsRef = stableChange(this.refSmall, small, this.mask, P.minThresh);
     this.dbg.vsRef = vsRef;
     this.dbg.state = vsRef < NOCHANGE ? 'ruhig' : 'prüfe';
     if (vsRef < NOCHANGE) {
+      this.noneCount = 0;
       this.checkBoardEmpty(cur, small);
       this.idleStatus();
       return;
     }
 
-    const res = detectNewDart(this.ref, cur, this.cal, P, { refSmall: this.refSmall, mask: this.mask });
+    const res = detectNewDart(this.ref, cur, this.cal, { ...P, shiftTol: this.jittery }, { refSmall: this.refSmall, mask: this.mask });
+    this.dbg.last = res.kind === 'dart' ? `Dart ${hitLabel(res.hit)} (Fläche ${res.area})` : res.kind === 'occlusion' ? 'Verdeckung' : 'kein Dart';
+    if (res.kind !== 'none') this.noneCount = 0;
     if (res.kind === 'occlusion') {
       // Große Veränderung (Hand, Schatten, Licht). Zählt nie als Dart.
       this.sawOcclusion = true;
@@ -237,8 +271,9 @@ export class CameraGame {
         this.checkBoardEmpty(cur, small);
         return;
       }
-      if (this.lastMotionDur > LONG_MOTION_MS) {
-        // Lange Bewegung vor dem ruhigen Bild = eher Hand/Person als ein geworfener Dart
+      if (this.lastMotionDur > LONG_MOTION_MS && this.lastMotionPeak > HAND_PEAK) {
+        // Lange und großflächige Bewegung vor dem ruhigen Bild = eher Hand/Person als ein geworfener Dart.
+        // (Nur die Dauer reicht nicht: Bildrauschen oder ein vorbeigehender Schatten am Rand dauern auch lange.)
         this.sawOcclusion = true;
         this.acceptReference(cur, small);
         this.setStatus('warn', 'Lange Bewegung – nicht als Dart gezählt (bei Bedarf von Hand eintragen)');
@@ -252,6 +287,7 @@ export class CameraGame {
         this.acceptReference(cur, small);
         const meta = { tip: res.tip, axis: res.axis, hit: res.hit, before, after: cur, ts: Date.now(), confidence: res.confidence };
         this.turnDarts.push(meta);
+        this.noticeUntil = 0;
         this.updateMarks();
         this.o.onHit(res.hit, { confidence: Math.round(res.confidence * 100) / 100, tip: res.tip.map((v) => Math.round(v)) });
         // Zeitstempel des eingetragenen Darts merken (für Korrekturbilder)
@@ -263,7 +299,14 @@ export class CameraGame {
       }
       return;
     }
-    // Veränderung ohne Dart (Licht, Schatten): Referenz übernehmen, wenn ruhig
+    // Veränderung ohne Dart (Licht, Schatten): Referenz übernehmen, wenn sie auch im nächsten
+    // ruhigen Bild noch so aussieht (ein einzelnes unscharfes Bild soll keinen Dart „verschlucken“).
+    if (++this.noneCount < 2) return;
+    this.noneCount = 0;
+    if (vsRef > NOTICE && this.phase === 'throwing') {
+      this.setStatus('warn', 'Veränderung, aber kein Dart erkannt – falls einer steckt: ins Bild tippen');
+      this.noticeUntil = now + 4000;
+    }
     this.acceptReference(cur, small);
     this.checkBoardEmpty(cur, small);
   }
@@ -447,6 +490,7 @@ export class CameraGame {
   idleStatus() {
     if (this.lostSince) return;
     if (this.phase === 'bulloff') return;
+    if (this.noticeUntil && performance.now() < this.noticeUntil) return;
     const st = this.o.session.state;
     if (this.turnDarts.length && (this.sawOcclusion || (st.openTurnIndex >= 0 && st.turnEval.closed))) this.setStatus('ok', 'Darts ziehen – Board wird überwacht');
     else this.setStatus('ok', 'Bereit');

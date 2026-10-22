@@ -7,7 +7,7 @@ import { checkoutPath } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings } from '../../core/settings.js';
-import { say, unlock, t as speechText } from '../../audio/speech.js';
+import { say, unlock, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
 import { lsGet } from '../../core/storage.js';
 import { playerStats } from '../../stats/stats.js';
 
@@ -317,6 +317,19 @@ export function render(root, params, nav) {
       h('h2', {}, 'Menü'),
       h('button', { class: 'btn', onclick: () => { updateSettings({ announceDart: !st.announceDart }); s.close(); } }, `Dart-Ansage: ${st.announceDart ? 'an' : 'aus'}`),
       h('button', { class: 'btn', onclick: () => { updateSettings({ announceTurn: !st.announceTurn }); s.close(); } }, `Summen-Ansage: ${st.announceTurn ? 'an' : 'aus'}`),
+      h('button', {
+        class: 'btn',
+        onclick: (e) => {
+          // Nächster Dialekt (Deutsch-Varianten durchschalten, Stimme bleibt)
+          const de = SPEECH_LANGS.filter(([k]) => voiceLangOf(k) === 'de');
+          const i = de.findIndex(([k]) => k === getSettings().speechLang);
+          const [k, label] = de[(i + 1) % de.length];
+          updateSettings({ speechLang: k });
+          e.target.textContent = `Ansage: ${label} ›`;
+          window.speechSynthesis && window.speechSynthesis.cancel();
+          say(speechText().test);
+        },
+      }, `Ansage: ${(SPEECH_LANGS.find(([k]) => k === st.speechLang) || [0, 'Deutsch'])[1]} ›`),
       useCamera ? h('button', { class: 'btn', onclick: () => { s.close(); cam && cam.recalibrate(); } }, 'Neu kalibrieren') : null,
       useCamera ? h('button', { class: 'btn', onclick: () => { updateSettings({ autoAdvance: !st.autoAdvance }); s.close(); } }, `Automatisch weiter: ${st.autoAdvance ? 'an' : 'aus'}`) : null,
       h('button', { class: 'btn', onclick: () => { s.close(); nav.go('home'); } }, 'Pause (Startseite)'),

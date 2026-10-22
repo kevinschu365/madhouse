@@ -3,7 +3,8 @@ import { lsGet, lsSet } from './storage.js';
 import { newId } from '../game/match.js';
 
 export const DEFAULT_SETTINGS = {
-  speechLang: 'de',          // 'de' | 'en'
+  speechLang: 'de',          // 'de' | 'en' | Dialekt (siehe audio/speech.js)
+  quips: true,               // witzige Sprüche nach der Aufnahme (180, Überworfen …)
   announceDart: true,        // jeden Dart ansagen
   announceTurn: true,        // Summe der Aufnahme ansagen
   announceRest: true,        // Rest nach der Aufnahme ansagen
