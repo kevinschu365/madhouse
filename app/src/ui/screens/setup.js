@@ -15,68 +15,57 @@ export function render(root, params, nav) {
   };
   const body = h('div', { class: 'stack', style: { maxWidth: '560px', margin: '0 auto' } });
 
-  const chipGroup = (values, current, label, onPick) =>
-    h('div', { class: 'chips' }, values.map((v) => h('button', { class: `chip ${v === current ? 'on' : ''}`, onclick: () => onPick(v) }, label(v))));
+  // Auswahlfeld mit Beschriftung; values = [[Wert, Text], …]
+  const dropdown = (label, values, current, onPick) => h('label', { class: 'field' }, h('span', {}, label),
+    h('select', { onchange: (e) => onPick(e.target.value) },
+      values.map(([v, text]) => h('option', { value: String(v), selected: String(v) === String(current) }, text))));
+
+  const NEW = '__neu';
+  const pickPlayer = async (slot, value) => {
+    if (value === NEW) {
+      const n = await promptDialog('Neuer Spieler', '', { ok: 'Anlegen', placeholder: 'Name' });
+      if (n != null) {
+        try { value = addPlayer(n).id; } catch (e) { toast(e.message); value = null; }
+      } else value = null;
+    }
+    const other = 1 - slot;
+    // Gleicher Spieler auf beiden Plätzen -> Plätze tauschen
+    if (value && cfg.selected[other] === value) cfg.selected[other] = cfg.selected[slot] || null;
+    cfg.selected[slot] = value || null;
+    draw();
+  };
 
   const draw = () => {
     body.replaceChildren();
     const players = getPlayers();
     const hasCal = !!lsGet('calibration', null);
+    const nameOf = (i) => players.find((p) => p.id === cfg.selected[i])?.name || `Spieler ${i + 1}`;
+    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, p.name]), [NEW, '+ Neuer Spieler …']];
+    const ready = !!(cfg.selected[0] && cfg.selected[1] && cfg.selected[0] !== cfg.selected[1]);
+    if (cfg.starter === 'bull' && !cfg.camera) cfg.starter = 'p0';
     body.append(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Neues Spiel')),
       h('div', { class: 'card' },
-        h('h3', {}, 'Zwei Spieler wählen'),
-        players.length ? null : h('p', { class: 'dim' }, 'Lege zuerst Spieler an.'),
-        h('div', { class: 'chips' },
-          players.map((p) => {
-            const idx = cfg.selected.indexOf(p.id);
-            return h('button', {
-              class: `chip ${idx >= 0 ? 'on' : ''}`,
-              onclick: () => {
-                if (idx >= 0) cfg.selected.splice(idx, 1);
-                else { if (cfg.selected.length >= 2) cfg.selected.shift(); cfg.selected.push(p.id); }
-                draw();
-              },
-            }, idx >= 0 ? h('span', { class: 'badge' }, idx + 1) : null, p.name);
-          }),
-          h('button', {
-            class: 'chip',
-            onclick: async () => {
-              const n = await promptDialog('Neuer Spieler', '', { ok: 'Anlegen', placeholder: 'Name' });
-              if (n == null) return;
-              try { const p = addPlayer(n); if (cfg.selected.length < 2) cfg.selected.push(p.id); draw(); } catch (e) { toast(e.message); }
-            },
-          }, '+ Neu'),
+        h('div', { class: 'grid2' },
+          dropdown('Spieler 1', playerOptions, cfg.selected[0] || '', (v) => pickPlayer(0, v)),
+          dropdown('Spieler 2', playerOptions, cfg.selected[1] || '', (v) => pickPlayer(1, v)),
         ),
-      ),
-      h('div', { class: 'card' },
-        h('h3', {}, 'Startwert'),
-        chipGroup([301, 501, 701], cfg.startScore, (v) => String(v), (v) => { cfg.startScore = v; draw(); }),
-        h('h3', { style: { marginTop: '14px' } }, 'Sets'),
-        chipGroup([1, 3, 5, 7], cfg.setsBestOf, (v) => (v === 1 ? 'Keine' : `Best of ${v}`), (v) => { cfg.setsBestOf = v; draw(); }),
-        h('h3', { style: { marginTop: '14px' } }, cfg.setsBestOf > 1 ? 'Legs pro Set' : 'Legs'),
-        chipGroup([1, 3, 5, 7, 9, 11], cfg.legsBestOf, (v) => (v === 1 ? '1 Leg' : `Best of ${v}`), (v) => { cfg.legsBestOf = v; draw(); }),
-        h('p', { class: 'dim', style: { margin: '10px 0 0' } }, 'Double-Out. Wer das Leg beginnt, wechselt nach jedem Leg.'),
-      ),
-      h('div', { class: 'card' },
-        h('h3', {}, 'Kamera'),
-        chipGroup([true, false], cfg.camera, (v) => (v ? 'Kamera-Erkennung' : 'Nur Handeingabe'), (v) => { cfg.camera = v; if (!v && cfg.starter === 'bull') cfg.starter = 'p0'; draw(); }),
-        cfg.camera && !hasCal ? h('p', { class: 'dim', style: { margin: '10px 0 0' } }, 'Noch keine Kalibrierung gespeichert – sie wird vor dem Spiel durchgeführt.') : null,
-      ),
-      h('div', { class: 'card' },
-        h('h3', {}, 'Wer beginnt?'),
-        h('div', { class: 'chips' },
-          ['p0', 'p1'].map((k, i) => {
-            const id = cfg.selected[i];
-            const name = id ? players.find((p) => p.id === id)?.name : `Spieler ${i + 1}`;
-            return h('button', { class: `chip ${cfg.starter === k ? 'on' : ''}`, onclick: () => { cfg.starter = k; draw(); } }, name);
-          }),
-          cfg.camera ? h('button', { class: `chip ${cfg.starter === 'bull' ? 'on' : ''}`, onclick: () => { cfg.starter = 'bull'; draw(); } }, 'Ausbullen (Kamera)') : null,
+        h('div', { class: 'grid3' },
+          dropdown('Startwert', [301, 501, 701].map((v) => [v, String(v)]), cfg.startScore, (v) => { cfg.startScore = +v; }),
+          dropdown('Sets', [1, 3, 5, 7].map((v) => [v, v === 1 ? 'Keine' : `Best of ${v}`]), cfg.setsBestOf, (v) => { cfg.setsBestOf = +v; draw(); }),
+          dropdown(cfg.setsBestOf > 1 ? 'Legs pro Set' : 'Legs', [1, 3, 5, 7, 9, 11].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`]), cfg.legsBestOf, (v) => { cfg.legsBestOf = +v; }),
         ),
+        h('div', { class: 'grid2' },
+          dropdown('Wer beginnt?', [['p0', nameOf(0)], ['p1', nameOf(1)], ...(cfg.camera ? [['bull', 'Ausbullen (Kamera)']] : [])], cfg.starter, (v) => { cfg.starter = v; }),
+          dropdown('Eingabe', [['1', 'Kamera'], ['0', 'Nur Hand']], cfg.camera ? '1' : '0', (v) => { cfg.camera = v === '1'; draw(); }),
+        ),
+        h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '14px' } },
+          'Double-Out. Wer das Leg beginnt, wechselt nach jedem Leg.',
+          cfg.camera && !hasCal ? ' Noch keine Kalibrierung – sie kommt vor dem Spiel.' : ''),
       ),
       h('button', {
         class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' },
-        disabled: cfg.selected.length !== 2,
+        disabled: !ready,
         onclick: () => {
           unlock(); // iOS: Sprachausgabe durch diesen Tipp freischalten
           updateSettings({ lastSetup: { startScore: cfg.startScore, setsBestOf: cfg.setsBestOf, legsBestOf: cfg.legsBestOf, players: cfg.selected.slice() }, cameraEnabled: cfg.camera });
@@ -96,7 +85,7 @@ export function render(root, params, nav) {
           if (cfg.camera) nav.go('calibrate', { mode: 'quickcheck', then: 'game', thenParams: gameParams });
           else nav.go('game', gameParams);
         },
-      }, cfg.selected.length === 2 ? 'Spiel starten' : 'Zwei Spieler wählen'),
+      }, ready ? 'Spiel starten' : 'Zwei Spieler wählen'),
     );
   };
   draw();

@@ -250,7 +250,7 @@ export function say(text, { interrupt = false } = {}) {
   const T = t();
   u.lang = v ? v.lang : (T.voiceLang === 'en' ? 'en-GB' : 'de-DE');
   u.rate = Math.min(2, (getSettings().speechRate || 1) * (T.rate || 1));
-  if (T.pitch) u.pitch = T.pitch;
+  u.pitch = Math.min(2, Math.max(0.1, (T.pitch || 1) * (getSettings().speechPitch ?? 1)));
   // iOS bleibt manchmal im Pausenzustand hängen
   if (synth.paused) synth.resume();
   synth.speak(u);
