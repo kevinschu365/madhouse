@@ -160,6 +160,77 @@ const DIALECTS = {
   },
 };
 
+// Deutsch mit Akzent: deutscher Text, gesprochen von einer ausländischen iPhone-Stimme.
+// Das ergibt den Akzent – und es sind Männerstimmen, die iOS jeder Web-App mitgibt
+// (Xander, Thomas, Luca, Jorge, Daniel). Fehlt die Stimme, nimmt iOS eine andere derselben Sprache.
+const ACCENTS = {
+  holland: {
+    label: 'Holländer', voiceLang: 'nl', bcp: 'nl-NL', voicePrefer: /xander/i,
+    youRequire: (n) => `Nog ${n}, hè`, next: (name) => `${name}, jij bent dran`, cameraLost: 'Hè, die Kamera sieht nix mehr',
+    test: 'Triple zwanzig. Hundertachtzig, lekker hè!',
+    quips: {
+      s180: ['Hundertachtzig! Lekker, hè!', 'Hup Holland hup!', 'Dat is fantastisch!'],
+      ton: ['Lekker!', 'Sehr gut, hè!'],
+      low: ['Ach, so jammer.', 'Das war nix, hè.'],
+      zero: ['Nul punten, hè.', 'Helemaal niks.'],
+      bust: ['Jammer, jammer.'],
+      game: ['Proost! Jetzt Pommes mit Mayo!', 'Gefeliciteerd!'],
+    },
+  },
+  franzose: {
+    label: 'Franzose', voiceLang: 'fr', bcp: 'fr-FR', voicePrefer: /thomas/i,
+    youRequire: (n) => `Noch ${n}, mon ami`, next: (name) => `${name}, à toi`, cameraLost: 'Oh là là, die Kamera sieht nichts mehr',
+    test: 'Triple zwanzig. Hundertachtzig, magnifique!',
+    quips: {
+      s180: ['Hundertachtzig! Magnifique!', 'Oh là là, formidable!', 'Incroyable!'],
+      ton: ['Très bien!', 'Formidable!'],
+      low: ['Oh là là, catastrophe.', 'Mon dieu, das war nix.'],
+      zero: ['Rien de rien.', 'Zéro. Quel dommage.'],
+      bust: ['Quel dommage!'],
+      game: ['Champagner für alle! Santé!', 'Bravo, bravo!'],
+    },
+  },
+  italiener: {
+    label: 'Italiener', voiceLang: 'it', bcp: 'it-IT', voicePrefer: /luca/i,
+    youRequire: (n) => `Noch ${n}, amico`, next: (name) => `${name}, avanti`, cameraLost: 'Mamma mia, die Kamera sieht nix mehr',
+    test: 'Triple zwanzig. Hundertachtzig, mamma mia!',
+    quips: {
+      s180: ['Hundertachtzig! Mamma mia!', 'Che bello! Perfetto!', 'Bellissimo!'],
+      ton: ['Bravissimo!', 'Molto bene!'],
+      low: ['Mamma mia, was war das?', 'Ma dai!'],
+      zero: ['Niente, niente.', 'Zero. Che peccato.'],
+      bust: ['Mannaggia!'],
+      game: ['Espresso für alle! Grazie!', 'Campione!'],
+    },
+  },
+  spanier: {
+    label: 'Spanier', voiceLang: 'es', bcp: 'es-ES', voicePrefer: /jorge|juan|diego/i,
+    youRequire: (n) => `Noch ${n}, amigo`, next: (name) => `${name}, vamos`, cameraLost: 'Ay caramba, die Kamera sieht nichts mehr',
+    test: 'Triple zwanzig. Hundertachtzig, olé!',
+    quips: {
+      s180: ['Hundertachtzig! Olé!', 'Ay caramba, qué bueno!', 'Fantástico!'],
+      ton: ['Muy bien!', 'Qué bonito!'],
+      low: ['Ay, ay, ay.', 'Madre mía.'],
+      zero: ['Nada de nada.'],
+      bust: ['Qué pena!'],
+      game: ['Fiesta! Sangria für alle!', 'Campeón!'],
+    },
+  },
+  englaender: {
+    label: 'Engländer', voiceLang: 'en', bcp: 'en-GB', voicePrefer: /daniel|arthur|oliver/i,
+    youRequire: (n) => `Noch ${n}, my friend`, next: (name) => `${name}, your turn, bitte`, cameraLost: 'Oh dear, die Kamera sieht nichts mehr',
+    test: 'Triple zwanzig. Hundertachtzig, lovely!',
+    quips: {
+      s180: ['Hundertachtzig! Lovely!', 'Brilliant, absolutely brilliant!', 'Jolly good show!'],
+      ton: ['Very nice, sehr gut!', 'Splendid!'],
+      low: ['Oh dear, oh dear.', 'Not cricket, that.'],
+      zero: ['Nothing at all. Schade.'],
+      bust: ['Bloody hell!'],
+      game: ['Tea time! Prost!', 'Cheers, mate!'],
+    },
+  },
+};
+
 const EN = {
   label: 'Englisch', voiceLang: 'en',
   triple: 'Treble', double: 'Double', bull: 'Bullseye', outerBull: 'twenty five', miss: 'Miss',
@@ -168,10 +239,118 @@ const EN = {
   test: 'Treble twenty. One hundred and eighty.',
 };
 
-const TEXT = { de: DE, ...Object.fromEntries(Object.entries(DIALECTS).map(([k, v]) => [k, { ...DE, ...v }])), en: EN };
+// Englischer Slang (Sprüche wie bei den Dialekten, passende Stimme wenn vorhanden)
+const EN_SLANG = {
+  caller: {
+    label: 'TV-Caller', rate: 0.9, pitch: 0.9, voicePrefer: /daniel|arthur/i,
+    test: 'Treble twenty. One hundred and eightyyy!',
+    quips: {
+      s180: ['One hundred and eightyyy! The crowd goes wild!', 'What a maximum!', 'Get in there!'],
+      ton: ['Lovely darts.', 'Big score, that.', 'Ton plus!'],
+      low: ['Not the start he wanted.', 'Under pressure now.'],
+      zero: ['Nothing doing there.', 'Wires everywhere!'],
+      bust: ['Too many! Back to the oche.'],
+      game: ['What a finish!', 'He has done it!'],
+    },
+  },
+  cockney: {
+    label: 'Cockney', voicePrefer: /daniel|arthur/i,
+    bust: 'Bust, innit', noScore: 'Nuffin', miss: 'Missed it, mate',
+    youRequire: (n) => `${n} left, guv`, next: (name) => `${name}, you're up, mate`, cameraLost: "Oi! The camera's lost the board",
+    test: 'Treble twenty. One hundred and eighty, innit!',
+    quips: {
+      s180: ['Blimey! One hundred and eighty, innit!', 'Cor, what a cracker!', 'Lovely jubbly!'],
+      ton: ['Proper job, mate.', 'Not bad, guv.'],
+      low: ["Bit of a pig's ear, that.", 'Gordon Bennett!'],
+      zero: ['Absolutely nuffin, mate.', 'You having a laugh?'],
+      bust: ["Gone and bust it, ain't ya."],
+      game: ['Get the kettle on!', 'Pie and mash for everyone!'],
+    },
+  },
+  scottish: {
+    label: 'Schottisch', voicePrefer: /fiona|scotland/i,
+    miss: 'Missed it, ya numpty', noScore: 'Nothin at aw',
+    youRequire: (n) => `${n} tae go`, next: (name) => `${name}, yer up`, cameraLost: "Och, the camera's lost the board",
+    test: 'Treble twenty. One hundred and eighty, och aye!',
+    quips: {
+      s180: ["Och aye, one hundred and eighty! Pure dead brilliant!", "Away an bile yer heid, that's magic!"],
+      ton: ['Braw, that.', 'No bad at aw.'],
+      low: ["Ach, that's mince.", 'Whit a stramash.'],
+      zero: ['Haud yer wheesht, that was nothin.'],
+      bust: ["Ye've gone and bust it, ya numpty."],
+      game: ['Get the whisky oot!', 'Slainte!'],
+    },
+  },
+  aussie: {
+    label: 'Australisch', bcp: 'en-AU', voicePrefer: /en-AU|lee|karen/i,
+    noScore: 'Not a sausage', youRequire: (n) => `${n} to go, mate`, next: (name) => `${name}, you're up, mate`,
+    cameraLost: "Crikey, the camera's lost the board",
+    test: "Treble twenty. One hundred and eighty, strewth!",
+    quips: {
+      s180: ['Strewth! One hundred and eighty!', 'Fair dinkum, mate, what a ripper!'],
+      ton: ['Good on ya, mate.', 'Bonza!'],
+      low: ['Yeah nah, that was rubbish.', 'Strewth, that was ordinary.'],
+      zero: ['Not a sausage, mate.'],
+      bust: ['Crikey! Too many, mate.'],
+      game: ['Throw another shrimp on the barbie!', 'Ripper of a finish!'],
+    },
+  },
+  irish: {
+    label: 'Irisch', bcp: 'en-IE', voicePrefer: /en-IE|moira/i,
+    noScore: 'Nothin at all, so it was', youRequire: (n) => `${n} to go, so`, next: (name) => `${name}, you're up now`,
+    cameraLost: "Ah no, the camera's lost the board",
+    test: 'Treble twenty. One hundred and eighty, sure that is grand!',
+    quips: {
+      s180: ['Ah, would ya look at that, one hundred and eighty!', "Sure that's grand, that's deadly!"],
+      ton: ["That's grand.", 'Fair play to ya.'],
+      low: ['Ah stop, that was desperate.', 'Janey Mac.'],
+      zero: ['Nothin at all, so it was.'],
+      bust: ['Ah, for the love of God.'],
+      game: ['Get the pints in!', "Sláinte, ya legend!"],
+    },
+  },
+  texan: {
+    label: 'Texanisch', bcp: 'en-US', voicePrefer: /fred|aaron|alex|en-US/i,
+    noScore: "Ain't nothin", youRequire: (n) => `${n} to go, partner`, next: (name) => `${name}, saddle up`,
+    cameraLost: "Well shoot, the camera done lost the board",
+    test: 'Treble twenty. One hundred and eighty, yeehaw!',
+    quips: {
+      s180: ['Yeehaw! One hundred and eighty!', 'Well butter my biscuit!'],
+      ton: ['Mighty fine throwin.', "That dog'll hunt."],
+      low: ['Bless your heart.', 'Slower than molasses, that one.'],
+      zero: ["Ain't nothin, partner."],
+      bust: ['Done got too greedy, partner.'],
+      game: ["Drinks on the house, y'all!", 'Yeehaw!'],
+    },
+  },
+  pirate: {
+    label: 'Pirat', pitch: 0.8, rate: 0.9, voicePrefer: /daniel|arthur/i,
+    bust: 'Bust, arrr', noScore: 'Not a doubloon', miss: 'Missed, ye landlubber',
+    youRequire: (n) => `${n} doubloons to go`, next: (name) => `${name}, man the cannons`, cameraLost: 'Arrr, the spyglass has lost the board',
+    test: 'Treble twenty. One hundred and eighty, arrr!',
+    quips: {
+      s180: ['Arrr! One hundred and eighty, shiver me timbers!', 'Yo ho ho, a treasure of a throw!'],
+      ton: ['Arr, fine shootin, matey.'],
+      low: ['Walk the plank for that one!', 'Ye scurvy dog.'],
+      zero: ['Not a single doubloon!'],
+      bust: ["Into Davy Jones' locker with ye!"],
+      game: ['Break out the rum, me hearties!'],
+    },
+  },
+};
 
-/** Auswahl für die Einstellungen: [Schlüssel, Name]. */
-export const SPEECH_LANGS = Object.entries(TEXT).map(([k, v]) => [k, v.label]);
+const GROUP_DE = 'Deutsch & Dialekte', GROUP_ACCENT = 'Deutsch mit Akzent (Männerstimmen)', GROUP_EN = 'Englisch & Slang';
+const withGroup = (obj, base, group) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, { ...base, ...v, group }]));
+const TEXT = {
+  de: { ...DE, group: GROUP_DE },
+  ...withGroup(DIALECTS, DE, GROUP_DE),
+  ...withGroup(ACCENTS, DE, GROUP_ACCENT),
+  en: { ...EN, group: GROUP_EN },
+  ...withGroup(EN_SLANG, EN, GROUP_EN),
+};
+
+/** Auswahl für die Einstellungen: [Schlüssel, Name, Gruppe]. */
+export const SPEECH_LANGS = Object.entries(TEXT).map(([k, v]) => [k, v.label, v.group]);
 
 function lang() {
   const l = getSettings().speechLang;
@@ -248,7 +427,7 @@ export function say(text, { interrupt = false } = {}) {
   const v = pickVoice();
   if (v) u.voice = v;
   const T = t();
-  u.lang = v ? v.lang : (T.voiceLang === 'en' ? 'en-GB' : 'de-DE');
+  u.lang = v ? v.lang : (T.bcp || (T.voiceLang === 'en' ? 'en-GB' : 'de-DE'));
   u.rate = Math.min(2, (getSettings().speechRate || 1) * (T.rate || 1));
   u.pitch = Math.min(2, Math.max(0.1, (T.pitch || 1) * (getSettings().speechPitch ?? 1)));
   // iOS bleibt manchmal im Pausenzustand hängen

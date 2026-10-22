@@ -320,11 +320,13 @@ export function render(root, params, nav) {
       h('button', {
         class: 'btn',
         onclick: (e) => {
-          // Nächster Dialekt (Deutsch-Varianten durchschalten, Stimme bleibt)
-          const de = SPEECH_LANGS.filter(([k]) => voiceLangOf(k) === 'de');
-          const i = de.findIndex(([k]) => k === getSettings().speechLang);
-          const [k, label] = de[(i + 1) % de.length];
-          updateSettings({ speechLang: k });
+          // Nächster Dialekt derselben Gruppe (Deutsch / mit Akzent / Englisch)
+          const curKey = getSettings().speechLang;
+          const cur = SPEECH_LANGS.find(([k]) => k === curKey) || SPEECH_LANGS[0];
+          const same = SPEECH_LANGS.filter(([, , g]) => g === cur[2]);
+          const [k, label] = same[(same.findIndex(([kk]) => kk === cur[0]) + 1) % same.length];
+          // Stimme nur behalten, wenn die Stimmen-Sprache gleich bleibt
+          updateSettings({ speechLang: k, ...(voiceLangOf(k) === voiceLangOf(cur[0]) ? {} : { voiceURI: null }) });
           e.target.textContent = `Ansage: ${label} ›`;
           window.speechSynthesis && window.speechSynthesis.cancel();
           say(speechText().test);

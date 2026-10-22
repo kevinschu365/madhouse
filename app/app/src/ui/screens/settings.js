@@ -38,7 +38,8 @@ export function render(root, params, nav) {
               say(t().test);
               draw();
             },
-          }, SPEECH_LANGS.map(([k, label]) => h('option', { value: k, selected: k === s.speechLang }, label)))),
+          }, [...new Set(SPEECH_LANGS.map(([, , g]) => g))].map((g) => h('optgroup', { label: g },
+            SPEECH_LANGS.filter(([, , gg]) => gg === g).map(([k, label]) => h('option', { value: k, selected: k === s.speechLang }, label)))))),
         toggle('quips', 'Witzige Sprüche', 'z. B. bei 180, Überwerfen, 0 Punkten und Game shot'),
         toggle('announceDart', 'Jeden Dart ansagen', '„Triple 20“'),
         toggle('announceTurn', 'Summe der Aufnahme ansagen', '„180“'),
@@ -65,7 +66,7 @@ export function render(root, params, nav) {
             h('li', {}, 'Deutsch antippen'),
             h('li', {}, 'Eine Männerstimme laden, z. B. „Martin“ (am besten „Erweitert“), „Eddy“, „Reed“, „Rocko“ oder „Opa“'),
             h('li', {}, 'Madhouse ganz schließen und neu öffnen, dann oben unter „Stimme“ auswählen')),
-          h('p', {}, 'Nicht jede iPhone-Stimme wird an Web-Apps weitergegeben (Siri-Stimmen z. B. nie). Taucht eine nicht auf, hilft die Stimmlage „tiefer“.')) : null,
+          h('p', {}, 'Safari gibt Web-Apps oft nur „Anna“ als deutsche Stimme weiter, egal was geladen ist. Dann: Stimmlage „tiefer“ – oder oben bei „Sprache / Dialekt“ die Gruppe „Deutsch mit Akzent“. Dort sprechen Männerstimmen (Holländer, Franzose, Italiener, Spanier, Engländer) deutsch mit Akzent.')) : null,
         h('label', { class: 'field' }, h('span', {}, `Pause zwischen Summe und Rest: ${(s.restPause ?? 1).toFixed(1)} s`),
           h('input', { type: 'range', min: '0', max: '2.5', step: '0.1', value: String(s.restPause ?? 1), onchange: (e) => { updateSettings({ restPause: parseFloat(e.target.value) }); draw(); } })),
         h('button', {
