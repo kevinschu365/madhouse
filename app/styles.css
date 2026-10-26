@@ -166,8 +166,8 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
 .totalgrid { display: grid; grid-template-columns: 1fr 1.25fr 1.25fr 1.25fr 1fr; grid-auto-rows: minmax(48px, 1fr); gap: 6px; flex: 1 1 auto; }
 .totalgrid .key { font-size: 28px; min-height: 40px; }
 .totalgrid .key.quick { background: #10251a; color: var(--accent); font-size: 21px; }
-.totalgrid .restkey { font-size: 20px; background: var(--accent-dim); color: #fff; }
-.totalgrid .restkey.off { background: var(--surface2); color: var(--text-dim); }
+.totalgrid .checkkey { font-size: 20px; background: var(--accent); color: #000; }
+.totalgrid .checkkey.off { background: var(--surface2); color: var(--text-dim); }
 
 /* Kompakte Auswahl nebeneinander (Neues Spiel) */
 .grid2, .grid3 { display: grid; gap: 0 10px; }

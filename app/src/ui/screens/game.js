@@ -2,7 +2,7 @@
 import { h, banner, toast, sheet, confirmDialog } from '../dom.js';
 import { createMatch, throwRows } from '../../game/match.js';
 import { GameSession } from '../../game/session.js';
-import { hitLabel } from '../../core/board.js';
+import { hitLabel, allHits, dartScore } from '../../core/board.js';
 import { checkoutPath, checkoutPaths } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
@@ -12,6 +12,10 @@ import { lsGet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
+
+// Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
+const ONE_DART = new Set(allHits().map(dartScore));
+const TWO_DARTS = new Set([...ONE_DART].flatMap((a) => [...ONE_DART].map((b) => a + b)));
 
 export function render(root, params, nav) {
   const match = params.match || createMatch(params.setup);
@@ -192,7 +196,10 @@ export function render(root, params, nav) {
       if (!st.mode.isPossibleTotal(val)) info = `${val} ist mit 3 Darts nicht möglich`;
       else if (after === 0) info = 'Checkout!';
       else if (after < 0 || after === 1) info = 'Überworfen';
-      else info = `Rest danach: ${after}`;
+      else {
+        const part = typedPartial(rest);
+        info = part && part.dartsLeft < 3 ? `Rest danach: ${after} · noch ${part.dartsLeft} Dart${part.dartsLeft > 1 ? 's' : ''}` : part ? `Rest danach: ${after} · nächste Aufnahme` : `Rest danach: ${after}`;
+      }
     }
     const display = h('div', { class: 'totaldisplay num' }, h('div', { class: 'tv' }, typed || '–'), h('div', { class: 'ti' }, info));
     const digit = (d) => h('button', { class: 'key num', onclick: () => { if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); draw(); } }, d);
@@ -201,7 +208,7 @@ export function render(root, params, nav) {
       [digit(1), digit(2), digit(3)],
       [digit(4), digit(5), digit(6)],
       [digit(7), digit(8), digit(9)],
-      [h('button', { class: 'key', onclick: () => { typed = typed.slice(0, -1); drawPad(); draw(); } }, '⌫'), digit(0), restKey(rest)],
+      [h('button', { class: 'key', onclick: () => { typed = typed.slice(0, -1); drawPad(); draw(); } }, '⌫'), digit(0), checkKey(rest)],
     ];
     const grid = h('div', { class: 'totalgrid' },
       digitRows.map((row, i) => [quick(QUICK_LEFT[i]), row, quick(QUICK_RIGHT[i])]),
@@ -209,14 +216,14 @@ export function render(root, params, nav) {
     padEl.append(display, grid);
   }
 
-  // „Rest“ trägt den auscheckbaren Rest ein; der Knopf unten wird dann zu CHECK
-  function restKey(rest) {
+  // „Check“ checkt den Rest mit einem Tipp aus (bei mehreren möglichen Dart-Anzahlen kommt die Rückfrage)
+  function checkKey(rest) {
     const canCheck = !!checkoutPath(rest, 3);
     return h('button', {
-      class: `key restkey${canCheck ? '' : ' off'}`,
+      class: `key checkkey${canCheck ? '' : ' off'}`,
       disabled: !canCheck,
-      onclick: () => { typed = String(rest); drawPad(); draw(); },
-    }, 'Rest');
+      onclick: () => submitTotal(rest),
+    }, 'Check');
   }
 
   async function submitTotal(points) {
@@ -308,10 +315,30 @@ export function render(root, params, nav) {
   // X01: Finish-Weg für den aktuellen Rest und die übrigen Darts, plus bis zu 2 Alternativen
   function drawCheckout(st, m) {
     const ev = st.turnEval;
-    const paths = !st.finished && !ev.bust && m.options.doubleOut && st.dartsLeft > 0 && st.mode.id === 'x01'
-      ? checkoutPaths(ev.remaining, st.dartsLeft, 3) : [];
+    let rest = ev.remaining;
+    let dartsLeft = st.dartsLeft;
+    // Summen-Eingabe: Zwischenstand eintippen (z. B. 54 nach T18 bei 141) -> Weg für den neuen Rest
+    const part = typedPartial(ev.startRemaining);
+    if (part) ({ rest, dartsLeft } = part);
+    const paths = !st.finished && !ev.bust && m.options.doubleOut && dartsLeft > 0 && st.mode.id === 'x01'
+      ? checkoutPaths(rest, dartsLeft, 3) : [];
     if (paths.length) setHint(paths[0].join('  '), paths.slice(1).map((p) => p.join(' ')));
+    else if (part) setHint(rest <= 170 ? `Kein Finish mit ${dartsLeft} Dart${dartsLeft > 1 ? 's' : ''}` : '');
     else setHint(st.hint ? st.hint.join('  ') : '');
+  }
+
+  /**
+   * Eingetippte Summe als Zwischenstand: Rest danach und übrige Darts.
+   * Geht die Zahl mit 1 Dart, bleiben 2; mit 2 Darts bleibt 1; sonst ist die Aufnahme voll
+   * und es gilt der Weg für die nächste Aufnahme (3 Darts). null = nichts Sinnvolles eingetippt.
+   */
+  function typedPartial(startRemaining) {
+    if (useCamera || inputMode !== 'total' || !typed) return null;
+    const val = parseInt(typed, 10);
+    const rest = startRemaining - val;
+    if (!val || rest < 2) return null;
+    const dartsLeft = ONE_DART.has(val) ? 2 : TWO_DARTS.has(val) ? 1 : 3;
+    return { rest, dartsLeft };
   }
 
   /** „Runde 5 · 13 Darts“ im aktuellen Leg; die laufende Aufnahme zählt schon mit. */
