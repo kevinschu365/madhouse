@@ -51,7 +51,7 @@ export function render(root, params, nav) {
   });
   // Cricket: Tabelle der Marks (Spieler 1 | Zahl | Spieler 2)
   const cricketRows = cricket ? CRICKET_NUMBERS.map((n) => {
-    const cells = [h('div', { class: 'cm' }), h('div', { class: 'cn num' }, n === 25 ? 'Bull' : n), h('div', { class: 'cm' })];
+    const cells = [h('div', { class: 'cm' }), h('button', { class: 'cn num', onclick: () => tapCricket(n) }, n === 25 ? 'Bull' : n), h('div', { class: 'cm' })];
     return { n, el: h('div', { class: 'crow' }, cells[0], cells[1], cells[2]), cells };
   }) : [];
   const cricketEl = cricket ? h('div', { class: 'cricket' }, cricketRows.map((r) => r.el)) : null;
@@ -132,6 +132,7 @@ export function render(root, params, nav) {
 
   function drawPad() {
     padEl.replaceChildren();
+    if (cricketEl) cricketEl.dataset.mult = mult; // Tabelle zeigt Double/Triple an
     if (!padOpen) {
       padEl.appendChild(h('button', { class: 'btn ghost', onclick: () => { padOpen = true; drawPad(); } }, '⌨ Korrektur / Eingabe'));
       return;
@@ -146,6 +147,12 @@ export function render(root, params, nav) {
 
   const MISS_KEY = () => h('button', { class: 'key miss', onclick: () => enter({ segment: 0, multiplier: 0 }) }, '0 / Daneben');
 
+  // Cricket: Tipp auf eine Zahl der Tabelle. Bull: einfach = 25, mit Double/Triple = Bullseye.
+  function tapCricket(n) {
+    if (n === 25) enter({ segment: 25, multiplier: mult > 1 ? 2 : 1 });
+    else enter({ segment: n, multiplier: mult });
+  }
+
   function drawBoardPad() {
     const wrap = h('div', { class: 'boardwrap', html: boardSvg() });
     const svg = wrap.firstChild;
@@ -159,12 +166,8 @@ export function render(root, params, nav) {
     const num = (n) => h('button', { class: 'key num', onclick: () => enter({ segment: n, multiplier: mult }) }, n);
     const bull = (m, label) => h('button', { class: 'key num', onclick: () => enter({ segment: 25, multiplier: m }) }, label);
     if (cricket) {
-      // Kompakt neben der Marks-Tabelle: 20 19 18 Double / 17 16 15 Triple / 25 Bull Daneben
-      padEl.append(h('div', { class: 'cricketkeys' },
-        num(20), num(19), num(18), mk(2, 'Double'),
-        num(17), num(16), num(15), mk(3, 'Triple'),
-        bull(1, '25'), bull(2, 'BULL'), MISS_KEY(),
-      ));
+      // Zahlen werden direkt in der Marks-Tabelle angetippt; hier nur Double/Triple und Daneben
+      padEl.append(h('div', { class: 'mults' }, mk(2, 'Double'), mk(3, 'Triple'), MISS_KEY()));
       return;
     }
     padEl.append(
@@ -176,8 +179,9 @@ export function render(root, params, nav) {
 
   // ---------- Summen-Eingabe ----------
   // Ziffernfeld in der Mitte, häufige Aufnahmen links und rechts daneben.
-  const QUICK_LEFT = [26, 41, 45, 60, 81];
-  const QUICK_RIGHT = [85, 95, 100, 140, 180];
+  // Übernommen wird mit dem großen Knopf unten (NO SCORE / WEITER 45 / CHECK 100).
+  const QUICK_LEFT = [26, 41, 45, 60];
+  const QUICK_RIGHT = [85, 100, 140, 180];
   function drawTotalPad() {
     const st = session.state;
     const rest = st.turnEval.startRemaining;
@@ -191,21 +195,28 @@ export function render(root, params, nav) {
       else info = `Rest danach: ${after}`;
     }
     const display = h('div', { class: 'totaldisplay num' }, h('div', { class: 'tv' }, typed || '–'), h('div', { class: 'ti' }, info));
-    const digit = (d) => h('button', { class: 'key num', onclick: () => { if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); } }, d);
+    const digit = (d) => h('button', { class: 'key num', onclick: () => { if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); draw(); } }, d);
     const quick = (q) => h('button', { class: 'key num quick', onclick: () => submitTotal(q) }, q);
     const digitRows = [
       [digit(1), digit(2), digit(3)],
       [digit(4), digit(5), digit(6)],
       [digit(7), digit(8), digit(9)],
-      [h('button', { class: 'key', onclick: () => { typed = typed.slice(0, -1); drawPad(); } }, '⌫'), digit(0), h('button', { class: 'key on', onclick: () => submitTotal(val) }, 'OK')],
+      [h('button', { class: 'key', onclick: () => { typed = typed.slice(0, -1); drawPad(); draw(); } }, '⌫'), digit(0), restKey(rest)],
     ];
-    const canCheck = !!checkoutPath(rest, 3);
-    const checkKey = h('button', { class: `key checkkey${canCheck ? ' on' : ''}`, disabled: !canCheck, onclick: () => submitTotal(rest) }, canCheck ? `✓ Check ${rest}` : 'Kein Finish');
     const grid = h('div', { class: 'totalgrid' },
       digitRows.map((row, i) => [quick(QUICK_LEFT[i]), row, quick(QUICK_RIGHT[i])]),
-      quick(QUICK_LEFT[4]), checkKey, quick(QUICK_RIGHT[4]),
     );
     padEl.append(display, grid);
+  }
+
+  // „Rest“ trägt den auscheckbaren Rest ein; der Knopf unten wird dann zu CHECK
+  function restKey(rest) {
+    const canCheck = !!checkoutPath(rest, 3);
+    return h('button', {
+      class: `key restkey${canCheck ? '' : ' off'}`,
+      disabled: !canCheck,
+      onclick: () => { typed = String(rest); drawPad(); draw(); },
+    }, 'Rest');
   }
 
   async function submitTotal(points) {
@@ -276,7 +287,14 @@ export function render(root, params, nav) {
     sumSlot.className = 'slot sum num' + (ev.bust ? ' bust' : '');
     sumSlot.textContent = turnText(ev);
     if (!training) drawCheckout(st, m);
-    nextBtn.textContent = ev.closed ? `${darts.slice(0, ev.usedDarts).map(hitLabel).join(', ')} = ${turnText(ev, true)}  ▶` : 'WEITER';
+    // X01: Solange in der Aufnahme nichts eingegeben ist, heißt „Weiter“ NO SCORE (rot) und trägt 0 ein
+    const noScore = st.mode.id === 'x01' && !st.finished && !darts.length && !typed;
+    nextBtn.classList.toggle('noscore', noScore);
+    let label = 'WEITER';
+    if (ev.closed) label = `${darts.slice(0, ev.usedDarts).map(hitLabel).join(', ')} = ${turnText(ev, true)}  ▶`;
+    else if (noScore) label = 'NO SCORE';
+    else if (typed) label = parseInt(typed, 10) === ev.startRemaining ? `CHECK ${typed} ✓` : `WEITER ${typed}`; // Summen-Eingabe
+    nextBtn.textContent = label;
     nextBtn.style.fontSize = ev.closed ? '20px' : '';
   }
 
@@ -400,6 +418,8 @@ export function render(root, params, nav) {
   // ---------- Ablauf ----------
   async function doNext(reason) {
     if (session.state.finished) { showMatchEnd(); return; }
+    // Summen-Eingabe: eine eingetippte Zahl mit „Weiter“ übernehmen statt 0 einzutragen
+    if (!useCamera && inputMode === 'total' && typed) { submitTotal(parseInt(typed, 10)); return; }
     const before = session.state;
     const ev = before.turnEval;
     const labels = [...before.turnDarts.slice(0, ev.usedDarts).map(hitLabel)];
@@ -424,6 +444,8 @@ export function render(root, params, nav) {
   session.on((type, data) => {
     if (type === 'next' || type === 'undo' || type === 'correct') updateAverages();
     if (type === 'next') announceRequire();
+    // Summen-Eingabe: Feld neu aufbauen (Rest-Taste hängt vom Rest des Spielers ab, der dran ist)
+    if ((type === 'next' || type === 'undo') && !useCamera && inputMode === 'total') { typed = ''; drawPad(); }
     if (type === 'legWon') {
       const name = session.match.playerNames[data.winner];
       banner(data.setWon ? `Set für ${name}!` : `Leg für ${name}!`, 2200);

@@ -101,16 +101,13 @@ label.field > span { display: block; color: var(--text-dim); font-size: 14px; ma
 .key.miss { font-size: 16px; color: var(--text-dim); white-space: nowrap; }
 .key[disabled] { opacity: .35; }
 /* Cricket: nur 15–20 (plus 25/Bull/Daneben darunter), dafür große Felder */
-.cricketkeys { display: grid; grid-template-columns: 1fr 1fr 1fr 1.1fr; grid-auto-rows: minmax(42px, 1fr); gap: 6px; flex: 1 1 auto; }
-.cricketkeys .key { min-height: 42px; font-size: 30px; }
-.cricketkeys .key.mult, .cricketkeys .key.miss { font-size: 17px; }
-.cricketkeys .key.miss { grid-column: span 2; }
 /* Kopfzeile: Platzhalter rechts, damit die Info mittig bleibt */
 .spacer-btn { visibility: hidden; }
 .actions { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 6px; }
 .actions .btn { white-space: nowrap; padding: 8px; font-size: 17px; }
 .actions .btn.next { white-space: normal; line-height: 1.1; }
 .btn.next { font-size: 24px; min-height: 64px; }
+.btn.next.noscore { background: var(--danger); color: #fff; }
 .spacer { flex: 1; }
 
 /* Kamera-Ansicht */
@@ -153,8 +150,8 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
   .actions .btn { min-height: 48px; }
   .hint { min-height: 0; }
   .hint .main { font-size: clamp(16px, 5vh, 28px); }
-  .key, .totalgrid .key, .cricketkeys .key { min-height: 34px; font-size: 20px; }
-  .keys, .cricketkeys { grid-auto-rows: minmax(34px, 1fr); }
+  .key, .totalgrid .key { min-height: 34px; font-size: 20px; }
+  .keys { grid-auto-rows: minmax(34px, 1fr); }
   .totalgrid { grid-auto-rows: minmax(32px, 1fr); }
   .totaldisplay .tv { font-size: 26px; }
   .game .left { gap: 6px; }
@@ -166,10 +163,11 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
 .totaldisplay .tv { font-size: 34px; font-weight: 900; }
 .totaldisplay .ti { font-size: 15px; color: var(--text-dim); text-align: right; }
 /* Ziffernfeld in der Mitte, häufige Aufnahmen links und rechts */
-.totalgrid { display: grid; grid-template-columns: 1fr 1.25fr 1.25fr 1.25fr 1fr; grid-auto-rows: minmax(40px, 1fr); gap: 6px; flex: 1 1 auto; }
+.totalgrid { display: grid; grid-template-columns: 1fr 1.25fr 1.25fr 1.25fr 1fr; grid-auto-rows: minmax(48px, 1fr); gap: 6px; flex: 1 1 auto; }
 .totalgrid .key { font-size: 28px; min-height: 40px; }
 .totalgrid .key.quick { background: #10251a; color: var(--accent); font-size: 21px; }
-.totalgrid .checkkey { grid-column: span 3; font-size: 22px; }
+.totalgrid .restkey { font-size: 20px; background: var(--accent-dim); color: #fff; }
+.totalgrid .restkey.off { background: var(--surface2); color: var(--text-dim); }
 
 /* Kompakte Auswahl nebeneinander (Neues Spiel) */
 .grid2, .grid3 { display: grid; gap: 0 10px; }
@@ -189,11 +187,17 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
 /* Cricket-Tabelle: Spieler 1 | Zahl | Spieler 2 */
 .cricket { display: grid; grid-template-columns: 1fr; gap: 3px; }
 .crow { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 3px; }
-.crow > div { background: var(--surface); border-radius: 8px; min-height: clamp(24px, 3.5dvh, 38px); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: clamp(18px, 5vw, 28px); }
-.crow .cn { background: var(--surface2); }
+.crow > * { background: var(--surface); border-radius: 8px; min-height: clamp(24px, 3.5dvh, 38px); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: clamp(18px, 5vw, 28px); }
+.crow .cn { background: var(--surface2); border: 2px solid transparent; }
+.crow .cn:active { filter: brightness(1.5); }
+/* Zahlen direkt antippen: Tabelle füllt den Platz, Double/Triple färbt die Zahlenspalte */
+.game.is-cricket .cricket { flex: 1 1 auto; grid-auto-rows: minmax(40px, 1fr); }
+.game.is-cricket .crow > * { font-size: clamp(22px, 6.5vw, 34px); }
+.game.is-cricket .pad { flex: 0 0 auto; }
+.cricket[data-mult="2"] .cn, .cricket[data-mult="3"] .cn { border-color: var(--accent); color: var(--accent); }
 .crow .cm.cur { background: #10251a; }
 .crow .cm.closed { color: var(--accent); }
-.crow.dead > div { opacity: .35; }
+.crow.dead > * { opacity: .35; }
 .crow.dead .cn { text-decoration: line-through; }
 
 /* Trainingsauswahl */
@@ -210,6 +214,8 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
 .game.is-cricket .pp .score { font-size: clamp(40px, 13vw, 96px); }
 @media (orientation: landscape) and (min-width: 640px) {
   .game.is-cricket .pp .score { font-size: clamp(32px, min(8vw, 12vh), 96px); }
-  .crow > div { min-height: clamp(22px, 5vh, 36px); }
+  .crow > * { min-height: clamp(22px, 5vh, 36px); }
+  .game.is-cricket .cricket { grid-auto-rows: minmax(26px, 1fr); }
+  .game.is-cricket .crow > * { font-size: clamp(16px, 4.5vh, 26px); }
 }
 .game.is-cricket .hint:empty { display: none; }
