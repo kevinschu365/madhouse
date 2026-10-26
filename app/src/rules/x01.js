@@ -3,12 +3,13 @@
 // Jeder Spielmodus liefert dieselbe Schnittstelle (siehe rules/index.js).
 
 import { dartScore, isDouble } from '../core/board.js';
-import { checkoutPath } from './checkout.js';
+import { checkoutPath, turnPlan, labelToHit } from './checkout.js';
 
 export const X01 = {
   id: 'x01',
   label: 'X01',
   kind: 'match',
+  maxPlayers: 6,
   dartsPerTurn: 3,
   defaultOptions: { startScore: 501, doubleOut: true },
 
@@ -102,6 +103,13 @@ export const X01 = {
   /** Ist diese Summe mit 3 Darts überhaupt werfbar? */
   isPossibleTotal(points) {
     return points >= 0 && points <= 180 && ![163, 166, 169, 172, 173, 175, 176, 178, 179].includes(points);
+  },
+
+  /** Computer-Gegner: Finish-Weg, sonst Stellwurf ohne Bogey, weit weg einfach T20. */
+  botTarget(options, leg, playerIdx, ev, dartsLeft) {
+    const rest = ev ? ev.remaining : leg.remaining[playerIdx];
+    const plan = rest <= 350 ? turnPlan(rest, dartsLeft) : null;
+    return plan ? labelToHit(plan.darts[0]) : { segment: 20, multiplier: 3 };
   },
 
   /** Für Statistik: War ein Ein-Dart-Finish möglich (Wurf „aufs Doppel“)? */

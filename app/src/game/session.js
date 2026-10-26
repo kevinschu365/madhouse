@@ -101,7 +101,7 @@ export class GameSession {
     await this.persist();
     const st = this.state;
     if (st.finished) this.emit('matchWon', { winner: st.winner });
-    else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: before.current, setWon: st.setNo !== before.setNo });
+    else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: legWinner(st, before), setWon: st.setNo !== before.setNo });
   }
 
   /** Aufnahme als Summe eintragen (z. B. 85) und zum nächsten Spieler wechseln. */
@@ -123,7 +123,7 @@ export class GameSession {
     await this.persist();
     const st = this.state;
     if (st.finished) this.emit('matchWon', { winner: st.winner });
-    else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: before.current, setWon: st.setNo !== before.setNo });
+    else if (st.legOverall !== before.legOverall) this.emit('legWon', { winner: legWinner(st, before), setWon: st.setNo !== before.setNo });
     return ev;
   }
 
@@ -141,4 +141,10 @@ export class GameSession {
     lsSet('activeMatch', null);
     await this.persist();
   }
+}
+
+/** Gewinner des gerade beendeten Legs (bei Halve-It nicht unbedingt der letzte Werfer). */
+function legWinner(st, before) {
+  const leg = st.legs.find((l) => l.legOverall === before.legOverall);
+  return leg && leg.winner != null ? leg.winner : before.current;
 }

@@ -78,3 +78,48 @@ export function checkoutPaths(rest, dartsLeft = 3, count = 3) {
   }
   return picked;
 }
+
+/** 'T20' -> { segment: 20, multiplier: 3 }; 'BULL', '25', 'D16', '7', '0'. */
+export function labelToHit(label) {
+  if (label === 'BULL') return { segment: 25, multiplier: 2 };
+  if (label === '25') return { segment: 25, multiplier: 1 };
+  if (label === '0') return { segment: 0, multiplier: 0 };
+  const m = label[0] === 'T' ? 3 : label[0] === 'D' ? 2 : 1;
+  return { segment: parseInt(label.replace(/^[TD]/, ''), 10), multiplier: m };
+}
+
+// Restwerte bis 170, die mit 3 Darts nicht auszuchecken sind (169, 168, 166, 165, 163, 162, 159).
+let bogeys = null;
+export function isBogey(rest) {
+  if (!bogeys) {
+    bogeys = new Set();
+    for (let r = 2; r <= 170; r++) if (!checkoutPath(r, 3)) bogeys.add(r);
+  }
+  return bogeys.has(rest);
+}
+
+// Vorbereitungswürfe der Reihe nach: erst die großen Triples, dann Singles.
+const SETUP_ORDER = ['T20', 'T19', 'T18', 'T17', 'T16', 'T15', '20', '19', '18', '17', '16', '15', '14', '13', '12', '11', '10', '9', '8', '7', '6', '5', '4', '3', '2', '1'];
+
+/**
+ * Wurfplan für die übrigen Darts der Aufnahme (Double-Out):
+ * Ist ein Finish möglich, ist es der Checkout-Weg. Sonst wird gepunktet, aber so,
+ * dass am Ende kein Rest ohne Finish (Bogey wie 169) oder 1 übrig bleibt.
+ * Ergebnis: { darts: ['T19', 'T20', …], leave, finish } oder null bei Rest < 2.
+ */
+export function turnPlan(rest, dartsLeft = 3) {
+  if (rest < 2 || dartsLeft < 1) return null;
+  const darts = [];
+  let r = rest;
+  for (let k = dartsLeft; k > 0; k--) {
+    const fin = checkoutPath(r, k);
+    if (fin) return { darts: [...darts, ...fin], leave: 0, finish: true };
+    const last = k === 1;
+    const ok = (left) => left >= 2 && !(last && isBogey(left)) && !(left <= 170 && left % 2 === 1 && last && left < 41);
+    const pick = SETUP_ORDER.find((l) => ok(r - dartScore(labelToHit(l))))
+      || SETUP_ORDER.find((l) => r - dartScore(labelToHit(l)) >= 2) || 'T20';
+    darts.push(pick);
+    r -= dartScore(labelToHit(pick));
+  }
+  return { darts, leave: r, finish: false };
+}

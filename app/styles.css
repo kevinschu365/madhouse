@@ -219,3 +219,34 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
   .game.is-cricket .crow > * { font-size: clamp(16px, 4.5vh, 26px); }
 }
 .game.is-cricket .hint:empty { display: none; }
+
+/* Mehr als 2 Spieler: kompakte Felder (3 nebeneinander, ab 4 in zwei Reihen) */
+.players.many { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.players.many.n4 { grid-template-columns: repeat(2, 1fr); }
+.players.many .pp { padding: 4px 6px 6px; border-width: 2px; border-radius: 14px; }
+.players.many .pp .pname { font-size: clamp(14px, 4vw, 22px); }
+.players.many .pp .score { font-size: clamp(34px, 11vw, 80px); letter-spacing: -1px; }
+.players.many .pp .sl { font-size: clamp(12px, 3.4vw, 18px); gap: 8px; }
+.players.many .pp .meta { display: none; }
+.players.many .pp .avg { font-size: 12px; }
+.players.many .pp .avg span:first-child { display: none; } /* nur Spiel-Average */
+.players.many.n4 .pp .score, .players.many.n5 .pp .score, .players.many.n6 .pp .score { font-size: clamp(30px, 9vw, 64px); }
+
+/* Halve-It, Killer */
+.game.is-party .pp .score { font-size: clamp(36px, 13vw, 96px); }
+.game.is-party .players.many .pp .score { font-size: clamp(26px, 8vw, 60px); }
+.game.is-party .pp .meta { display: flex; }
+
+/* Neues Spiel: Spielerzeilen mit Entfernen-Knopf */
+.playerrow { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
+.playerrow label.field { flex: 1; min-width: 0; }
+.playerrow .iconbtn { margin-bottom: 6px; }
+
+/* Rekorde am Spielende */
+.records:empty { display: none; }
+.records { background: var(--accent-dim); border-radius: 12px; padding: 10px 14px; text-align: center; line-height: 1.5; }
+.records .recordhead { font-weight: 900; font-size: 20px; }
+
+/* Statistik: Balken für die Doppel-Quote */
+.ratebar { width: 100%; min-width: 60px; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.ratebar > div { height: 100%; background: var(--accent); }

@@ -54,6 +54,11 @@ export const DRILLS = [
     opts: [['limit', 'Darts je Zahl', [[3, '3'], [6, '6'], [9, '9']]], ['max', 'Bis', [[60, '60'], [100, '100'], [170, '170']]], ['attempts', 'Versuche', [[10, '10'], [20, '20']]]],
   },
   {
+    cat: 'Checkout', id: 'costreak',
+    text: 'Zufällige machbare Restwerte, so viele wie möglich hintereinander. Der erste nicht geschaffte beendet die Serie. Gewertet: längste Serie.',
+    opts: [['limit', 'Darts je Zahl', [[3, '3'], [6, '6']]], ['max', 'Bis', [[60, '60'], [100, '100'], [170, '170']]]],
+  },
+  {
     cat: 'Komplett-Test', id: 'jdc',
     text: `Teil 1 Shanghai 10–15, Teil 2 je 1 Dart auf D1–D20 und Bull (50 je Treffer, Bullseye 100), Teil 3 Shanghai 15–20. Shanghai +100. Stufen: ${JDC_GRADES.slice().reverse().map(([min, n]) => `${n} ${min}+`).join(', ')}.`,
     opts: [],

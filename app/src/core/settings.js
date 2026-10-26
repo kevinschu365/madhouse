@@ -20,11 +20,16 @@ export const DEFAULT_SETTINGS = {
   saveCorrectionImages: true,// Bild speichern, wenn ein erkannter Dart korrigiert wird
   autoAdvance: true,         // automatisch weiter, wenn Board leer
   performance: 'auto',       // 'auto' | 'low' | 'high'
-  inputMode: 'dart',         // Handeingabe: 'dart' (pro Dart) | 'board' (Scheibe) | 'total' (Summe)
+  inputMode: 'total',        // Handeingabe: 'dart' (pro Dart) | 'board' (Scheibe) | 'total' (Summe)
   lastSetup: { startScore: 501, setsBestOf: 1, legsBestOf: 3 },
 };
 
 let settings = { ...DEFAULT_SETTINGS, ...lsGet('settings', {}) };
+// Einmalig (Version 1.3): Summe wird Standard-Eingabe, auch wenn vorher „Pro Dart“ gespeichert war
+if (!settings.inputTotalDefault) {
+  settings = { ...settings, inputMode: 'total', inputTotalDefault: true };
+  lsSet('settings', settings);
+}
 const listeners = new Set();
 
 export function getSettings() {

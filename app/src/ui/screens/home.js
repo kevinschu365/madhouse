@@ -11,9 +11,12 @@ export function render(root, params, nav) {
     let info = '';
     try {
       const st = derive(active);
+      const label = st.mode.id === 'x01' ? '' : ` · ${st.mode.label}`;
       info = active.players.length === 1
         ? `${active.playerNames[0]} · ${st.mode.describe(active.options)}`
-        : `${active.playerNames[0]} ${st.scores[0]} : ${st.scores[1]} ${active.playerNames[1]}${st.mode.id === 'x01' ? '' : ` · ${st.mode.label}`}`;
+        : active.players.length === 2
+          ? `${active.playerNames[0]} ${st.scores[0]} : ${st.scores[1]} ${active.playerNames[1]}${label}`
+          : `${active.playerNames.map((n, i) => `${n} ${st.scores[i]}`).join(' · ')}${label}`;
     } catch { info = 'Spiel unterbrochen'; }
     resume = h('div', { class: 'card resume stack' },
       h('div', { class: 'dim' }, active.players.length === 1 ? 'Laufendes Training' : 'Laufendes Spiel'),

@@ -18,13 +18,19 @@
 //   turnSpeech(options, ev, { T, hit }) -> { parts[], rest } eigene Ansage nach der Aufnahme
 //   status(options, leg, ev)   Anzeige für Trainings (siehe rules/training.js)
 //   result(options, leg)       Ergebnis eines Trainings für Rekorde
+//   maxPlayers                 Höchstzahl Spieler (Standard 2)
+//   nextPlayer(options, leg, current, n)  wer als Nächstes wirft (z. B. Killer: Ausgeschiedene überspringen)
+//   ev.winner                  Gewinner des Legs, wenn nicht der Werfer (z. B. Halve-It)
+//   panel / targetText          Anzeige für Halve-It und Killer (siehe rules/partyGames.js)
+//   botTarget(options, liveLeg, playerIdx, ev, dartsLeft)  Ziel des Computer-Gegners
 
 import { X01 } from './x01.js';
 import { CRICKET } from './cricket.js';
 import { ATC, BOBS27, SHANGHAI, DOUBLES, SCORE, JDC } from './training.js';
-import { C121, CATCH40, RANDOM_CHECKOUT } from './checkoutDrills.js';
+import { C121, CATCH40, RANDOM_CHECKOUT, CHECKOUT_STREAK } from './checkoutDrills.js';
+import { HALVEIT, KILLER } from './partyGames.js';
 
-const ALL = [X01, CRICKET, ATC, SHANGHAI, BOBS27, DOUBLES, SCORE, C121, CATCH40, RANDOM_CHECKOUT, JDC];
+const ALL = [X01, CRICKET, HALVEIT, KILLER, ATC, SHANGHAI, BOBS27, DOUBLES, SCORE, C121, CATCH40, RANDOM_CHECKOUT, CHECKOUT_STREAK, JDC];
 
 export const MODES = Object.fromEntries(ALL.map((m) => [m.id, m]));
 

@@ -1,7 +1,8 @@
 import { h, confirmDialog, toast } from '../dom.js';
 import { dbGetAll, deleteMatch } from '../../core/storage.js';
 import { getPlayers } from '../../core/settings.js';
-import { playerStats, detectionStats, cricketStats, trainingRecords } from '../../stats/stats.js';
+import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats } from '../../stats/stats.js';
+import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
 import { getMode, isTraining } from '../../rules/index.js';
 
@@ -24,7 +25,8 @@ export function render(root, params, nav) {
     const names = new Map();
     for (const m of matches) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
     for (const p of known) names.set(p.id, p.name);
-    const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])];
+    // Der Computer-Gegner bekommt keine eigene Statistik
+    const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])].filter((id) => !isBotId(id));
     if (!selectedPlayer && ids.length) selectedPlayer = ids[0];
 
     const stat = (v, k) => h('div', { class: 'stat' }, h('div', { class: 'v num' }, v), h('div', { class: 'k' }, k));
@@ -43,15 +45,17 @@ export function render(root, params, nav) {
       const table = h('table', { class: 'hist' });
       for (const m of list) {
         const me = m.players.indexOf(selectedPlayer);
-        const opp = 1 - me;
+        const opps = m.players.map((_, i) => i).filter((i) => i !== me);
         let res = '';
         try {
           const st = derive(m);
-          res = m.format.setsBestOf > 1 ? `${st.setsWon[me]}:${st.setsWon[opp]} Sets` : `${st.legsWon[me]}:${st.legsWon[opp]} Legs`;
+          const won = m.format.setsBestOf > 1 ? st.setsWon : st.legsWon;
+          // Eigenes Ergebnis zuerst, dann die Gegner
+          res = [me, ...opps].map((i) => won[i]).join(':') + (m.format.setsBestOf > 1 ? ' Sets' : ' Legs');
         } catch { res = '?'; }
         table.appendChild(h('tr', {},
           h('td', {}, date(m.createdAt)),
-          h('td', {}, `vs. ${m.playerNames[opp]}`),
+          h('td', {}, `vs. ${opps.map((i) => m.playerNames[i]).join(', ')}`),
           h('td', { class: m.winner === me ? 'accent' : '' }, res),
           h('td', { class: 'num' }, metric(pr.filter((r) => r.matchId === m.id))),
           h('td', {}, delBtn(m)),
@@ -80,6 +84,18 @@ export function render(root, params, nav) {
       const det = detectionStats(pr);
       if (det.total) body.appendChild(h('p', { class: 'dim' }, `Kamera-Erkennung bei diesem Spieler: ${det.total - det.corrected} von ${det.total} Darts ohne Korrektur (${(det.rate * 100).toFixed(0)} %).`));
       body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe ist unbekannt, wie viele Darts aufs Doppel gingen – dort zählt nur der Checkout-Dart, die Quote fällt dann zu gut aus.'));
+      // Trefferquote je Doppel: zeigt, welches Doppel gut sitzt und welches man üben sollte
+      const dbl = doubleStats(pr);
+      if (dbl.length) {
+        body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Doppel-Quote'));
+        body.appendChild(h('table', { class: 'hist' }, dbl.map((d) => h('tr', {},
+          h('td', {}, h('b', {}, d.target)),
+          h('td', { class: 'num' }, `${d.hits} / ${d.attempts}`),
+          h('td', { class: 'num' }, h('div', { class: 'ratebar' }, h('div', { style: { width: `${Math.round(d.rate * 100)}%` } }))),
+          h('td', { class: `num ${d.rate >= 0.35 ? 'accent' : ''}` }, `${Math.round(d.rate * 100)} %`),
+        ))));
+        body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Jeder Dart bei einem Ein-Dart-Finish (z. B. Rest 32 = D16) zählt als Versuch auf dieses Doppel. Nur Pro-Dart-, Scheiben- und Kamera-Eingabe; bei Summen-Eingabe ist unbekannt, wohin die Darts gingen.'));
+      }
       body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
       body.appendChild(matchHistory(myMatches, pr, (r) => `Ø ${playerStats(r).average.toFixed(1)}`));
     };

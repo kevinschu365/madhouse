@@ -63,7 +63,8 @@ function checkoutDrill(cfg) {
           points: leg.points + pts,
           log: [...leg.log, { target: leg.target, darts: attemptDarts, ok: checkout }],
         };
-        finished = s.attempt >= cfg.attempts(o);
+        // Streak-Modus: Der erste nicht geschaffte Versuch beendet das Training
+        finished = s.attempt >= cfg.attempts(o) || (!!cfg.endOnFail && !checkout);
         s.target = finished ? leg.target : cfg.target(o, s);
         s.rest = s.target;
         after = s;
@@ -94,7 +95,7 @@ function checkoutDrill(cfg) {
         banner: ev.remaining === leg.target ? `Ziel ${leg.target}` : `Rest ${ev.remaining}`,
         label: `Ziel ${leg.target}`,
         target: null,
-        lines: [`Versuch ${Math.min(leg.attempt + 1, cfg.attempts(o))} / ${cfg.attempts(o)} · noch ${left} von ${limit} Darts`, extra],
+        lines: [`Versuch ${Math.min(leg.attempt + 1, cfg.attempts(o))}${cfg.endOnFail ? '' : ` / ${cfg.attempts(o)}`} · noch ${left} von ${limit} Darts`, extra],
       };
     },
 
@@ -190,5 +191,32 @@ export const RANDOM_CHECKOUT = checkoutDrill({
   extraLine: (o, s) => `Geschafft: ${s.successes}`,
   result(o, leg) {
     return { value: leg.successes, text: `${leg.successes}/${o.attempts} geschafft`, better: 'high' };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Checkout-Streak: zufällige machbare Restwerte, so viele wie möglich hintereinander.
+// Der erste nicht geschaffte Versuch beendet das Training. Gewertet: Länge der Serie.
+// ---------------------------------------------------------------------------
+export const CHECKOUT_STREAK = checkoutDrill({
+  mode: {
+    id: 'costreak',
+    label: 'Checkout-Streak',
+    defaultOptions: { limit: 3, min: 2, max: 100, targets: [] },
+    describe(o) { return `Checkout-Streak · bis ${o.max} · ${o.limit} Darts`; },
+    prepareOptions(o) {
+      const pool = [];
+      for (let n = o.min; n <= o.max; n++) if (checkoutPath(n, 3)) pool.push(n);
+      const targets = Array.from({ length: 200 }, () => pool[Math.floor(Math.random() * pool.length)]);
+      return { ...o, targets };
+    },
+  },
+  attempts: () => 200,
+  endOnFail: true,
+  limit: (o) => o.limit,
+  target: (o, s) => o.targets[s.attempt] ?? 40,
+  extraLine: (o, s) => `Serie: ${s.successes}`,
+  result(o, leg) {
+    return { value: leg.successes, text: `Serie ${leg.successes}`, better: 'high' };
   },
 });

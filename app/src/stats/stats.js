@@ -141,3 +141,24 @@ export function trainingRecords(matches, playerId, getMode) {
   }
   return out;
 }
+
+/**
+ * Trefferquote je Doppel (X01): Jeder Dart, der bei einem Ein-Dart-Finish geworfen wurde
+ * (Rest 2–40 gerade oder 50), ist ein Versuch auf dieses Doppel. Summen-Eingaben zählen nicht,
+ * weil dort unbekannt ist, wohin die einzelnen Darts gingen.
+ * Ergebnis: [{ target: 'D16', attempts, hits, rate }], meistgeworfenes zuerst.
+ */
+export function doubleStats(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (r.mode !== 'x01' || r.fromTotal || r.segment == null || !r.counted || !r.onFinish) continue;
+    const target = r.restBefore === 50 ? 'BULL' : `D${r.restBefore / 2}`;
+    const e = map.get(target) || { target, attempts: 0, hits: 0 };
+    e.attempts++;
+    if (r.checkout) e.hits++;
+    map.set(target, e);
+  }
+  return [...map.values()]
+    .map((e) => ({ ...e, rate: e.hits / e.attempts }))
+    .sort((a, b) => b.attempts - a.attempts || b.rate - a.rate);
+}

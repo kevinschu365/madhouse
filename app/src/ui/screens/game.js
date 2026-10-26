@@ -3,7 +3,7 @@ import { h, banner, toast, sheet, confirmDialog } from '../dom.js';
 import { createMatch, throwRows } from '../../game/match.js';
 import { GameSession } from '../../game/session.js';
 import { hitLabel, allHits, dartScore } from '../../core/board.js';
-import { checkoutPath, checkoutPaths } from '../../rules/checkout.js';
+import { checkoutPath, checkoutPaths, turnPlan } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings } from '../../core/settings.js';
@@ -12,6 +12,7 @@ import { lsGet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
+import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -25,12 +26,17 @@ export function render(root, params, nav) {
   const mode = session.state.mode;
   const training = mode.kind === 'training';
   const cricket = mode.id === 'cricket';
+  const party = !!mode.panel;                        // Halve-It, Killer: eigene Anzeige je Spieler
+  const playerCount = session.match.players.length;
+  const isBot = (i) => isBotId(session.match.players[i]);
+  const botTurn = () => !session.state.finished && isBot(session.state.current);
+  let botTimer = null;
   const supportsTotal = !!mode.isPossibleTotal;      // Summen-Eingabe nur bei X01
   let selected = null;       // { turnIndex, dartIndex } zum Korrigieren
   let mult = 1;              // Eingabe-Multiplikator
   // Eingabeart wird beim Spielstart festgelegt und ist im Spiel fest.
   // Einzige Ausnahme: Kamera fällt aus -> Wechsel auf Handeingabe (siehe switchToManual).
-  let inputMode = params.inputMode || match.inputMode || getSettings().inputMode || 'dart'; // 'dart' | 'board' | 'total'
+  let inputMode = params.inputMode || match.inputMode || getSettings().inputMode || 'total'; // 'dart' | 'board' | 'total'
   if (inputMode === 'total' && !supportsTotal) inputMode = 'dart';
   session.match.inputMode = inputMode;
   let typed = '';                                    // Summen-Eingabe
@@ -69,14 +75,14 @@ export function render(root, params, nav) {
   const nextBtn = h('button', { class: 'btn primary next', onclick: () => doNext('manual') }, 'WEITER');
 
   const actions = h('div', { class: 'actions' },
-    h('button', { class: 'btn', onclick: () => { selected = null; session.undoDart(); } }, '↶ Dart'),
-    h('button', { class: 'btn', onclick: () => { selected = null; session.undoTurn(); } }, '↶ Aufn.'),
+    h('button', { class: 'btn', onclick: () => undo('dart') }, '↶ Dart'),
+    h('button', { class: 'btn', onclick: () => undo('turn') }, '↶ Aufn.'),
     nextBtn,
   );
   // Hochformat: Kamera oben, Eingabe darunter, Knöpfe unten. Querformat: Knöpfe links unter dem Spielstand.
   const landscape = window.matchMedia('(orientation: landscape) and (min-width: 640px)');
   const left = h('div', { class: 'left' },
-    h('div', { class: training ? 'players solo' : 'players' }, panels.map((p) => p.el)),
+    h('div', { class: training ? 'players solo' : playerCount > 2 ? `players many n${playerCount}` : 'players' }, panels.map((p) => p.el)),
     cricketEl,
     h('div', { class: 'turnrow' }, slots, sumSlot),
     hintEl,
@@ -85,7 +91,7 @@ export function render(root, params, nav) {
   const placeActions = () => (landscape.matches ? left : right).appendChild(actions);
   placeActions();
   landscape.addEventListener?.('change', placeActions);
-  const screen = h('div', { class: `game${cricket ? ' is-cricket' : ''}${training ? ' is-training' : ''}` },
+  const screen = h('div', { class: `game${cricket ? ' is-cricket' : ''}${training ? ' is-training' : ''}${party ? ' is-party' : ''}` },
     h('div', { class: 'bar' },
       h('button', { class: 'iconbtn', onclick: openMenu, 'aria-label': 'Menü' }, '☰'),
       infoEl,
@@ -118,6 +124,7 @@ export function render(root, params, nav) {
     unlock();
     const st = session.state;
     if (st.finished) return;
+    if (botTurn()) { toast('Der Computer ist dran.'); return; }
     if (selected && selected.dartIndex < st.turnDarts.length) {
       const old = st.turnDarts[selected.dartIndex];
       if (old && old.source === 'camera' && cam && getSettings().saveCorrectionImages) {
@@ -231,6 +238,7 @@ export function render(root, params, nav) {
     if (points == null || Number.isNaN(points)) { toast('Bitte eine Zahl eintippen.'); return; }
     const st = session.state;
     if (st.finished) return;
+    if (botTurn()) { toast('Der Computer ist dran.'); return; }
     if (!st.mode.isPossibleTotal(points)) { toast(`${points} ist mit 3 Darts nicht möglich.`); return; }
     const rest = st.turnEval.startRemaining;
     let darts = 3;
@@ -274,6 +282,7 @@ export function render(root, params, nav) {
     const ev = st.turnEval;
     if (training) drawTraining(st, m);
     else if (cricket) drawCricket(st, m);
+    else if (party) drawParty(st, m);
     else panels.forEach((p, i) => {
       p.el.classList.toggle('active', !st.finished && st.current === i);
       p.name.textContent = m.playerNames[i];
@@ -293,12 +302,16 @@ export function render(root, params, nav) {
     });
     sumSlot.className = 'slot sum num' + (ev.bust ? ' bust' : '');
     sumSlot.textContent = turnText(ev);
-    if (!training) drawCheckout(st, m);
+    if (party) setHint(st.finished ? '' : st.mode.targetText(m.options, ev.after || st.leg, st.current));
+    else if (!training) drawCheckout(st, m);
     // X01: Solange in der Aufnahme nichts eingegeben ist, heißt „Weiter“ NO SCORE (rot) und trägt 0 ein
-    const noScore = st.mode.id === 'x01' && !st.finished && !darts.length && !typed;
+    const bot = botTurn();
+    const noScore = st.mode.id === 'x01' && !st.finished && !darts.length && !typed && !bot;
     nextBtn.classList.toggle('noscore', noScore);
+    nextBtn.disabled = bot;
     let label = 'WEITER';
-    if (ev.closed) label = `${darts.slice(0, ev.usedDarts).map(hitLabel).join(', ')} = ${turnText(ev, true)}  ▶`;
+    if (bot) label = 'Computer wirft …';
+    else if (ev.closed) label = `${darts.slice(0, ev.usedDarts).map(hitLabel).join(', ')} = ${turnText(ev, true)}  ▶`;
     else if (noScore) label = 'NO SCORE';
     else if (typed) label = parseInt(typed, 10) === ev.startRemaining ? `CHECK ${typed} ✓` : `WEITER ${typed}`; // Summen-Eingabe
     nextBtn.textContent = label;
@@ -320,9 +333,12 @@ export function render(root, params, nav) {
     // Summen-Eingabe: Zwischenstand eintippen (z. B. 54 nach T18 bei 141) -> Weg für den neuen Rest
     const part = typedPartial(ev.startRemaining);
     if (part) ({ rest, dartsLeft } = part);
-    const paths = !st.finished && !ev.bust && m.options.doubleOut && dartsLeft > 0 && st.mode.id === 'x01'
-      ? checkoutPaths(rest, dartsLeft, 3) : [];
+    const x01 = !st.finished && !ev.bust && m.options.doubleOut && dartsLeft > 0 && st.mode.id === 'x01';
+    const paths = x01 ? checkoutPaths(rest, dartsLeft, 3) : [];
+    // Kein Finish möglich, aber in Reichweite: Stellwurf-Plan, der keinen Bogey (169, 159 …) übrig lässt
+    const plan = x01 && !paths.length && rest <= 350 ? turnPlan(rest, dartsLeft) : null;
     if (paths.length) setHint(paths[0].join('  '), paths.slice(1).map((p) => p.join(' ')));
+    else if (plan) setHint(plan.darts.join('  '), [`stellen · bleibt ${plan.leave}`]);
     else if (part) setHint(rest <= 170 ? `Kein Finish mit ${dartsLeft} Dart${dartsLeft > 1 ? 's' : ''}` : '');
     else setHint(st.hint ? st.hint.join('  ') : '');
   }
@@ -407,6 +423,21 @@ export function render(root, params, nav) {
     }
   }
 
+  // Halve-It, Killer: Anzeige je Spieler kommt aus dem Spielmodus (live während der Aufnahme)
+  function drawParty(st, m) {
+    const live = st.finished ? st.leg : (st.turnEval.after || st.leg);
+    panels.forEach((p, i) => {
+      const v = st.mode.panel(m.options, live, i);
+      p.el.classList.toggle('active', !st.finished && st.current === i);
+      p.name.textContent = m.playerNames[i];
+      p.score.textContent = v.big;
+      p.sets.innerHTML = m.format.setsBestOf > 1 ? `Sets <b>${st.setsWon[i]}</b>` : '';
+      p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
+      p.meta.replaceChildren(h('span', {}, v.sub));
+      p.avg.replaceChildren();
+    });
+  }
+
   /** Bewertung der zuletzt abgeschlossenen Aufnahme (nach „Weiter“). */
   function lastClosedEval(st) {
     for (let i = st.legs.length - 1; i >= 0; i--) {
@@ -445,6 +476,7 @@ export function render(root, params, nav) {
   // ---------- Ablauf ----------
   async function doNext(reason) {
     if (session.state.finished) { showMatchEnd(); return; }
+    if (botTurn() && reason !== 'bot') return; // Der Computer schließt seine Aufnahme selbst ab
     // Summen-Eingabe: eine eingetippte Zahl mit „Weiter“ übernehmen statt 0 einzutragen
     if (!useCamera && inputMode === 'total' && typed) { submitTotal(parseInt(typed, 10)); return; }
     const before = session.state;
@@ -481,7 +513,42 @@ export function render(root, params, nav) {
     if (type === 'error') toast(data.message);
     draw();
     if (cam) cam.sessionChanged(type, data);
+    scheduleBot();
   });
+
+  // ---------- Computer-Gegner ----------
+  // Wirft Dart für Dart mit kurzer Pause, damit man mitlesen und die Ansage hören kann.
+  function scheduleBot() {
+    clearTimeout(botTimer);
+    if (disposed || !botTurn()) return;
+    const st = session.state;
+    const delay = st.turnEval.closed ? 1100 : st.turnDarts.length ? 900 : 1500;
+    botTimer = setTimeout(botStep, delay);
+  }
+
+  function botStep() {
+    if (disposed || !botTurn() || document.querySelector('.endsheet')) return;
+    const st = session.state;
+    if (st.turnEval.closed) { doNext('bot'); return; }
+    const m = session.match;
+    const live = st.turnEval.after || st.leg;
+    const target = st.mode.botTarget
+      ? st.mode.botTarget(m.options, live, st.current, st.turnEval, st.dartsLeft)
+      : { segment: 20, multiplier: 3 };
+    session.addDart(botThrow(target, botLevel(m.players[st.current])), 'bot');
+  }
+
+  /**
+   * Rückgängig. Aufnahmen des Computers werden dabei übersprungen, sonst würde er sofort
+   * neu werfen und man käme nie an die eigene Aufnahme heran.
+   */
+  function undo(kind) {
+    clearTimeout(botTimer);
+    selected = null;
+    const step = () => (kind === 'dart' ? session.undoDart() : session.undoTurn());
+    step();
+    while (botTurn() && session.match.turns.length) step();
+  }
 
   function showMatchEnd() {
     const st = session.state;
@@ -491,21 +558,65 @@ export function render(root, params, nav) {
     keepAwake(false);
     if (training) { showTrainingEnd(st, m); return; }
     const name = m.playerNames[st.winner];
+    const sets = m.format.setsBestOf > 1;
+    const result = (sets ? st.setsWon : st.legsWon).join(' : ') + (sets ? ' Sets' : ' Legs');
+    const recordsEl = h('div', { class: 'records' });
     const s = sheet(h('div', { class: 'stack endsheet' },
       h('h2', {}, `🏆 ${name} gewinnt!`),
-      h('div', { class: 'confirmturn num' }, m.format.setsBestOf > 1 ? `${st.setsWon[0]} : ${st.setsWon[1]} Sets` : `${st.legsWon[0]} : ${st.legsWon[1]} Legs`),
+      h('div', { class: 'confirmturn num' }, result),
+      m.players.length > 2 ? h('p', { class: 'dim', style: { margin: '-8px 0 0', textAlign: 'center' } }, m.playerNames.join(' · ')) : null,
+      recordsEl,
       h('button', {
         class: 'btn primary',
         onclick: () => {
           s.close();
-          const setup = { mode: m.mode, options: m.options, players: m.players, playerNames: m.playerNames, setsBestOf: m.format.setsBestOf, legsBestOf: m.format.legsBestOf, firstStarter: 1 - m.firstStarter, starterMethod: 'tap' };
-          nav.go('game', { setup, camera: useCamera });
+          // Anwurf rückt einen Platz weiter; Killer bekommt neue Zahlen (prepareOptions)
+          const setup = { mode: m.mode, options: m.options, players: m.players, playerNames: m.playerNames, setsBestOf: m.format.setsBestOf, legsBestOf: m.format.legsBestOf, firstStarter: (m.firstStarter + 1) % m.players.length, starterMethod: 'tap' };
+          nav.go('game', { setup, camera: useCamera, inputMode });
         },
       }, 'Revanche'),
       h('button', { class: 'btn', onclick: () => { s.close(); nav.go('stats'); } }, 'Statistik'),
       h('button', { class: 'btn ghost', onclick: () => { s.close(); nav.go('home'); } }, 'Startseite'),
-      h('button', { class: 'btn ghost', onclick: () => { s.close(); session.undoDart(); keepAwake(true); } }, 'Letzten Dart zurücknehmen'),
+      h('button', { class: 'btn ghost', onclick: () => { s.close(); undo('dart'); keepAwake(true); } }, 'Letzten Dart zurücknehmen'),
     ), { dismissable: false });
+    showRecords(m, recordsEl);
+  }
+
+  /**
+   * Neue persönliche Bestwerte in diesem Match (nur menschliche Spieler, nur X01 und Cricket).
+   * Verglichen wird mit allen früher beendeten Matches desselben Modus.
+   */
+  async function showRecords(m, el) {
+    if (m.mode !== 'x01' && m.mode !== 'cricket') return;
+    try {
+      const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
+      const earlier = new Set(matches.filter((x) => x.id !== m.id && x.status === 'finished' && x.mode === m.mode).map((x) => x.id));
+      const now = throwRows(m);
+      const lines = [];
+      m.players.forEach((pid, i) => {
+        if (isBotId(pid)) return;
+        const prev = rows.filter((r) => r.playerId === pid && earlier.has(r.matchId));
+        if (!prev.length) return; // erstes Match: noch nichts zu vergleichen
+        const mine = now.filter((r) => r.playerId === pid);
+        const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
+        const byMatch = new Map();
+        for (const r of prev) (byMatch.get(r.matchId) || byMatch.set(r.matchId, []).get(r.matchId)).push(r);
+        if (m.mode === 'cricket') {
+          const c = cricketStats(mine);
+          const best = Math.max(...[...byMatch.values()].map((rs) => cricketStats(rs).mpr));
+          if (c.turns && c.mpr > best) lines.push(`${who}Beste MPR ${c.mpr.toFixed(2)} (bisher ${best.toFixed(2)})`);
+          return;
+        }
+        const s = playerStats(mine);
+        const p = playerStats(prev);
+        const bestAvg = Math.max(...[...byMatch.values()].map((rs) => playerStats(rs).average));
+        if (s.darts && s.average > bestAvg) lines.push(`${who}Bester Average ${s.average.toFixed(1)} (bisher ${bestAvg.toFixed(1)})`);
+        if (s.bestLeg && (!p.bestLeg || s.bestLeg < p.bestLeg)) lines.push(`${who}Bestes Leg: ${s.bestLeg} Darts${p.bestLeg ? ` (bisher ${p.bestLeg})` : ''}`);
+        if (s.highestCheckout > p.highestCheckout) lines.push(`${who}Höchstes Finish ${s.highestCheckout} (bisher ${p.highestCheckout || '–'})`);
+        if (s.highest > p.highest) lines.push(`${who}Höchste Aufnahme ${s.highest} (bisher ${p.highest})`);
+      });
+      if (lines.length) el.replaceChildren(h('div', { class: 'recordhead' }, '🎉 Neuer Rekord!'), lines.map((l) => h('div', {}, l)));
+    } catch (e) { console.warn('Rekorde nicht ermittelbar', e); }
   }
 
   // Ende eines Trainings: Ergebnis, Vergleich mit dem bisherigen Rekord, nochmal
@@ -592,9 +703,9 @@ export function render(root, params, nav) {
         alertEl,
         calibration,
         session,
-        onHit: (hit, info) => { unlock(); session.addDart(hit, 'camera', info); },
+        onHit: (hit, info) => { if (botTurn()) return; unlock(); session.addDart(hit, 'camera', info); }, // Darts des Computers gibt es nicht am Board
         onTapHit: (hit) => enter(hit, 'manual'),
-        onBoardEmpty: () => { if (getSettings().autoAdvance && session.state.openTurnIndex >= 0) doNext('auto'); },
+        onBoardEmpty: () => { if (!botTurn() && getSettings().autoAdvance && session.state.openTurnIndex >= 0) doNext('auto'); },
         onRecalibrate: () => nav.go('calibrate', { mode: 'full', then: 'game', thenParams: { match: session.match, camera: true } }),
         onBullOff: (winnerIdx) => {
           session.match.firstStarter = winnerIdx;
@@ -651,6 +762,7 @@ export function render(root, params, nav) {
 
   return () => {
     disposed = true;
+    clearTimeout(botTimer);
     landscape.removeEventListener?.('change', placeActions);
     keepAwake(false);
     if (cam) cam.stop();

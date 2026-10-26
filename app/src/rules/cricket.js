@@ -97,6 +97,15 @@ export const CRICKET = {
     return null;
   },
 
+  /** Computer-Gegner: erst die eigenen Zahlen schließen (20 abwärts, dann Bull), danach punkten, wo der Gegner offen ist. */
+  botTarget(options, leg, p) {
+    const aim = (n) => (n === 25 ? { segment: 25, multiplier: 2 } : { segment: n, multiplier: 3 });
+    const open = CRICKET_NUMBERS.find((n) => leg.marks[p][n] < 3);
+    if (open != null) return aim(open);
+    const score = CRICKET_NUMBERS.find((n) => leg.marks.some((m, i) => i !== p && m[n] < 3));
+    return aim(score ?? 20);
+  },
+
   turnLabel(ev) {
     return ev.finished ? 'GAME' : `${ev.marks} M`;
   },

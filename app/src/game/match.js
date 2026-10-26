@@ -71,14 +71,16 @@ export function derive(match) {
     legRecord.turns.push(info);
     leg = mode.applyTurn(match.options, leg, current, ev);
     if (ev.finished) {
-      legRecord.winner = current;
+      // Gewinner ist normalerweise der Werfer; Modi wie Halve-It bestimmen ihn selbst (ev.winner)
+      const w = ev.winner ?? current;
+      legRecord.winner = w;
       legs.push(legRecord);
-      legsWon[current]++;
-      if (legsWon[current] >= legsNeeded) {
-        setsWon[current]++;
-        if (setsWon[current] >= setsNeeded) {
+      legsWon[w]++;
+      if (legsWon[w] >= legsNeeded) {
+        setsWon[w]++;
+        if (setsWon[w] >= setsNeeded) {
           finished = true;
-          winner = current;
+          winner = w;
           break;
         }
         legsWon = Array(n).fill(0);
@@ -93,7 +95,8 @@ export function derive(match) {
       leg = mode.newLeg(match.options, n);
       legRecord = { set: setNo, legInSet, legOverall, starter: legStarter, turns: [], winner: null };
     } else {
-      current = (current + 1) % n;
+      // Reihum; Modi wie Killer überspringen ausgeschiedene Spieler
+      current = mode.nextPlayer ? mode.nextPlayer(match.options, leg, current, n) : (current + 1) % n;
     }
   }
   if (!finished) legs.push(legRecord);

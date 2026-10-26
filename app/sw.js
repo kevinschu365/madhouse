@@ -2,16 +2,16 @@
 // Strategie: sofort aus dem Cache (schneller Start, auch bei schlechtem WLAN am Board),
 // im Hintergrund aktualisieren. Neue Versionen sind damit beim übernächsten Öffnen aktiv.
 // Bei jeder Veröffentlichung VERSION erhöhen und neue Dateien in FILES eintragen.
-const VERSION = 'madhouse-v1.2.0';
+const VERSION = 'madhouse-v1.3.0';
 const FILES = [
   './', './index.html', './styles.css', './manifest.webmanifest', './anleitung.html', './anleitung.pdf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg',
   './src/app.js', './src/config.js',
   './src/audio/speech.js',
   './src/core/board.js', './src/core/settings.js', './src/core/storage.js', './src/core/wakelock.js',
-  './src/game/match.js', './src/game/session.js',
+  './src/game/match.js', './src/game/session.js', './src/game/bot.js',
   './src/rules/checkout.js', './src/rules/index.js', './src/rules/x01.js',
-  './src/rules/cricket.js', './src/rules/training.js', './src/rules/checkoutDrills.js',
+  './src/rules/cricket.js', './src/rules/training.js', './src/rules/checkoutDrills.js', './src/rules/partyGames.js',
   './src/stats/stats.js',
   './src/ui/boardSvg.js', './src/ui/camView.js', './src/ui/dom.js',
   './src/ui/screens/calibrate.js', './src/ui/screens/game.js', './src/ui/screens/home.js', './src/ui/screens/players.js',
