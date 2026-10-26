@@ -208,7 +208,7 @@ table.hist td { padding: 8px 4px; border-bottom: 1px solid #1f1f1f; }
 h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
 
 /* Reiter (Statistik) */
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface2); border-radius: 12px; padding: 4px; gap: 4px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface2); border-radius: 12px; padding: 4px; gap: 4px; }
 .tab { min-height: 42px; border-radius: 9px; font-weight: 700; font-size: 16px; color: var(--text-dim); }
 .tab.on { background: var(--accent); color: #000; }
 .game.is-cricket .pp .score { font-size: clamp(40px, 13vw, 96px); }
@@ -262,3 +262,12 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
 .players-setup { display: flex; flex-direction: column; }
 .playerrow .botlevel { flex: 0 0 38%; min-width: 0; }
 .playerrow .botlevel select, .playerrow label.field select { padding-left: 10px; padding-right: 6px; }
+
+/* Statistik: Meilensteine */
+.milestones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ms { display: flex; align-items: center; gap: 8px; background: var(--surface2); border-radius: 12px; padding: 8px 10px; opacity: .55; }
+.ms.on { opacity: 1; box-shadow: inset 0 0 0 2px var(--accent-dim); }
+.ms .msicon { font-size: 22px; flex: none; }
+.ms .mstext { display: flex; flex-direction: column; min-width: 0; }
+.ms .mstext b { font-size: 14px; line-height: 1.2; }
+.ms .mstext span { font-size: 12px; color: var(--text-dim); }

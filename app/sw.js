@@ -2,7 +2,7 @@
 // Strategie: sofort aus dem Cache (schneller Start, auch bei schlechtem WLAN am Board),
 // im Hintergrund aktualisieren. Neue Versionen sind damit beim übernächsten Öffnen aktiv.
 // Bei jeder Veröffentlichung VERSION erhöhen und neue Dateien in FILES eintragen.
-const VERSION = 'madhouse-v1.4.1';
+const VERSION = 'madhouse-v1.5.0';
 const FILES = [
   './', './index.html', './styles.css', './manifest.webmanifest', './anleitung.html', './anleitung.pdf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg',

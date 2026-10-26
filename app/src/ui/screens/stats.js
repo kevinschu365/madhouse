@@ -1,12 +1,12 @@
 import { h, confirmDialog, toast } from '../dom.js';
 import { dbGetAll, deleteMatch } from '../../core/storage.js';
 import { getPlayers } from '../../core/settings.js';
-import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats } from '../../stats/stats.js';
+import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalRecords, milestones } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
 import { getMode, isTraining } from '../../rules/index.js';
 
-const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training']];
+const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['records', 'Rekorde']];
 
 export function render(root, params, nav) {
   const body = h('div', { class: 'stack', style: { maxWidth: '640px', margin: '0 auto' } },
@@ -117,6 +117,43 @@ export function render(root, params, nav) {
       body.appendChild(matchHistory(myMatches, pr, (r) => `MPR ${cricketStats(r).mpr.toFixed(2)}`));
     };
 
+    // Rekorde (Bestwerte je Match) und Meilensteine – nur Spiele gegen echte Spieler
+    const drawRecords = () => {
+      const realMatches = finished.filter((m) => !vsBot(m));
+      const rec = personalRecords(usable, realMatches, selectedPlayer);
+      const line = (key, label) => {
+        const r = rec[key];
+        return h('tr', {},
+          h('td', {}, label),
+          h('td', { class: 'num accent' }, r ? r.text : '–'),
+          h('td', { class: 'dim', style: { fontSize: '13px' } }, r ? `${date(r.at)}${r.opponents.length ? ` · vs. ${r.opponents.join(', ')}` : ''}` : ''),
+        );
+      };
+      body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Persönliche Bestwerte'));
+      body.appendChild(h('table', { class: 'hist' },
+        line('avg', 'Bester Average'),
+        line('bestLeg', 'Bestes Leg'),
+        line('checkout', 'Höchstes Finish'),
+        line('visit', 'Höchste Aufnahme'),
+        line('c180', 'Meiste 180er (Match)'),
+        line('mpr', 'Cricket: beste MPR'),
+        line('round', 'Cricket: beste Runde'),
+      ));
+      const ms = milestones(usable, realMatches, selectedPlayer);
+      const done = ms.filter((m) => m.at).length;
+      body.appendChild(h('h3', { style: { marginTop: '14px' } }, `Meilensteine · ${done} / ${ms.length}`));
+      // Erreichte zuerst (neueste oben), dann die offenen in fester Reihenfolge
+      const sorted = [...ms.filter((m) => m.at).sort((a, b) => b.at - a.at), ...ms.filter((m) => !m.at)];
+      body.appendChild(h('div', { class: 'milestones' }, sorted.map((m) => h('div', { class: `ms ${m.at ? 'on' : ''}` },
+        h('div', { class: 'msicon' }, m.at ? m.icon : '🔒'),
+        h('div', { class: 'mstext' },
+          h('b', {}, m.title),
+          h('span', {}, m.at ? date(m.at) : m.progress ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'),
+        ),
+      ))));
+      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Gezählt werden beendete Matches gegen echte Spieler (X01 und Cricket). Spiele gegen den Computer und Trainings zählen nicht.'));
+    };
+
     // Spiele gegen den Computer: eigene Bilanz je Spiel und Stärke (getrennt von echten Gegnern)
     const drawVsBot = () => {
       const games = finished.filter((m) => vsBot(m) && m.players.length === 2 && m.players[0] === selectedPlayer);
@@ -184,6 +221,7 @@ export function render(root, params, nav) {
       body.appendChild(h('div', { class: 'tabs' }, TABS.map(([k, label]) =>
         h('button', { class: `tab ${tab === k ? 'on' : ''}`, onclick: () => { tab = k; draw(); } }, label))));
       if (tab === 'training') { drawTraining(); return; }
+      if (tab === 'records') { drawRecords(); return; }
       const pr = usable.filter((r) => r.playerId === selectedPlayer && r.mode === tab);
       const myMatches = finished
         .filter((m) => m.mode === tab && !isTraining(m.mode) && !vsBot(m) && m.players.length > 1 && m.players.includes(selectedPlayer))
