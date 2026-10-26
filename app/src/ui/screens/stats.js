@@ -4,6 +4,8 @@ import { getPlayers } from '../../core/settings.js';
 import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalRecords, milestones } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
+import { showMatchDetail } from '../matchDetail.js';
+import { lineChart } from '../chart.js';
 import { getMode, isTraining } from '../../rules/index.js';
 
 const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['records', 'Rekorde']];
@@ -34,7 +36,8 @@ export function render(root, params, nav) {
     const date = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
     const delBtn = (m) => h('button', {
       class: 'iconbtn', 'aria-label': 'Löschen',
-      onclick: async () => {
+      onclick: async (e) => {
+        e.stopPropagation(); // nicht zusätzlich die Details öffnen
         if (await confirmDialog('Eintrag löschen?', 'Alle Würfe davon werden aus der Statistik entfernt.', { ok: 'Löschen', danger: true })) {
           await deleteMatch(m.id); toast('Gelöscht'); nav.go('stats', { player: selectedPlayer, tab });
         }
@@ -54,7 +57,7 @@ export function render(root, params, nav) {
           // Eigenes Ergebnis zuerst, dann die Gegner
           res = [me, ...opps].map((i) => won[i]).join(':') + (m.format.setsBestOf > 1 ? ' Sets' : ' Legs');
         } catch { res = '?'; }
-        table.appendChild(h('tr', {},
+        table.appendChild(h('tr', { class: 'tap', onclick: () => showMatchDetail(m) },
           h('td', {}, date(m.createdAt)),
           h('td', {}, `vs. ${opps.map((i) => m.playerNames[i]).join(', ')}`),
           h('td', { class: m.winner === me ? 'accent' : '' }, res),
@@ -84,7 +87,7 @@ export function render(root, params, nav) {
       ));
       const det = detectionStats(pr);
       if (det.total) body.appendChild(h('p', { class: 'dim' }, `Kamera-Erkennung bei diesem Spieler: ${det.total - det.corrected} von ${det.total} Darts ohne Korrektur (${(det.rate * 100).toFixed(0)} %).`));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe ist unbekannt, wie viele Darts aufs Doppel gingen – dort zählt nur der Checkout-Dart, die Quote fällt dann zu gut aus.'));
+      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe fragt die App, wie viele Darts aufs Doppel gingen, sobald ein Doppel möglich war (ab Version 1.6.1; ältere Summen-Spiele zählen nur den Checkout-Dart).'));
       // Trefferquote je Doppel: zeigt, welches Doppel gut sitzt und welches man üben sollte
       const dbl = doubleStats(pr);
       if (dbl.length) {
@@ -95,9 +98,18 @@ export function render(root, params, nav) {
           h('td', { class: 'num' }, h('div', { class: 'ratebar' }, h('div', { style: { width: `${Math.round(d.rate * 100)}%` } }))),
           h('td', { class: `num ${d.rate >= 0.35 ? 'accent' : ''}` }, `${Math.round(d.rate * 100)} %`),
         ))));
-        body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Jeder Dart bei einem Ein-Dart-Finish (z. B. Rest 32 = D16) zählt als Versuch auf dieses Doppel. Nur Pro-Dart-, Scheiben- und Kamera-Eingabe; bei Summen-Eingabe ist unbekannt, wohin die Darts gingen.'));
+        body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Jeder Dart bei einem Ein-Dart-Finish (z. B. Rest 32 = D16) zählt als Versuch auf dieses Doppel. Summen-Aufnahmen zählen nur, wenn das Doppel eindeutig ist (z. B. Rest 40, kein Punkt).'));
       }
       body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
+      // Diagramme: die letzten 30 Matches, älteste links
+      const recent = myMatches.slice(0, 30).reverse().map((m) => ({ m, s: playerStats(pr.filter((r) => r.matchId === m.id)) }));
+      const opp = (m) => `vs. ${m.playerNames.filter((_, i) => m.players[i] !== selectedPlayer).join(', ')}`;
+      body.appendChild(h('div', { class: 'charts' },
+        lineChart(recent.filter((e) => e.s.darts).map((e) => ({ y: e.s.average, at: e.m.createdAt, label: opp(e.m), m: e.m })),
+          { title: 'Average je Match', onOpen: (p) => showMatchDetail(p.m) }),
+        lineChart(recent.filter((e) => e.s.checkoutAttempts).map((e) => ({ y: e.s.checkoutRate * 100, at: e.m.createdAt, label: opp(e.m), m: e.m })),
+          { title: 'Checkout-Quote je Match (%)', format: (v) => `${v.toFixed(0)} %`, onOpen: (p) => showMatchDetail(p.m), min: 0, max: 100 }),
+      ));
       body.appendChild(matchHistory(myMatches, pr, (r) => `Ø ${playerStats(r).average.toFixed(1)}`));
     };
 
@@ -112,8 +124,13 @@ export function render(root, params, nav) {
         stat(c.turns, 'Runden'),
         stat(c.darts, 'Darts geworfen'),
       ));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'MPR zählt Marks, die eine Zahl schließen oder Punkte bringen. Faustregel: ab 2,0 MPR spielst du sehr ordentlich, ab 3,0 auf hohem Niveau.'));
+      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'MPR zählt Marks, die eine Zahl schließen oder Punkte bringen. MPR = Marks pro 3 Darts. Faustregel: ab 2,0 MPR spielst du sehr ordentlich, ab 3,0 auf hohem Niveau.'));
       body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
+      const recent = myMatches.slice(0, 30).reverse().map((m) => ({ m, c: cricketStats(pr.filter((r) => r.matchId === m.id)) }));
+      body.appendChild(h('div', { class: 'charts' },
+        lineChart(recent.filter((e) => e.c.turns).map((e) => ({ y: e.c.mpr, at: e.m.createdAt, label: `vs. ${e.m.playerNames.filter((_, i) => e.m.players[i] !== selectedPlayer).join(', ')}`, m: e.m })),
+          { title: 'MPR je Match', format: (v) => v.toFixed(2), onOpen: (p) => showMatchDetail(p.m) }),
+      ));
       body.appendChild(matchHistory(myMatches, pr, (r) => `MPR ${cricketStats(r).mpr.toFixed(2)}`));
     };
 
@@ -151,7 +168,7 @@ export function render(root, params, nav) {
           h('span', {}, m.at ? date(m.at) : m.progress ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'),
         ),
       ))));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Gezählt werden beendete Matches gegen echte Spieler (X01 und Cricket). Spiele gegen den Computer und Trainings zählen nicht.'));
+      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Gezählt werden beendete Matches gegen echte Spieler (Bestwerte: X01 und Cricket; Siege: alle Spielarten). Spiele gegen den Computer und Trainings zählen nicht.'));
     };
 
     // Spiele gegen den Computer: eigene Bilanz je Spiel und Stärke (getrennt von echten Gegnern)

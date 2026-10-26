@@ -163,13 +163,13 @@
     <div class="row"><div class="ic">▶️</div><div><b>Neues Spiel</b><br><span class="dim small">X01, Cricket, Halve-It, Killer</span></div></div>
     <div class="row"><div class="ic">🎯</div><div><b>Training</b><br><span class="dim small">Übungen allein und gegen den Computer</span></div></div>
     <div class="row"><div class="ic">👥</div><div><b>Spieler</b><br><span class="dim small">anlegen, umbenennen, entfernen</span></div></div>
-    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, Doppel-Quote, Verlauf, Rekorde &amp; Meilensteine</span></div></div>
+    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, Doppel-Quote, Verlauf als Grafik, Match-Details, Rekorde &amp; Meilensteine</span></div></div>
     <div class="row"><div class="ic">📷</div><div><b>Kamera kalibrieren</b><br><span class="dim small">Board einmessen (Seite 6)</span></div></div>
     <div class="row"><div class="ic">⚙️</div><div><b>Einstellungen</b><br><span class="dim small">Ansage, Kamera, Daten</span></div></div>
     <div class="row"><div class="ic">📖</div><div><b>Anleitung</b><br><span class="dim small">diese Anleitung, jederzeit in der App</span></div></div>
   </div>
   <div class="card tip">
-    <p style="margin:0"><b>Spiel unterbrochen?</b> Oben erscheint <span class="btn p">Weiterspielen</span> – der Spielstand ist gespeichert.</p>
+    <p class="small" style="margin:0"><b>Spiel unterbrochen?</b> Oben erscheint <span class="btn p">Weiterspielen</span>.<br><b>🌙 Heute:</b> Siege und Average des Abends (bis 5 Uhr früh).</p>
   </div>
   <p class="small dim">Alle Daten bleiben nur auf deinem Handy. Kein Konto, keine Cloud.</p>
   <div class="pnum">3</div>
@@ -254,8 +254,9 @@
     <div class="row"><div class="ic">🎯</div><div><b>Finish-Weg</b><br><span class="small dim">ab 170: Standard-Weg groß, 2 Alternativen daneben. Passt sich nach jedem Dart an.</span></div></div>
     <div class="row"><div class="ic">📐</div><div><b>Stellen</b><br><span class="small dim">kein Finish möglich (über 170, 169 …)? Vorschlag wie „T20 T20 25 · bleibt 36“ – auf ein gutes Doppel.</span></div></div>
     <div class="row"><div class="ic">🔊</div><div><b>Rest vor dem Wurf</b><br><span class="small dim">auscheckbar? Dann „Kevin, Rest 141“.</span></div></div>
-    <div class="row"><div class="ic">📊</div><div><b>Unterm Spielstand</b><br><span class="small dim">Runde, geworfene Darts, Average im Leg und im Spiel (Cricket: MPR).</span></div></div>
+    <div class="row"><div class="ic">📊</div><div><b>Unterm Spielstand</b><br><span class="small dim">Runde, Darts, Average Leg / Spiel (Cricket: MPR).</span></div></div>
     <div class="row"><div class="ic">🏆</div><div><b>Spielende</b><br><span class="small dim">neuer Bestwert? „🎉 Neuer Rekord!“. Alle Bestwerte und Meilensteine: Statistik › Rekorde.</span></div></div>
+    <div class="row"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Dialekt, Kamera, Pause, Abbruch</span></div></div>
   </div>
   <div class="pnum">7</div>
 </section>
@@ -268,8 +269,8 @@
     <p class="small">Aufnahme eintippen. Links und rechts: <b>26 · 41 · 45 · 60 · 85 · 100 · 140 · 180</b> – ein Tipp trägt sofort ein.</p>
     <table>
       <tr><td><span class="btn" style="background:#ef4444;border-color:#ef4444;color:#fff">NO SCORE</span></td><td>nichts eingetippt – trägt 0 ein</td></tr>
-      <tr><td><span class="btn p">WEITER 85</span></td><td>übernimmt die Zahl</td></tr>
-      <tr><td><span class="btn p">Check</span></td><td>checkt den Rest mit einem Tipp aus (fragt ggf. „mit wie vielen Darts?“)</td></tr>
+      <tr><td><span class="btn p">WEITER 85</span></td><td>übernimmt die Zahl; im Finish-Bereich kommt „Darts aufs Doppel?“</td></tr>
+      <tr><td><span class="btn p">Check</span></td><td>checkt mit einem Tipp aus (fragt ggf. Darts gesamt und davon aufs Doppel)</td></tr>
     </table>
     <p class="small dim" style="margin:1.5mm 0 0"><b style="color:#fff">Zwischenstand:</b> T18 statt T20 bei 141? <b style="color:#fff">54</b> tippen → „Rest danach 87 · noch 2 Darts“ und der neue Weg.</p>
   </div>
@@ -280,7 +281,6 @@
   <div class="card list">
     <div class="row"><div class="ic">✏️</div><div><b>Falsch?</b><br><span class="small dim">Dart oben antippen → richtiges Feld. ↶ nimmt Dart oder Aufnahme zurück.</span></div></div>
     <div class="row"><div class="ic">📷</div><div><b>Mit Kamera</b><br><span class="small dim">zählt selbst; „Korrektur / Eingabe“ pro Dart. Kamera streikt? ☰ › „Kamera aus – Handeingabe“.</span></div></div>
-    <div class="row"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Dialekt, Kamera, Pause, Abbruch</span></div></div>
   </div>
   <div class="pnum">8</div>
 </section>
@@ -289,6 +289,7 @@
 <section class="page">
   <h2><span class="ico">🎯</span>Training</h2>
   <p class="dim small">Spieler wählen, Übung aussuchen, <span class="btn p">Start</span>. Rekord und letztes Ergebnis stehen dabei.</p>
+  <div class="card tip"><p class="small" style="margin:0"><b>💡 Übungs-Vorschlag:</b> Oben steht dein schwächstes Doppel – „Üben“ startet direkt das Doubles-Training darauf.</p></div>
   <div class="card">
     <h3>🤖 Gegen den Computer</h3>
     <p class="small"><b>X01 oder Cricket</b> – Stärke, Legs und wer beginnt wählbar</p>

@@ -19,6 +19,15 @@ export function playerStats(rows) {
   let highestCheckout = 0;
   const legsWonDarts = [];
   const legDarts = new Map();
+  // Eigene Aufnahme-Nummer je Leg (1, 2, 3 …). r.turn zählt die Aufnahmen aller Spieler im Leg,
+  // für First 9 zählen aber die ersten drei eigenen Aufnahmen (= 9 Darts).
+  const ownTurn = new Map();
+  const byLeg = new Map();
+  for (const t of turns) {
+    const k = `${t.matchId}:${t.legOverall}:${t.playerId}`;
+    (byLeg.get(k) || byLeg.set(k, []).get(k)).push(t);
+  }
+  for (const list of byLeg.values()) list.sort((a, b) => a.turn - b.turn).forEach((t, i) => ownTurn.set(t, i + 1));
 
   for (const t of turns) {
     const counted = t.darts.filter((d) => d.counted);
@@ -29,7 +38,7 @@ export function playerStats(rows) {
     if (t.points === 180) c180++;
     else if (t.points >= 140) c140++;
     else if (t.points >= 100) c100++;
-    if (t.turn <= 3) { first9Points += t.points; first9Darts += counted.length; }
+    if (ownTurn.get(t) <= 3) { first9Points += t.points; first9Darts += counted.length; }
     for (const d of counted) {
       if (d.onFinish) checkoutAttempts++;
       if (d.checkout) {
@@ -37,7 +46,7 @@ export function playerStats(rows) {
         if (t.restBefore > highestCheckout) highestCheckout = t.restBefore;
       }
     }
-    const lk = `${t.matchId}:${t.legOverall}`;
+    const lk = `${t.matchId}:${t.legOverall}:${t.playerId}`;
     legDarts.set(lk, (legDarts.get(lk) || 0) + counted.length);
     if (counted.some((d) => d.checkout)) legsWonDarts.push(lk);
   }
@@ -108,7 +117,8 @@ export function cricketStats(rows) {
     turns: turns.length,
     darts,
     marks,
-    mpr: turns.length ? marks / turns.length : 0,
+    // MPR = Marks pro 3 Darts (übliche Definition). Eine Siegrunde mit nur 1 Dart zählt so als Drittel-Runde.
+    mpr: darts ? marks / (darts / 3) : 0,
     bestRound: best,
     rounds5: m5,
     matches: new Set(turns.map((t) => t.matchId)).size,
@@ -144,15 +154,17 @@ export function trainingRecords(matches, playerId, getMode) {
 
 /**
  * Trefferquote je Doppel (X01): Jeder Dart, der bei einem Ein-Dart-Finish geworfen wurde
- * (Rest 2–40 gerade oder 50), ist ein Versuch auf dieses Doppel. Summen-Eingaben zählen nicht,
- * weil dort unbekannt ist, wohin die einzelnen Darts gingen.
+ * (Rest 2–40 gerade oder 50), ist ein Versuch auf dieses Doppel. Summen-Eingaben zählen nur, wenn
+ * eindeutig ist, auf welches Doppel geworfen wurde (z. B. Rest 40, kein Punkt, 3 Darts aufs Doppel).
  * Ergebnis: [{ target: 'D16', attempts, hits, rate }], meistgeworfenes zuerst.
  */
 export function doubleStats(rows) {
   const map = new Map();
   for (const r of rows) {
-    if (r.mode !== 'x01' || r.fromTotal || r.segment == null || !r.counted || !r.onFinish) continue;
-    const target = r.restBefore === 50 ? 'BULL' : `D${r.restBefore / 2}`;
+    if (r.mode !== 'x01' || !r.counted || !r.onFinish) continue;
+    // Summen-Eingabe: nur wenn eindeutig ist, auf welches Doppel geworfen wurde (siehe throwRows)
+    if (r.fromTotal ? !r.doubleTarget : r.segment == null) continue;
+    const target = r.fromTotal ? r.doubleTarget : r.restBefore === 50 ? 'BULL' : `D${r.restBefore / 2}`;
     const e = map.get(target) || { target, attempts: 0, hits: 0 };
     e.attempts++;
     if (r.checkout) e.hits++;

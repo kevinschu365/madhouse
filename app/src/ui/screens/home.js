@@ -1,7 +1,10 @@
 import { h, confirmDialog } from '../dom.js';
 import { BRAND, APP_VERSION } from '../../config.js';
-import { lsGet, lsSet } from '../../core/storage.js';
-import { derive } from '../../game/match.js';
+import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
+import { derive, throwRows } from '../../game/match.js';
+import { playerStats } from '../../stats/stats.js';
+import { isBotId } from '../../game/bot.js';
+import { isTraining } from '../../rules/index.js';
 import { GameSession } from '../../game/session.js';
 
 export function render(root, params, nav) {
@@ -36,11 +39,15 @@ export function render(root, params, nav) {
       ),
     );
   }
+  // Abendbilanz: wird nachgeladen und erscheint nur, wenn heute schon gespielt wurde
+  const tonight = h('div', { class: 'card tonight hidden', onclick: () => nav.go('stats') });
+  eveningSummary().then((parts) => { if (parts) { tonight.replaceChildren(...parts); tonight.classList.remove('hidden'); } }).catch(() => {});
   root.appendChild(h('div', { class: 'home' },
     h('div', { class: 'hero' }, h('span', { class: 'logo', html: BRAND.logoSvg }), h('h1', {}, BRAND.name)),
     resume,
     h('button', { class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, onclick: () => nav.go('setup') }, 'Neues Spiel'),
     h('button', { class: 'btn', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('training') }, '🎯 Training'),
+    tonight,
     h('button', { class: 'btn', onclick: () => nav.go('players') }, 'Spieler'),
     h('button', { class: 'btn', onclick: () => nav.go('stats') }, 'Statistik'),
     h('button', { class: 'btn', onclick: () => nav.go('calibrate', { back: 'home' }) }, 'Kamera kalibrieren'),
@@ -48,4 +55,55 @@ export function render(root, params, nav) {
     h('button', { class: 'btn', onclick: () => nav.go('help') }, '📖 Anleitung'),
     h('p', { class: 'dim', style: { textAlign: 'center', fontSize: '13px', marginTop: '20px' } }, `${BRAND.name} ${APP_VERSION} · Daten bleiben auf diesem Gerät`),
   ));
+}
+
+/**
+ * Bilanz des Abends: beendete Matches gegen echte Spieler seit 5 Uhr früh
+ * (Spiele nach Mitternacht zählen so noch zum Vorabend). null = heute noch nichts gespielt.
+ */
+async function eveningSummary() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(5, 0, 0, 0);
+  if (now < start) start.setDate(start.getDate() - 1);
+  const all = await dbGetAll('matches');
+  const today = all.filter((m) => m.status === 'finished' && m.createdAt >= start.getTime()
+    && !isTraining(m.mode) && m.players.length > 1 && !m.players.some(isBotId));
+  if (!today.length) return null;
+
+  // Duelle zu zweit: je Paar die Siege („Kevin 4 : 2 Anna“)
+  const duels = new Map();
+  const multi = new Map(); // Spiele mit 3+ Spielern: Siege je Name
+  for (const m of today) {
+    const winner = m.players[m.winner];
+    if (m.players.length === 2) {
+      const order = [0, 1].sort((a, b) => m.playerNames[a].localeCompare(m.playerNames[b]));
+      const key = order.map((i) => m.players[i]).join('|');
+      const d = duels.get(key) || { names: order.map((i) => m.playerNames[i]), ids: order.map((i) => m.players[i]), wins: [0, 0] };
+      d.wins[d.ids.indexOf(winner)]++;
+      duels.set(key, d);
+    } else {
+      const name = m.playerNames[m.winner];
+      multi.set(name, (multi.get(name) || 0) + 1);
+    }
+  }
+  // X01-Average des Abends je Spieler
+  const names = new Map();
+  const rows = [];
+  for (const m of today) {
+    m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
+    if (m.mode === 'x01') rows.push(...throwRows(m));
+  }
+  const avgs = [...names.entries()]
+    .map(([id, name]) => ({ name, s: playerStats(rows.filter((r) => r.playerId === id)) }))
+    .filter((e) => e.s.darts)
+    .sort((a, b) => b.s.average - a.s.average);
+
+  return [
+    h('div', { class: 'tonighthead' }, h('b', {}, '🌙 Heute'), h('span', { class: 'dim' }, `${today.length} ${today.length === 1 ? 'Spiel' : 'Spiele'} ›`)),
+    ...[...duels.values()].map((d) => h('div', { class: 'duel num' },
+      h('span', {}, d.names[0]), h('b', {}, `${d.wins[0]} : ${d.wins[1]}`), h('span', {}, d.names[1]))),
+    multi.size ? h('div', { class: 'dim small' }, `Mehrspieler-Siege: ${[...multi.entries()].map(([n, w]) => `${n} ${w}`).join(' · ')}`) : null,
+    avgs.length ? h('div', { class: 'dim small' }, `Ø heute (X01): ${avgs.map((e) => `${e.name} ${e.s.average.toFixed(1)}`).join(' · ')}`) : null,
+  ];
 }

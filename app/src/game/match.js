@@ -179,13 +179,14 @@ function finalize(m) {
 /**
  * Aufnahme als Summe eintragen (z. B. 85) und abschließen.
  * darts: bei Checkout die Zahl der benötigten Darts (1–3), sonst 3.
+ * doubleDarts: wie viele davon aufs Doppel gingen (für die Checkout-Quote); null = nicht gefragt.
  * Eine offene Aufnahme mit einzelnen Darts wird dabei ersetzt.
  */
-export function enterTotal(match, points, darts = 3) {
+export function enterTotal(match, points, darts = 3, doubleDarts = null) {
   const st = derive(match);
   if (st.finished) return null;
   const m = clone(match);
-  const turn = { player: st.current, darts: [], total: { points, darts }, closed: true, openedAt: Date.now(), closedAt: Date.now(), ts: Date.now() };
+  const turn = { player: st.current, darts: [], total: { points, darts, ...(doubleDarts != null ? { doubleDarts } : {}) }, closed: true, openedAt: Date.now(), closedAt: Date.now(), ts: Date.now() };
   if (st.openTurnIndex >= 0) m.turns[st.openTurnIndex] = turn;
   else m.turns.push(turn);
   return finalize(m);
@@ -250,8 +251,18 @@ export function throwRows(match) {
     leg.turns.forEach((info, turnNo) => {
       if (info.total) {
         // Summen-Eingabe: eine Zeile je Dart, ohne Feld (unbekannt). Punkte stehen in turnPoints.
-        for (let k = 0; k < info.ev.usedDarts; k++) {
-          const last = k === info.ev.usedDarts - 1;
+        // Darts aufs Doppel: seit 1.6.1 wird gefragt (total.doubleDarts) – das sind die letzten Darts der Aufnahme.
+        // Ältere Summen-Aufnahmen kennen das nicht: dort zählt nur der Checkout-Dart als Versuch.
+        const used = info.ev.usedDarts;
+        const dd = info.total.doubleDarts;
+        const rest = info.startRemaining;
+        // Auf welches Doppel? Nur sicher, wenn der Rest ein Ein-Dart-Finish war und nichts dazwischen
+        // gepunktet wurde: kein Punkt, oder Checkout mit lauter Darts aufs Doppel (z. B. 40: D20 daneben, D20 drin).
+        const oneDart = mode.isOnFinish ? mode.isOnFinish(rest) : false;
+        const sameDouble = oneDart && dd && ((info.ev.points === 0 && !info.ev.bust) || (info.ev.finished && dd === used));
+        const doubleTarget = sameDouble ? (rest === 50 ? 'BULL' : `D${rest / 2}`) : null;
+        for (let k = 0; k < used; k++) {
+          const last = k === used - 1;
           rows.push({
             id: `${match.id}:${info.index}:${k}`,
             matchId: match.id,
@@ -275,8 +286,8 @@ export function throwRows(match) {
             turnPoints: info.ev.points,
             turnBust: info.ev.bust,
             checkout: info.ev.finished && last,
-            // Wie viele Darts aufs Doppel gingen, ist bei Summen unbekannt: nur der Checkout-Dart zählt als Versuch
-            onFinish: info.ev.finished && last,
+            onFinish: dd != null ? k >= used - dd : info.ev.finished && last,
+            doubleTarget,
           });
         }
         return;

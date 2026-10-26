@@ -105,10 +105,10 @@ export class GameSession {
   }
 
   /** Aufnahme als Summe eintragen (z. B. 85) und zum nächsten Spieler wechseln. */
-  async enterTotal(points, darts = 3) {
+  async enterTotal(points, darts = 3, doubleDarts = null) {
     if (this.state.finished) return false;
     const before = this.state;
-    const m = M.enterTotal(this.match, points, darts);
+    const m = M.enterTotal(this.match, points, darts, doubleDarts);
     if (!m) return false;
     // Ergebnis vorab bewerten, um die Ansage zu machen
     const ev = before.mode.evaluateTurn(m.options, before.leg, before.current, [], { points, darts });

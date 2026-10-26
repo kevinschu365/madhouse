@@ -4,9 +4,9 @@ import { getPlayers, addPlayer, getSettings, updateSettings } from '../../core/s
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
-import { trainingRecords, trainingKey, playerStats, cricketStats } from '../../stats/stats.js';
+import { trainingRecords, trainingKey, playerStats, cricketStats, doubleStats } from '../../stats/stats.js';
 import { throwRows } from '../../game/match.js';
-import { BOT_LEVELS, BOT_LEVEL_NAMES, botName } from '../../game/bot.js';
+import { BOT_LEVELS, BOT_LEVEL_NAMES, botName, isBotId } from '../../game/bot.js';
 import { JDC_GRADES } from '../../rules/training.js';
 
 const yesNo = [[true, 'Ja'], [false, 'Nein']];
@@ -78,6 +78,7 @@ export function render(root, params, nav) {
   const chosen = { ...(s.trainingOptions || {}) };
   let records = {};
   let allMatches = [];
+  let allThrows = [];
 
   const body = h('div', { class: 'stack', style: { maxWidth: '640px', margin: '0 auto' } });
   root.appendChild(body);
@@ -114,6 +115,39 @@ export function render(root, params, nav) {
     };
     if (camera) nav.go('calibrate', { mode: 'quickcheck', then: 'game', thenParams: gameParams });
     else nav.go('game', gameParams);
+  };
+
+  // ---------- Übungs-Vorschlag: schwächstes Doppel aus der Doppel-Quote (echte X01-Matches) ----------
+  const MIN_ATTEMPTS = 8; // darunter ist die Quote zu zufällig
+  const weakestDouble = () => {
+    if (!player) return null;
+    const real = new Set(allMatches.filter((m) => m.status === 'finished' && !m.players.some(isBotId)).map((m) => m.id));
+    const list = doubleStats(allThrows.filter((r) => r.playerId === player && real.has(r.matchId)))
+      .filter((d) => d.attempts >= MIN_ATTEMPTS);
+    if (list.length < 2) return null; // ein Vergleich braucht mindestens zwei Doppel
+    return list.reduce((a, b) => (b.rate < a.rate ? b : a));
+  };
+
+  const tipCard = () => {
+    const d = weakestDouble();
+    if (!d) return null;
+    const segment = d.target === 'BULL' ? 25 : parseInt(d.target.slice(1), 10);
+    return h('div', { class: 'card tip-card' },
+      h('div', { class: 'drillhead' },
+        h('h3', {}, '💡 Übungs-Vorschlag'),
+        h('button', {
+          class: 'btn primary small',
+          onclick: () => {
+            chosen.doubles = { ...(chosen.doubles || {}), target: segment };
+            updateSettings({ trainingOptions: chosen });
+            start('doubles');
+          },
+        }, 'Üben')),
+      h('p', { style: { margin: 0, fontSize: '15px' } },
+        'Dein schwächstes Doppel ist ', h('b', {}, d.target === 'BULL' ? 'Bullseye' : d.target),
+        `: ${Math.round(d.rate * 100)} % (${d.hits} von ${d.attempts} Versuchen).`),
+      h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '13px' } }, `„Üben“ startet das Doubles-Training auf ${d.target === 'BULL' ? 'Bullseye' : d.target}.`),
+    );
   };
 
   // ---------- Gegen den Computer: X01 oder Cricket, zählt nicht in die Statistik gegen echte Spieler ----------
@@ -208,6 +242,7 @@ export function render(root, params, nav) {
         ),
         camera && !hasCal ? h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '14px' } }, 'Noch keine Kalibrierung – sie kommt vor dem Training.') : null,
       ),
+      tipCard(),
       h('h3', { class: 'cat' }, 'Gegen den Computer'),
       vsCard(),
       cats.map((c) => [h('h3', { class: 'cat' }, c), DRILLS.filter((d) => d.cat === c).map(drillCard)]),
@@ -215,5 +250,10 @@ export function render(root, params, nav) {
   };
 
   draw();
-  dbGetAll('matches').then((all) => { allMatches = all; computeRecords(); draw(); }).catch((e) => console.warn(e));
+  Promise.all([dbGetAll('matches'), dbGetAll('throws')]).then(([all, throws]) => {
+    allMatches = all;
+    allThrows = throws;
+    computeRecords();
+    draw();
+  }).catch((e) => console.warn(e));
 }

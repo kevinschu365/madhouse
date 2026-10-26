@@ -13,6 +13,7 @@ import { playerStats, cricketStats, trainingRecords, trainingKey } from '../../s
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
 import { isBotId, botLevel, botThrow } from '../../game/bot.js';
+import { showMatchDetail } from '../matchDetail.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -248,23 +249,52 @@ export function render(root, params, nav) {
     if (!st.mode.isPossibleTotal(points)) { toast(`${points} ist mit 3 Darts nicht möglich.`); return; }
     const rest = st.turnEval.startRemaining;
     let darts = 3;
+    let doubleDarts = null; // Darts aufs Doppel (für die Checkout-Quote)
     if (points === rest) {
       // Checkout: Mit wie vielen Darts? (nur mögliche Anzahl anbieten)
       const options = [1, 2, 3].filter((n) => checkoutPath(rest, n));
       if (!options.length) { toast(`${rest} ist mit Double-Out nicht auszuchecken.`); return; }
       darts = options.length === 1 ? options[0] : await askDarts(options);
       if (!darts) return;
+      // Davon aufs Doppel? Mindestens der Checkout-Dart; bei einem Dart steht es fest
+      doubleDarts = darts === 1 ? 1 : await askDoubleDarts('Davon aufs Doppel?', 1, darts);
+      if (doubleDarts == null) return;
+    } else {
+      // Kein Checkout. Ein Dart kann aufs Doppel gegangen sein, wenn
+      //  - vorher ein Finish mit höchstens 2 Darts drin war (z. B. 40, 81, 110), oder
+      //  - nach der Aufnahme ein Ein-Dart-Rest bleibt (z. B. 121: T20 T11, D14 daneben -> Rest 28).
+      const after = rest - points;
+      const bust = after < 0 || after === 1;
+      const onFinishAfter = !bust && rest <= 170 && st.mode.isOnFinish(after);
+      if (checkoutPath(rest, 2) || onFinishAfter) {
+        doubleDarts = await askDoubleDarts('Wie viele Darts aufs Doppel?', 0, 3);
+        if (doubleDarts == null) return;
+      }
     }
     const before = session.state;
     const name = session.match.playerNames;
     typed = '';
     selected = null;
-    const ev = await session.enterTotal(points, darts);
+    const ev = await session.enterTotal(points, darts, doubleDarts);
     if (!ev) return;
     const now = session.state;
     if (!now.finished && now.legOverall === before.legOverall) banner(`${ev.bust ? 'Überworfen' : points}\n${name[now.current]} ist dran`, 1500);
     if (cam) cam.turnClosed();
     drawPad();
+  }
+
+  /** Auswahl „Darts aufs Doppel“ von min bis max (0–3). Abbrechen = null (nichts wird eingetragen). */
+  function askDoubleDarts(title, min, max) {
+    return new Promise((resolve) => {
+      let s;
+      const pick = (n) => { resolve(n); s.close(); };
+      s = sheet(h('div', { class: 'stack' },
+        h('h2', {}, title),
+        h('p', { class: 'dim', style: { margin: '-6px 0 0', fontSize: '14px' } }, 'Für deine Checkout-Quote.'),
+        h('div', { class: 'keys4' }, ...[0, 1, 2, 3].map((n) => h('button', { class: 'key', disabled: n < min || n > max, style: { minHeight: '64px', fontSize: '26px' }, onclick: () => pick(n) }, n))),
+        h('button', { class: 'btn ghost', onclick: () => pick(null) }, 'Abbrechen'),
+      ), { onClose: () => resolve(null) });
+    });
   }
 
   function askDarts(options) {
@@ -573,6 +603,7 @@ export function render(root, params, nav) {
       h('div', { class: 'confirmturn num' }, result),
       m.players.length > 2 ? h('p', { class: 'dim', style: { margin: '-8px 0 0', textAlign: 'center' } }, m.playerNames.join(' · ')) : null,
       recordsEl,
+      h('button', { class: 'btn', onclick: () => showMatchDetail(session.match) }, 'Details: Legs & Aufnahmen'),
       h('button', {
         class: 'btn primary',
         onclick: () => {
