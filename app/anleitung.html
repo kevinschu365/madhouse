@@ -80,6 +80,10 @@
   .phone .pl { background: var(--surface2); border-radius: 2mm; padding: 1.2mm; text-align: center; font-size: 7.5pt; }
   .phone .pl.on { box-shadow: inset 0 0 0 0.4mm var(--accent); }
   .phone .pl b { display: block; font-size: 15pt; line-height: 1.1; }
+  .phone .pl span { display: block; font-size: 6.5pt; line-height: 1.25; margin-top: 0.5mm; }
+  .phone .hintline { display: flex; align-items: center; justify-content: center; gap: 2mm; margin: 0 0 1.5mm; color: var(--accent); }
+  .phone .hintline b { font-size: 11pt; }
+  .phone .hintline span { font-size: 6.5pt; color: var(--dim); border-left: 0.3mm solid #333; padding-left: 1.5mm; line-height: 1.25; }
   .phone .darts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2mm; margin: 1.5mm 0; }
   .phone .darts div { background: var(--surface2); border-radius: 1.5mm; text-align: center; font-weight: 700; font-size: 8pt; padding: 0.8mm 0; }
   .phone .cam { height: 15mm; border-radius: 1.5mm; background: radial-gradient(circle at 50% 50%, #e5e7eb 0 9%, #111 9% 18%, #e5e7eb 18% 27%, #b91c1c 27% 31%, #111 31% 40%, #15803d 40% 44%, #222 44% 100%); margin-bottom: 1.5mm; }
@@ -112,12 +116,14 @@
       <div><span>App aufs Handy holen</span><span>2</span></div>
       <div><span>Die Startseite</span><span>3</span></div>
       <div><span>Neues Spiel</span><span>4</span></div>
-      <div><span>Kamera aufbauen</span><span>5</span></div>
-      <div><span>Im Spiel</span><span>6</span></div>
-      <div><span>Training</span><span>7</span></div>
-      <div><span>Ansage &amp; Dialekte</span><span>8</span></div>
-      <div><span>Einstellungen &amp; Daten</span><span>9</span></div>
-      <div><span>Hilfe bei Problemen</span><span>10</span></div>
+      <div><span>Spielarten &amp; Computer</span><span>5</span></div>
+      <div><span>Kamera aufbauen</span><span>6</span></div>
+      <div><span>Im Spiel</span><span>7</span></div>
+      <div><span>Eingabe</span><span>8</span></div>
+      <div><span>Training</span><span>9</span></div>
+      <div><span>Ansage &amp; Dialekte</span><span>10</span></div>
+      <div><span>Einstellungen &amp; Daten</span><span>11</span></div>
+      <div><span>Hilfe bei Problemen</span><span>12</span></div>
     </div>
     <div class="url">Adresse der App<b>kevinschu365.github.io/madhouse/app/</b></div>
   </div>
@@ -154,11 +160,11 @@
 <section class="page">
   <h2><span class="ico">🏠</span>Die Startseite</h2>
   <div class="list card">
-    <div class="row"><div class="ic">▶️</div><div><b>Neues Spiel</b><br><span class="dim small">X01 oder Cricket, zu zweit</span></div></div>
+    <div class="row"><div class="ic">▶️</div><div><b>Neues Spiel</b><br><span class="dim small">X01, Cricket, Halve-It, Killer – auch gegen den Computer</span></div></div>
     <div class="row"><div class="ic">🎯</div><div><b>Training</b><br><span class="dim small">Übungen allein, mit Rekorden</span></div></div>
     <div class="row"><div class="ic">👥</div><div><b>Spieler</b><br><span class="dim small">anlegen, umbenennen, entfernen</span></div></div>
-    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, 180er, Checkouts, Verlauf</span></div></div>
-    <div class="row"><div class="ic">📷</div><div><b>Kamera kalibrieren</b><br><span class="dim small">Board einmessen (Seite 5)</span></div></div>
+    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, 180er, Checkouts, Doppel-Quote, Verlauf</span></div></div>
+    <div class="row"><div class="ic">📷</div><div><b>Kamera kalibrieren</b><br><span class="dim small">Board einmessen (Seite 6)</span></div></div>
     <div class="row"><div class="ic">⚙️</div><div><b>Einstellungen</b><br><span class="dim small">Ansage, Kamera, Daten</span></div></div>
     <div class="row"><div class="ic">📖</div><div><b>Anleitung</b><br><span class="dim small">diese Anleitung, jederzeit in der App</span></div></div>
   </div>
@@ -175,25 +181,43 @@
   <p class="dim small">Alles auf einer Seite – einfach die Felder antippen:</p>
   <div class="card">
     <table>
-      <tr><td>Spieler 1 / 2</td><td>auswählen – oder „+ Neuer Spieler …“</td></tr>
-      <tr><td>Spiel</td><td><span class="chips"><span class="on">X01</span><span>Cricket</span></span></td></tr>
+      <tr><td>Spiel</td><td><span class="chips"><span class="on">X01</span><span>Cricket</span><span>Halve-It</span><span>Killer</span></span></td></tr>
+      <tr><td>Spieler</td><td>auswählen, „+ Neuer Spieler …“ oder <b>🤖 Computer</b> (daneben die <b>Stärke</b>). X01 zu zweit, mit <span class="key">+ Spieler</span>: Cricket bis 4, Halve-It / Killer bis 6</td></tr>
       <tr><td>Startwert</td><td>301 · 501 · 701 <span class="dim">(Double-Out)</span></td></tr>
-      <tr><td>Variante</td><td>Cricket: Standard oder Cut Throat</td></tr>
-      <tr><td>Sets</td><td>Keine · Best of 3 · 5 · 7</td></tr>
-      <tr><td>Legs</td><td>1 Leg · Best of 3 … 11</td></tr>
-      <tr><td>Wer beginnt?</td><td>Spieler 1, Spieler 2 oder <b>Ausbullen</b> (mit Kamera)</td></tr>
-      <tr><td>Eingabe</td><td><b>Kamera</b>, <b>Pro Dart</b>, <b>Scheibe</b> oder <b>Summe</b> – bleibt im Spiel fest</td></tr>
+      <tr><td>Variante</td><td>Cricket: Standard / Cut Throat · Killer: 3 / 5 Leben</td></tr>
+      <tr><td>Sets · Legs</td><td>Keine · Best of 3 … 11</td></tr>
+      <tr><td>Wer beginnt?</td><td>ein Spieler oder <b>Ausbullen</b> (Kamera, zu zweit)</td></tr>
+      <tr><td>Eingabe</td><td><b>Summe</b> (Standard), <b>Pro Dart</b>, <b>Scheibe</b> oder <b>Kamera</b> – bleibt im Spiel fest</td></tr>
     </table>
   </div>
   <p>Dann <span class="btn p">Spiel starten</span></p>
   <div class="card tip">
     <p class="small" style="margin:0">Mit Kamera kommt vorher kurz der <b>Kamera-Check</b>: Liegt das grüne Raster auf den Drähten? → <span class="btn p">Passt – los geht’s</span></p>
   </div>
-  <p class="small dim">Der Anwurf wechselt nach jedem Leg automatisch.</p>
+  <p class="small dim">Der Anwurf wechselt nach jedem Leg automatisch. Summe gibt es nur bei X01.</p>
   <div class="pnum">4</div>
 </section>
 
-<!-- 5 · Kamera -->
+<!-- 5 · Spielarten & Computer -->
+<section class="page">
+  <h2><span class="ico">🎲</span>Spielarten &amp; Computer</h2>
+  <div class="card">
+    <h3>Halve-It <span class="dim small">· 2–6 Spieler</span></h3>
+    <p class="small" style="margin:0">9 Runden mit festem Ziel: 15, 16, Double, 17, 18, Triple, 19, 20, Bull. Start mit 40 Punkten. Treffer aufs Ziel zählen – <b>kein Treffer halbiert</b> deinen Stand. Höchste Punktzahl gewinnt.</p>
+  </div>
+  <div class="card">
+    <h3>Killer <span class="dim small">· 2–6 Spieler</span></h3>
+    <p class="small" style="margin:0">Jeder bekommt eine Zahl. Triff dein <b>eigenes Double</b> → du bist Killer. Dann kostet jeder Treffer auf das Double eines Gegners ihm ein Leben ♥ (dein eigenes kostet dich eins). Wer keine Leben hat, ist raus – der Letzte gewinnt.</p>
+  </div>
+  <div class="card">
+    <h3>🤖 Computer-Gegner</h3>
+    <p class="small">In der Spielerliste <b>„🤖 Computer“</b> wählen, daneben die Stärke: Ø30 Anfänger bis Ø100 Profi. Er wirft von selbst, Dart für Dart, und spielt echte Finish-Wege.</p>
+    <p class="small dim" style="margin:0">Während er wirft, ist die Eingabe gesperrt. <b style="color:#fff">↶ Aufn.</b> überspringt seine Aufnahme und nimmt deine letzte zurück.</p>
+  </div>
+  <div class="pnum">5</div>
+</section>
+
+<!-- 6 · Kamera -->
 <section class="page">
   <h2><span class="ico">📷</span>Kamera aufbauen</h2>
   <div class="grid2" style="margin-bottom:2.6mm">
@@ -214,30 +238,54 @@
   <div class="card tip">
     <p class="small" style="margin:0">Raster daneben? <b>„Nochmal tippen“</b> oder <b>„5 Punkte von Hand setzen“</b>.<br>Bleibt das Handy am selben Platz, musst du <b>nicht neu kalibrieren</b>.</p>
   </div>
-  <div class="pnum">5</div>
-</section>
-
-<!-- 6 · Im Spiel -->
-<section class="page">
-  <h2><span class="ico">🎯</span>Im Spiel</h2>
-  <div class="phone">
-    <div class="score"><div class="pl on">Kevin<b>321</b></div><div class="pl">Nils<b>401</b></div></div>
-    <div class="darts"><div>T20</div><div>T20</div><div>T20</div><div style="color:var(--accent)">180</div></div>
-    <div class="cam"></div>
-    <div class="bar"><div>↶ Dart</div><div>↶ Aufn.</div><div class="p">WEITER</div></div>
-  </div>
-  <div class="callout">Die Kamera <b>zählt automatisch</b> und sagt jeden Dart an.</div>
-  <div class="card list" style="margin-top:2.6mm">
-    <div class="row"><div class="ic">✏️</div><div><b>Falsch erkannt?</b><br><span class="small dim">Dart oben antippen → richtiges Feld wählen. Oder einfach ins Kamerabild tippen.</span></div></div>
-    <div class="row"><div class="ic">⌨️</div><div><b>Von Hand eingeben</b><br><span class="small dim">Eingabeart beim Spielstart wählen. Mit Kamera: „Korrektur / Eingabe“ pro Dart, bei Kamera-Ausfall im Menü „Kamera aus – Handeingabe“</span></div></div>
-    <div class="row"><div class="ic">↶</div><div><b>Rückgängig</b><br><span class="small dim">letzten Dart oder ganze Aufnahme</span></div></div>
-    <div class="row"><div class="ic">➡️</div><div><b>Weiter</b><br><span class="small dim">passiert von selbst, wenn das Board leer ist</span></div></div>
-    <div class="row"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Dialekt, neu kalibrieren, Pause, Abbruch</span></div></div>
-  </div>
   <div class="pnum">6</div>
 </section>
 
-<!-- 7 · Training -->
+<!-- 7 · Im Spiel -->
+<section class="page">
+  <h2><span class="ico">🎯</span>Im Spiel</h2>
+  <div class="phone">
+    <div class="score"><div class="pl on">Kevin<b>141</b><span class="dim">Runde 4 · 9 Darts<br>Ø Leg 120 · Spiel 98</span></div><div class="pl">Nils<b>201</b><span class="dim">Runde 3 · 9 Darts<br>Ø Leg 100 · Spiel 87</span></div></div>
+    <div class="darts"><div>–</div><div>–</div><div>–</div><div>0</div></div>
+    <div class="hintline"><b>T20 T19 D12</b><span>T20 T15 D18<br>T19 T16 D18</span></div>
+    <div class="bar"><div>↶ Dart</div><div>↶ Aufn.</div><div class="p">WEITER</div></div>
+  </div>
+  <div class="card list" style="margin-top:2.6mm">
+    <div class="row"><div class="ic">🎯</div><div><b>Finish-Weg</b><br><span class="small dim">ab 170: Standard-Weg groß, 2 Alternativen daneben. Passt sich nach jedem Dart an.</span></div></div>
+    <div class="row"><div class="ic">📐</div><div><b>Stellen</b><br><span class="small dim">kein Finish möglich (über 170, 169 …)? Vorschlag wie „T20 T20 25 · bleibt 36“ – auf ein gutes Doppel.</span></div></div>
+    <div class="row"><div class="ic">🔊</div><div><b>Rest vor dem Wurf</b><br><span class="small dim">auscheckbar? Dann „Kevin, Rest 141“.</span></div></div>
+    <div class="row"><div class="ic">📊</div><div><b>Unterm Spielstand</b><br><span class="small dim">Runde, geworfene Darts, Average im Leg und im Spiel (Cricket: MPR).</span></div></div>
+    <div class="row"><div class="ic">🏆</div><div><b>Spielende</b><br><span class="small dim">neuer Bestwert? „🎉 Neuer Rekord!“ – Average, bestes Leg, höchstes Finish, höchste Aufnahme.</span></div></div>
+  </div>
+  <div class="pnum">7</div>
+</section>
+
+<!-- 8 · Eingabe -->
+<section class="page">
+  <h2><span class="ico">⌨️</span>Eingabe</h2>
+  <div class="card">
+    <h3>Summe <span class="dim small">· Standard bei X01</span></h3>
+    <p class="small">Aufnahme eintippen. Links und rechts: <b>26 · 41 · 45 · 60 · 85 · 100 · 140 · 180</b> – ein Tipp trägt sofort ein.</p>
+    <table>
+      <tr><td><span class="btn" style="background:#ef4444;border-color:#ef4444;color:#fff">NO SCORE</span></td><td>nichts eingetippt – trägt 0 ein</td></tr>
+      <tr><td><span class="btn p">WEITER 85</span></td><td>übernimmt die Zahl</td></tr>
+      <tr><td><span class="btn p">Check</span></td><td>checkt den Rest mit einem Tipp aus (fragt ggf. „mit wie vielen Darts?“)</td></tr>
+    </table>
+    <p class="small dim" style="margin:1.5mm 0 0"><b style="color:#fff">Zwischenstand:</b> T18 statt T20 bei 141? <b style="color:#fff">54</b> tippen → „Rest danach 87 · noch 2 Darts“ und der neue Weg.</p>
+  </div>
+  <div class="card">
+    <h3>Pro Dart · Scheibe · Cricket</h3>
+    <p class="small" style="margin:0"><b>Pro Dart:</b> Double/Triple, dann Zahl. <b>Scheibe:</b> aufs Feld tippen. <b>Cricket:</b> auf die Zahl in der Tabelle tippen.</p>
+  </div>
+  <div class="card list">
+    <div class="row"><div class="ic">✏️</div><div><b>Falsch?</b><br><span class="small dim">Dart oben antippen → richtiges Feld. ↶ nimmt Dart oder Aufnahme zurück.</span></div></div>
+    <div class="row"><div class="ic">📷</div><div><b>Mit Kamera</b><br><span class="small dim">zählt selbst; „Korrektur / Eingabe“ pro Dart. Kamera streikt? ☰ › „Kamera aus – Handeingabe“.</span></div></div>
+    <div class="row"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Dialekt, Kamera, Pause, Abbruch</span></div></div>
+  </div>
+  <div class="pnum">8</div>
+</section>
+
+<!-- 9 · Training -->
 <section class="page">
   <h2><span class="ico">🎯</span>Training</h2>
   <p class="dim small">Spieler wählen, Übung aussuchen, <span class="btn p">Start</span>. Rekord und letztes Ergebnis stehen dabei.</p>
@@ -249,15 +297,15 @@
     <h3>Scoring</h3>
     <p class="small"><b>Score-Training</b> – Average über feste Aufnahmen</p>
     <h3>Checkout</h3>
-    <p class="small"><b>121 Checkout</b> · <b>Catch 40</b> · <b>Zufalls-Checkout</b></p>
+    <p class="small"><b>121 Checkout</b> · <b>Catch 40</b> · <b>Zufalls-Checkout</b><br><b>Checkout-Streak</b> – Finishes hintereinander, bis eins nicht klappt</p>
     <h3>Komplett-Test</h3>
     <p class="small" style="margin:0"><b>JDC Challenge</b> – Shanghai + Doubles, mit Stufen</p>
   </div>
   <p class="small dim">Jede Übung hat eine kurze Erklärung und eigene Auswahl (z. B. Anzahl Darts).</p>
-  <div class="pnum">7</div>
+  <div class="pnum">9</div>
 </section>
 
-<!-- 8 · Ansage -->
+<!-- 10 · Ansage -->
 <section class="page">
   <h2><span class="ico">🔊</span>Ansage &amp; Dialekte</h2>
   <p class="dim small">Einstellungen › <b style="color:#fff">Sprache / Dialekt</b> – beim Auswählen hörst du gleich eine Probe.</p>
@@ -275,16 +323,17 @@
   <div class="card">
     <p class="small" style="margin:0"><b>Stimme tiefer?</b> Regler <b>Stimmlage</b>.<br><b>Bessere Stimme:</b> iPhone-Einstellungen › Bedienungshilfen › Gesprochene Inhalte › Stimmen › Deutsch.</p>
   </div>
-  <div class="pnum">8</div>
+  <div class="pnum">10</div>
 </section>
 
-<!-- 9 · Einstellungen -->
+<!-- 11 · Einstellungen -->
 <section class="page">
   <h2><span class="ico">⚙️</span>Einstellungen &amp; Daten</h2>
   <div class="card">
     <h3>Ansage</h3>
     <table>
       <tr><td>Dart / Summe / Rest</td><td>einzeln an- und ausschalten</td></tr>
+      <tr><td>Rest vor dem Wurf</td><td>„Kevin, Rest 80“, nur wenn auscheckbar</td></tr>
       <tr><td>Stimme</td><td>Automatisch oder eine Stimme wählen</td></tr>
       <tr><td>Tempo · Stimmlage</td><td>Regler</td></tr>
       <tr><td>Ansage testen</td><td>„180 … Rest 321“</td></tr>
@@ -302,10 +351,10 @@
     <h3 style="color:var(--warn)">Daten sichern 💾</h3>
     <p class="small" style="margin:0">Alles liegt nur auf dem Handy. Ab und zu <b>„Sicherung exportieren“</b> und z. B. in iCloud Drive ablegen. Wird die App gelöscht, sind die Daten sonst weg.</p>
   </div>
-  <div class="pnum">9</div>
+  <div class="pnum">11</div>
 </section>
 
-<!-- 10 · Hilfe -->
+<!-- 12 · Hilfe -->
 <section class="page">
   <h2><span class="ico">🛟</span>Hilfe bei Problemen</h2>
   <div class="card list">
@@ -318,7 +367,7 @@
   <div class="card tip" style="text-align:center">
     <p style="margin:0"><b>Game on!</b> 🎯</p>
   </div>
-  <div class="pnum">10</div>
+  <div class="pnum">12</div>
 </section>
 
 </body>

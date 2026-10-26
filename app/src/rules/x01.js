@@ -9,7 +9,6 @@ export const X01 = {
   id: 'x01',
   label: 'X01',
   kind: 'match',
-  maxPlayers: 6,
   dartsPerTurn: 3,
   defaultOptions: { startScore: 501, doubleOut: true },
 

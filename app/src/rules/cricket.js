@@ -19,6 +19,7 @@ export const CRICKET = {
   id: 'cricket',
   label: 'Cricket',
   kind: 'match',
+  maxPlayers: 4,
   dartsPerTurn: 3,
   defaultOptions: { cutThroat: false },
 

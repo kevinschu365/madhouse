@@ -250,3 +250,15 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
 /* Statistik: Balken für die Doppel-Quote */
 .ratebar { width: 100%; min-width: 60px; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
 .ratebar > div { height: 100%; background: var(--accent); }
+
+/* Cricket ab 3 Spielern: Zahl links, je Spieler eine Spalte, Namenskopf darüber */
+.game.is-cricket .cricket.wide .crow.chead > * { min-height: 0; background: transparent; font-size: 12px; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; display: block; text-align: center; }
+.game.is-cricket .cricket.wide .crow.chead > .cur { color: var(--accent); }
+.game.is-cricket .cricket.wide .crow > * { font-size: clamp(18px, 5vw, 28px); }
+.game.is-cricket .cricket.wide { grid-template-rows: auto repeat(7, minmax(32px, 1fr)); }
+.game.is-cricket .players.many .pp .score { font-size: clamp(28px, 9vw, 60px); }
+
+/* Neues Spiel: Stärke neben dem Computer */
+.players-setup { display: flex; flex-direction: column; }
+.playerrow .botlevel { flex: 0 0 38%; min-width: 0; }
+.playerrow .botlevel select, .playerrow label.field select { padding-left: 10px; padding-right: 6px; }

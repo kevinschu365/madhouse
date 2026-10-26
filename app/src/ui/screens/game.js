@@ -59,12 +59,18 @@ export function render(root, params, nav) {
     const el = h('div', { class: training ? 'pp solo' : 'pp' }, name, score, h('div', { class: 'sl num' }, sets, legs), meta, avg);
     return { el, name, score, sets, legs, avg, meta };
   });
-  // Cricket: Tabelle der Marks (Spieler 1 | Zahl | Spieler 2)
+  // Cricket: Tabelle der Marks. Zu zweit: Spieler 1 | Zahl | Spieler 2.
+  // Ab 3 Spielern: Zahl | Spieler 1 | Spieler 2 | … (mit Namenskopf, Reihenfolge wie die Spielerfelder).
+  const wideCricket = cricket && playerCount > 2;
+  const cricketCols = wideCricket ? { gridTemplateColumns: `1.2fr repeat(${playerCount}, 1fr)` } : null;
   const cricketRows = cricket ? CRICKET_NUMBERS.map((n) => {
-    const cells = [h('div', { class: 'cm' }), h('button', { class: 'cn num', onclick: () => tapCricket(n) }, n === 25 ? 'Bull' : n), h('div', { class: 'cm' })];
-    return { n, el: h('div', { class: 'crow' }, cells[0], cells[1], cells[2]), cells };
+    const marks = session.match.players.map(() => h('div', { class: 'cm' }));
+    const num = h('button', { class: 'cn num', onclick: () => tapCricket(n) }, n === 25 ? 'Bull' : n);
+    const cells = wideCricket ? [num, ...marks] : [marks[0], num, marks[1]];
+    return { n, el: h('div', { class: 'crow', style: cricketCols }, cells), marks };
   }) : [];
-  const cricketEl = cricket ? h('div', { class: 'cricket' }, cricketRows.map((r) => r.el)) : null;
+  const cricketHead = wideCricket ? h('div', { class: 'crow chead', style: cricketCols }, h('div', {}), session.match.playerNames.map((nm) => h('div', {}, nm))) : null;
+  const cricketEl = cricket ? h('div', { class: wideCricket ? 'cricket wide' : 'cricket' }, cricketHead, cricketRows.map((r) => r.el)) : null;
   const slots = [0, 1, 2].map((i) => h('button', { class: 'slot num', onclick: () => selectSlot(i) }));
   const sumSlot = h('div', { class: 'slot sum num' });
   const hintEl = h('div', { class: 'hint num' });
@@ -413,14 +419,15 @@ export function render(root, params, nav) {
       p.meta.replaceChildren(legCountParts(st, i));
     });
     for (const r of cricketRows) {
-      const a = live.marks[0][r.n];
-      const b = live.marks[1][r.n];
-      r.cells[0].textContent = MARK[Math.min(3, a)];
-      r.cells[2].textContent = MARK[Math.min(3, b)];
-      r.el.className = 'crow' + (a >= 3 && b >= 3 ? ' dead' : '');
-      r.cells[0].className = 'cm' + (a >= 3 ? ' closed' : '') + (st.current === 0 && !st.finished ? ' cur' : '');
-      r.cells[2].className = 'cm' + (b >= 3 ? ' closed' : '') + (st.current === 1 && !st.finished ? ' cur' : '');
+      const counts = live.marks.map((mk) => mk[r.n]);
+      r.marks.forEach((cell, i) => {
+        cell.textContent = MARK[Math.min(3, counts[i])];
+        cell.className = 'cm' + (counts[i] >= 3 ? ' closed' : '') + (st.current === i && !st.finished ? ' cur' : '');
+      });
+      // Zahl ist „tot“, wenn alle sie geschlossen haben
+      r.el.className = 'crow' + (counts.every((c) => c >= 3) ? ' dead' : '');
     }
+    if (cricketHead) [...cricketHead.children].slice(1).forEach((c, i) => c.classList.toggle('cur', st.current === i && !st.finished));
   }
 
   // Halve-It, Killer: Anzeige je Spieler kommt aus dem Spielmodus (live während der Aufnahme)

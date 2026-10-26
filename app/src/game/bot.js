@@ -5,10 +5,12 @@
 import { pointForHit, hitFromPoint, dartScore } from '../core/board.js';
 
 export const BOT_LEVELS = [30, 40, 50, 60, 70, 80, 90, 100];
+export const BOT_LEVEL_NAMES = { 30: 'Anfänger', 40: 'Einsteiger', 50: 'Hobby', 60: 'Fortgeschritten', 70: 'Vereinsspieler', 80: 'Stark', 90: 'Sehr stark', 100: 'Profi' };
 
 export function isBotId(id) {
   return typeof id === 'string' && id.startsWith('bot:');
 }
+/** Stärke aus der id ('bot:60', bei mehreren Computern gleicher Stärke 'bot:60:2'). */
 export function botLevel(id) {
   return parseInt(String(id).slice(4), 10) || 50;
 }

@@ -3,7 +3,7 @@ import { getPlayers, addPlayer, getSettings, updateSettings } from '../../core/s
 import { lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
-import { BOT_LEVELS, isBotId, botLevel, botName } from '../../game/bot.js';
+import { BOT_LEVELS, BOT_LEVEL_NAMES, isBotId, botLevel, botName } from '../../game/bot.js';
 
 const MODES = [['x01', 'X01'], ['cricket', 'Cricket'], ['halveit', 'Halve-It'], ['killer', 'Killer']];
 
@@ -24,6 +24,7 @@ export function render(root, params, nav) {
     cutThroat: !!s.lastSetup.cutThroat,
     startScore: s.lastSetup.startScore || 501,
     lives: s.lastSetup.lives || 3,
+    botLevel: s.lastSetup.botLevel || 60, // zuletzt gewählte Computer-Stärke
     setsBestOf: s.lastSetup.setsBestOf || 1,
     legsBestOf: s.lastSetup.legsBestOf || 3,
     selected: (s.lastSetup.players || []).filter(validId).slice(0, 6),
@@ -40,10 +41,24 @@ export function render(root, params, nav) {
       values.map(([v, text]) => h('option', { value: String(v), selected: String(v) === String(current) }, text))));
 
   const maxPlayers = () => getMode(cfg.mode).maxPlayers || 2;
-  const nameOf = (id, i) => (isBotId(id) ? botName(botLevel(id)) : known().find((p) => p.id === id)?.name) || `Spieler ${i + 1}`;
+  const botNo = (id) => parseInt(String(id).split(':')[2], 10) || 0; // 2. Computer gleicher Stärke …
+  const nameOf = (id, i) => (isBotId(id) ? botName(botLevel(id)) + (botNo(id) ? ` (${botNo(id)})` : '') : known().find((p) => p.id === id)?.name) || `Spieler ${i + 1}`;
+
+  // Computer: eine id je Stärke; mehrere Computer gleicher Stärke bekommen eine Nummer (bot:60:2)
+  const botId = (level, slot) => {
+    const taken = new Set(cfg.selected.filter((_, i) => i !== slot));
+    let id = `bot:${level}`;
+    for (let n = 2; taken.has(id); n++) id = `bot:${level}:${n}`;
+    return id;
+  };
 
   const NEW = '__neu';
+  const BOT = '__bot';
   const pickPlayer = async (slot, value) => {
+    if (value === BOT) {
+      if (isBotId(cfg.selected[slot])) return;
+      value = botId(cfg.botLevel, slot);
+    }
     if (value === NEW) {
       const n = await promptDialog('Neuer Spieler', '', { ok: 'Anlegen', placeholder: 'Name' });
       if (n != null) {
@@ -64,8 +79,8 @@ export function render(root, params, nav) {
     const max = maxPlayers();
     if (cfg.selected.length > max) cfg.selected = cfg.selected.slice(0, max);
     const sel = cfg.selected;
-    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, p.name]),
-      ...BOT_LEVELS.map((l) => [`bot:${l}`, `🤖 ${botName(l)}`]), [NEW, '+ Neuer Spieler …']];
+    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, p.name]), [BOT, '🤖 Computer'], [NEW, '+ Neuer Spieler …']];
+    const levelOptions = BOT_LEVELS.map((l) => [l, `Ø${l} · ${BOT_LEVEL_NAMES[l]}`]);
     const ready = sel.length >= 2 && sel.every(Boolean) && new Set(sel).size === sel.length && sel.some((id) => !isBotId(id));
     const twoPlayers = sel.length === 2;
     if (cfg.starter === 'bull' && !(cfg.camera && twoPlayers)) cfg.starter = 'p0';
@@ -75,7 +90,13 @@ export function render(root, params, nav) {
     const inputOptions = [['camera', 'Kamera'], ['dart', 'Pro Dart'], ['board', 'Scheibe'], ...(cfg.mode === 'x01' ? [['total', 'Summe']] : [])];
 
     const playerRows = sel.map((id, i) => h('div', { class: 'playerrow' },
-      dropdown(`Spieler ${i + 1}`, playerOptions, id || '', (v) => pickPlayer(i, v)),
+      dropdown(`Spieler ${i + 1}`, playerOptions, isBotId(id) ? BOT : id || '', (v) => pickPlayer(i, v)),
+      // Computer gewählt: daneben die Stärke
+      isBotId(id) ? h('div', { class: 'botlevel' }, dropdown('Stärke', levelOptions, botLevel(id), (v) => {
+        cfg.botLevel = +v;
+        sel[i] = botId(+v, i);
+        draw();
+      })) : null,
       sel.length > 2 ? h('button', { class: 'iconbtn', 'aria-label': 'Entfernen', onclick: () => { sel.splice(i, 1); draw(); } }, '✕') : null,
     ));
     const modeOption = {
@@ -90,7 +111,7 @@ export function render(root, params, nav) {
       h('div', { class: 'card' },
         h('div', { class: 'chips', style: { margin: '0 0 4px' } },
           MODES.map(([k, label]) => h('button', { class: `chip ${cfg.mode === k ? 'on' : ''}`, onclick: () => { cfg.mode = k; draw(); } }, label))),
-        h('div', { class: 'grid2 players-setup' }, playerRows),
+        h('div', { class: 'players-setup' }, playerRows),
         sel.length < max ? h('button', { class: 'btn ghost', style: { minHeight: '44px', fontSize: '16px', margin: '4px 0' }, onclick: () => { sel.push(null); draw(); } }, '+ Spieler') : null,
         h('div', { class: 'grid3' },
           modeOption,
@@ -114,7 +135,7 @@ export function render(root, params, nav) {
         onclick: () => {
           unlock(); // iOS: Sprachausgabe durch diesen Tipp freischalten
           updateSettings({
-            lastSetup: { mode: cfg.mode, cutThroat: cfg.cutThroat, startScore: cfg.startScore, lives: cfg.lives, setsBestOf: cfg.setsBestOf, legsBestOf: cfg.legsBestOf, players: sel.slice() },
+            lastSetup: { mode: cfg.mode, cutThroat: cfg.cutThroat, startScore: cfg.startScore, lives: cfg.lives, botLevel: cfg.botLevel, setsBestOf: cfg.setsBestOf, legsBestOf: cfg.legsBestOf, players: sel.slice() },
             cameraEnabled: cfg.camera, inputMode: cfg.input,
           });
           const options = {
