@@ -582,7 +582,7 @@ export function render(root, params, nav) {
           nav.go('game', { setup, camera: useCamera, inputMode });
         },
       }, 'Revanche'),
-      h('button', { class: 'btn', onclick: () => { s.close(); nav.go('stats'); } }, 'Statistik'),
+      h('button', { class: 'btn', onclick: () => { s.close(); nav.go('stats', m.players.some(isBotId) ? { player: m.players[0], tab: 'training' } : {}); } }, 'Statistik'),
       h('button', { class: 'btn ghost', onclick: () => { s.close(); nav.go('home'); } }, 'Startseite'),
       h('button', { class: 'btn ghost', onclick: () => { s.close(); undo('dart'); keepAwake(true); } }, 'Letzten Dart zurücknehmen'),
     ), { dismissable: false });
@@ -595,9 +595,10 @@ export function render(root, params, nav) {
    */
   async function showRecords(m, el) {
     if (m.mode !== 'x01' && m.mode !== 'cricket') return;
+    if (m.players.some(isBotId)) return; // gegen den Computer: Training, keine Rekorde
     try {
       const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
-      const earlier = new Set(matches.filter((x) => x.id !== m.id && x.status === 'finished' && x.mode === m.mode).map((x) => x.id));
+      const earlier = new Set(matches.filter((x) => x.id !== m.id && x.status === 'finished' && x.mode === m.mode && !x.players.some(isBotId)).map((x) => x.id));
       const now = throwRows(m);
       const lines = [];
       m.players.forEach((pid, i) => {

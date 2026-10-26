@@ -4,7 +4,9 @@ import { getPlayers, addPlayer, getSettings, updateSettings } from '../../core/s
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
-import { trainingRecords, trainingKey } from '../../stats/stats.js';
+import { trainingRecords, trainingKey, playerStats, cricketStats } from '../../stats/stats.js';
+import { throwRows } from '../../game/match.js';
+import { BOT_LEVELS, BOT_LEVEL_NAMES, botName } from '../../game/bot.js';
 import { JDC_GRADES } from '../../rules/training.js';
 
 const yesNo = [[true, 'Ja'], [false, 'Nein']];
@@ -71,7 +73,8 @@ export function render(root, params, nav) {
   let player = params.player || s.trainingPlayer || null;
   if (!players().some((p) => p.id === player)) player = players()[0]?.id || null;
   let camera = s.cameraEnabled;
-  let input = s.trainingInput === 'board' ? 'board' : 'dart'; // Handeingabe im Training: pro Dart oder Scheibe
+  // Handeingabe im Training: pro Dart, Scheibe oder Summe (Summe nur X01 gegen den Computer, sonst pro Dart)
+  let input = ['board', 'total'].includes(s.trainingInput) ? s.trainingInput : 'dart';
   const chosen = { ...(s.trainingOptions || {}) };
   let records = {};
   let allMatches = [];
@@ -113,6 +116,58 @@ export function render(root, params, nav) {
     else nav.go('game', gameParams);
   };
 
+  // ---------- Gegen den Computer: X01 oder Cricket, zählt nicht in die Statistik gegen echte Spieler ----------
+  const vs = { mode: 'x01', startScore: 501, cutThroat: false, level: 60, legs: 3, starter: 0, ...(s.botSetup || {}) };
+  const saveVs = () => updateSettings({ botSetup: { ...vs } });
+
+  const startVs = () => {
+    unlock(); // iOS: Sprachausgabe durch diesen Tipp freischalten
+    const p = players().find((x) => x.id === player);
+    if (!p) { toast('Bitte zuerst einen Spieler wählen.'); return; }
+    saveVs();
+    updateSettings({ cameraEnabled: camera, trainingPlayer: player });
+    const gameParams = {
+      setup: {
+        mode: vs.mode,
+        options: vs.mode === 'x01' ? { startScore: vs.startScore, doubleOut: true } : { cutThroat: vs.cutThroat },
+        players: [p.id, `bot:${vs.level}`],
+        playerNames: [p.name, botName(vs.level)],
+        setsBestOf: 1, legsBestOf: vs.legs, firstStarter: vs.starter, starterMethod: 'tap',
+      },
+      camera,
+      inputMode: input,
+    };
+    if (camera) nav.go('calibrate', { mode: 'quickcheck', then: 'game', thenParams: gameParams });
+    else nav.go('game', gameParams);
+  };
+
+  /** Bilanz gegen den Computer in dieser Stärke und diesem Spiel: Siege und dein Average bzw. MPR. */
+  const vsLine = () => {
+    const list = allMatches.filter((m) => m.status === 'finished' && m.mode === vs.mode && m.players.length === 2
+      && m.players[0] === player && m.players[1] === `bot:${vs.level}`);
+    if (!list.length) return h('div', { class: 'rec dim' }, 'Noch nicht gegen diese Stärke gespielt');
+    const won = list.filter((m) => m.winner === 0).length;
+    const rows = list.flatMap((m) => throwRows(m)).filter((r) => r.playerId === player);
+    const value = vs.mode === 'x01' ? `Dein Ø ${playerStats(rows).average.toFixed(1)}` : `Deine MPR ${cricketStats(rows).mpr.toFixed(2)}`;
+    return h('div', { class: 'rec' }, h('span', {}, '🏆 ', h('b', {}, `${won} / ${list.length}`), ' gewonnen'), h('span', { class: 'dim' }, value));
+  };
+
+  const vsCard = () => h('div', { class: 'card drill' },
+    h('div', { class: 'drillhead' }, h('h3', {}, '🤖 Computer'), h('button', { class: 'btn primary small', onclick: startVs }, 'Start')),
+    h('p', { class: 'dim', style: { margin: '0 0 6px', fontSize: '14px' } }, 'Ein Match gegen den Computer. Er wirft von selbst und spielt echte Finish-Wege. Zählt nicht in deine X01- und Cricket-Statistik gegen echte Spieler.'),
+    h('div', { class: 'chips', style: { margin: '0 0 2px' } },
+      [['x01', 'X01'], ['cricket', 'Cricket']].map(([k, label]) => h('button', { class: `chip ${vs.mode === k ? 'on' : ''}`, onclick: () => { vs.mode = k; saveVs(); draw(); } }, label))),
+    h('div', { class: 'grid2' },
+      vs.mode === 'x01'
+        ? dropdown('Startwert', [301, 501, 701].map((v) => [v, String(v)]), vs.startScore, (v) => { vs.startScore = v; saveVs(); })
+        : dropdown('Variante', [[false, 'Standard'], [true, 'Cut Throat']], vs.cutThroat, (v) => { vs.cutThroat = v; saveVs(); }),
+      dropdown('Stärke', BOT_LEVELS.map((l) => [l, `Ø${l} · ${BOT_LEVEL_NAMES[l]}`]), vs.level, (v) => { vs.level = v; saveVs(); draw(); }),
+      dropdown('Legs', [1, 3, 5, 7].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`]), vs.legs, (v) => { vs.legs = v; saveVs(); }),
+      dropdown('Wer beginnt?', [[0, 'Du'], [1, 'Computer']], vs.starter, (v) => { vs.starter = v; saveVs(); }),
+    ),
+    vsLine(),
+  );
+
   const drillCard = (d) => {
     const mode = getMode(d.id);
     const o = optionsOf(d.id);
@@ -144,7 +199,7 @@ export function render(root, params, nav) {
       h('div', { class: 'card' },
         h('div', { class: 'grid2' },
           dropdown('Spieler', playerOptions, player || '', pickPlayer),
-          dropdown('Eingabe', [['camera', 'Kamera'], ['dart', 'Pro Dart'], ['board', 'Scheibe']], camera ? 'camera' : input, (v) => {
+          dropdown('Eingabe', [['camera', 'Kamera'], ['dart', 'Pro Dart'], ['board', 'Scheibe'], ['total', 'Summe (nur X01)']], camera ? 'camera' : input, (v) => {
             camera = v === 'camera';
             if (!camera) input = v;
             updateSettings({ cameraEnabled: camera, ...(camera ? {} : { trainingInput: input }) });
@@ -153,6 +208,8 @@ export function render(root, params, nav) {
         ),
         camera && !hasCal ? h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '14px' } }, 'Noch keine Kalibrierung – sie kommt vor dem Training.') : null,
       ),
+      h('h3', { class: 'cat' }, 'Gegen den Computer'),
+      vsCard(),
       cats.map((c) => [h('h3', { class: 'cat' }, c), DRILLS.filter((d) => d.cat === c).map(drillCard)]),
     );
   };

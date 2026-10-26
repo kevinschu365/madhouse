@@ -18,9 +18,10 @@ export function render(root, params, nav) {
 
   Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
     const finished = matches.filter((m) => m.status === 'finished');
-    const finishedIds = new Set(finished.map((m) => m.id));
-    // Statistik nur aus beendeten Matches (abgebrochene zählen nicht)
-    const usable = rows.filter((r) => finishedIds.has(r.matchId));
+    // Statistik nur aus beendeten Matches gegen echte Spieler (abgebrochene und Spiele gegen den Computer zählen nicht)
+    const vsBot = (m) => m.players.some(isBotId);
+    const realIds = new Set(finished.filter((m) => !vsBot(m)).map((m) => m.id));
+    const usable = rows.filter((r) => realIds.has(r.matchId));
     const known = getPlayers();
     const names = new Map();
     for (const m of matches) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
@@ -116,10 +117,37 @@ export function render(root, params, nav) {
       body.appendChild(matchHistory(myMatches, pr, (r) => `MPR ${cricketStats(r).mpr.toFixed(2)}`));
     };
 
+    // Spiele gegen den Computer: eigene Bilanz je Spiel und Stärke (getrennt von echten Gegnern)
+    const drawVsBot = () => {
+      const games = finished.filter((m) => vsBot(m) && m.players.length === 2 && m.players[0] === selectedPlayer);
+      if (!games.length) return false;
+      const groups = new Map();
+      for (const m of games) {
+        const key = `${m.mode}|${m.players[1]}`;
+        (groups.get(key) || groups.set(key, []).get(key)).push(m);
+      }
+      body.appendChild(h('h3', { style: { marginTop: '10px' } }, '🤖 Gegen den Computer'));
+      const table = h('table', { class: 'hist' });
+      for (const [key, list] of groups) {
+        const [mode] = key.split('|');
+        const myRows = rows.filter((r) => r.playerId === selectedPlayer && list.some((m) => m.id === r.matchId));
+        const value = mode === 'x01' ? `Ø ${playerStats(myRows).average.toFixed(1)}` : `MPR ${cricketStats(myRows).mpr.toFixed(2)}`;
+        table.appendChild(h('tr', {},
+          h('td', {}, `${getMode(mode).label} · ${list[0].playerNames[1]}`),
+          h('td', { class: 'num' }, `${list.filter((m) => m.winner === 0).length} / ${list.length} gewonnen`),
+          h('td', { class: 'num' }, value),
+        ));
+      }
+      body.appendChild(table);
+      return true;
+    };
+
     const drawTraining = () => {
+      const hadBot = drawVsBot();
       const recs = trainingRecords(finished, selectedPlayer, getMode);
       const keys = Object.keys(recs);
       if (!keys.length) {
+        if (hadBot) return;
         body.appendChild(h('p', { class: 'dim' }, 'Noch keine Trainings beendet.'));
         body.appendChild(h('button', { class: 'btn primary', onclick: () => nav.go('training', { player: selectedPlayer }) }, 'Zum Training'));
         return;
@@ -158,7 +186,7 @@ export function render(root, params, nav) {
       if (tab === 'training') { drawTraining(); return; }
       const pr = usable.filter((r) => r.playerId === selectedPlayer && r.mode === tab);
       const myMatches = finished
-        .filter((m) => m.mode === tab && !isTraining(m.mode) && m.players.length > 1 && m.players.includes(selectedPlayer))
+        .filter((m) => m.mode === tab && !isTraining(m.mode) && !vsBot(m) && m.players.length > 1 && m.players.includes(selectedPlayer))
         .sort((a, b) => b.createdAt - a.createdAt);
       if (tab === 'cricket') drawCricket(pr, myMatches);
       else drawX01(pr, myMatches);
