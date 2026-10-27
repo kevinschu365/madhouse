@@ -64,6 +64,8 @@ export class GameSession {
       bust: ev.bust,
       finished: ev.finished,
       remaining: ev.remaining,
+      slump: slumpCount(closedMatch, p),
+      name: this.match.playerNames[p],
       legWon: ev.finished,
       setWon: ev.finished && after.setsWon[p] > this.state.setsWon[p],
       matchWon: after.finished,
@@ -116,6 +118,7 @@ export class GameSession {
     const p = before.current;
     announceTurn({
       points: ev.points, bust: ev.bust, finished: ev.finished, remaining: ev.remaining,
+      slump: slumpCount(m, p), name: m.playerNames[p],
       legWon: ev.finished, setWon: ev.finished && after.setsWon[p] > before.setsWon[p], matchWon: after.finished,
     });
     this.announcedTurnKey = null;
@@ -141,6 +144,24 @@ export class GameSession {
     lsSet('activeMatch', null);
     await this.persist();
   }
+}
+
+/**
+ * Formtief (X01): wie viele eigene Aufnahmen in Folge unter 40 Punkten (Überworfen zählt mit),
+ * die zuletzt abgeschlossene eingeschlossen. Aufnahmen ab Rest 100 abwärts zählen nicht –
+ * da wird aufs Finish gespielt, nicht gepunktet. Ein Checkout setzt die Serie zurück.
+ */
+export function slumpCount(match, player) {
+  if (match.mode !== 'x01') return 0;
+  let n = 0;
+  for (const leg of M.derive(match).legs) {
+    for (const t of leg.turns) {
+      if (t.player !== player) continue;
+      if (t.ev.finished) n = 0;
+      else if (t.startRemaining > 100) n = t.ev.bust || t.ev.points < 40 ? n + 1 : 0;
+    }
+  }
+  return n;
 }
 
 /** Gewinner des gerade beendeten Legs (bei Halve-It nicht unbedingt der letzte Werfer). */

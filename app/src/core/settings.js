@@ -9,6 +9,9 @@ export const DEFAULT_SETTINGS = {
   announceTurn: true,        // Summe der Aufnahme ansagen
   announceRest: true,        // Rest nach der Aufnahme ansagen
   announceRequire: true,     // Rest vor dem Wurf ansagen, wenn auscheckbar (X01)
+  announceRequireName: true, // dabei den Namen dazusagen („Kevin, Rest 80“ statt „Rest 80“)
+  taunts: true,              // Sticheleien, wenn jemand mehrere Aufnahmen in Folge unter 40 bleibt
+  say26: true,               // bei 26 „Twenty fucking six“ statt „26“
   voiceURI: null,            // gewählte Stimme (null = automatisch)
   speechRate: 1.0,
   speechPitch: 1.0,          // Stimmlage: unter 1 = tiefer (männlicher), über 1 = höher

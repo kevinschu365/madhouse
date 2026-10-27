@@ -249,7 +249,7 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
 
 /* Statistik: Balken für die Doppel-Quote */
 .ratebar { width: 100%; min-width: 60px; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
-.ratebar > div { height: 100%; background: var(--accent); }
+.ratebar > * { display: block; height: 100%; background: var(--accent); }
 
 /* Cricket ab 3 Spielern: Zahl links, je Spieler eine Spalte, Namenskopf darüber */
 .game.is-cricket .cricket.wide .crow.chead > * { min-height: 0; background: transparent; font-size: 12px; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; display: block; text-align: center; }
@@ -271,6 +271,62 @@ h3.cat { margin: 10px 0 0; color: var(--accent); font-size: 15px; text-transform
 .ms .mstext { display: flex; flex-direction: column; min-width: 0; }
 .ms .mstext b { font-size: 14px; line-height: 1.2; }
 .ms .mstext span { font-size: 12px; color: var(--text-dim); }
+
+/* Rang-Abzeichen und Zeitstrahl (Statistik › Rekorde) */
+.rankcard { display: flex; flex-direction: column; gap: 12px; }
+.rankhead { display: flex; align-items: center; gap: 14px; }
+.badge { width: 76px; height: 76px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 38px;
+  background: var(--surface2); background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rc) 60%, #fff), color-mix(in srgb, var(--rc) 35%, #000));
+  box-shadow: 0 0 0 3px var(--rc), 0 0 18px color-mix(in srgb, var(--rc) 45%, transparent); }
+.rankinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rankname { font-size: 24px; font-weight: 900; line-height: 1.1; }
+.ranktl { position: relative; display: flex; gap: 2px; overflow-x: auto; padding: 4px 2px 6px; scrollbar-width: none; }
+.ranktl::-webkit-scrollbar { display: none; }
+.tlstep { flex: 0 0 80px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; opacity: .45; }
+.tlstep::before { content: ""; position: absolute; top: 17px; left: -50%; width: 100%; height: 3px; background: var(--surface2); z-index: 0; }
+.tlstep:first-child::before { display: none; }
+.tlstep.on { opacity: 1; }
+.tlstep.on::before { background: var(--rc); }
+.tldot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; background: var(--surface2); position: relative; z-index: 1; }
+.tlstep.on .tldot { box-shadow: 0 0 0 2px var(--rc); }
+.tlstep.cur .tldot { box-shadow: 0 0 0 3px var(--rc), 0 0 12px var(--rc); }
+.tlname { font-size: 11px; font-weight: 700; margin-top: 4px; line-height: 1.15; }
+.tldate { font-size: 10px; color: var(--text-dim); }
+
+/* Treppchen: Platz 2 links, 1 in der Mitte (am höchsten), 3 rechts */
+.podiums { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 560px) { .podiums { grid-template-columns: 1fr 1fr; } }
+.podcard { background: var(--surface); border-radius: 14px; padding: 10px; }
+.podtitle { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+.podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 6px; }
+.step { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1px; border-radius: 10px 10px 4px 4px; padding: 6px 4px; min-width: 0; color: #1a1300; }
+.step .medal { font-size: 20px; line-height: 1; }
+.step .v { font-weight: 900; font-size: 17px; line-height: 1.2; }
+.step .d { font-size: 10px; line-height: 1.2; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.step.p1 { order: 2; min-height: 92px; background: linear-gradient(180deg, #ffe27a, #d4a017); }
+.step.p2 { order: 1; min-height: 74px; background: linear-gradient(180deg, #f1f3f6, #a9b0ba); }
+.step.p3 { order: 3; min-height: 60px; background: linear-gradient(180deg, #f0b27a, #b06a2c); }
+.step.empty { background: var(--surface2); color: var(--text-dim); }
+.step .who { font-size: 12px; font-weight: 800; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step.me { box-shadow: 0 0 0 3px var(--accent); }
+
+/* Meilenstein-Kategorien zum Aufklappen */
+.mscat { background: var(--surface); border-radius: 14px; padding: 0 10px; margin-bottom: 8px; }
+.mscat > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 0; cursor: pointer; }
+.mscat > summary::-webkit-details-marker { display: none; }
+.mscat > summary::after { content: "›"; font-size: 22px; color: var(--text-dim); transition: transform .15s; }
+.mscat[open] > summary::after { transform: rotate(90deg); }
+.mscat[open] { padding-bottom: 10px; }
+.mscicon { font-size: 26px; flex: none; }
+.msctext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.msctext b { font-size: 16px; }
+.msccount { font-size: 14px; font-weight: 700; }
+
+/* Spielende: Treppchen-Platz, neue Meilensteine, neuer Rang */
+.records .recordsub { font-weight: 800; margin-top: 8px; }
+.records .newms { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
+.records .newms span { background: var(--surface2); border-radius: 10px; padding: 3px 8px; font-size: 14px; }
+.records .rankup { font-weight: 900; font-size: 18px; margin-top: 8px; }
 
 /* Match-Details */
 tr.tap { cursor: pointer; }
@@ -309,3 +365,8 @@ tr.tap:active { background: var(--surface2); }
 .tip-card { border: 1px solid var(--accent-dim); }
 .charttip.left { transform: translate(-10px, calc(-100% - 10px)); }
 .keys4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+
+/* Was ist neu? – Checkliste je Version */
+.changelog ul { list-style: none; padding: 0; margin: 0 0 6px; }
+.changelog li { position: relative; padding: 4px 0 4px 26px; line-height: 1.35; }
+.changelog li::before { content: "✅"; position: absolute; left: 0; top: 4px; font-size: 15px; }

@@ -3,7 +3,8 @@ import { getSettings, updateSettings, reloadSettings } from '../../core/settings
 import { availableVoices, unlock, speechSupported, announceTurn, say, t, voiceLangOf, SPEECH_LANGS } from '../../audio/speech.js';
 import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/storage.js';
 import { wakeLockSupported } from '../../core/wakelock.js';
-import { BRAND } from '../../config.js';
+import { BRAND, APP_VERSION } from '../../config.js';
+import { showChangelog } from '../../changelog.js';
 import { listCameras } from '../../vision/camera.js';
 
 export function render(root, params, nav) {
@@ -23,6 +24,7 @@ export function render(root, params, nav) {
     const imgCount = (await dbGetAll('images').catch(() => [])).length;
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Einstellungen')),
+      h('button', { class: 'btn', onclick: () => showChangelog() }, `🆕 Was ist neu? (Version ${APP_VERSION})`),
 
       h('div', { class: 'card' },
         h('h3', {}, 'Ansage'),
@@ -41,10 +43,13 @@ export function render(root, params, nav) {
           }, [...new Set(SPEECH_LANGS.map(([, , g]) => g))].map((g) => h('optgroup', { label: g },
             SPEECH_LANGS.filter(([, , gg]) => gg === g).map(([k, label]) => h('option', { value: k, selected: k === s.speechLang }, label)))))),
         toggle('quips', 'Witzige Sprüche', 'z. B. bei 180, Überwerfen, 0 Punkten und Game shot'),
+        toggle('taunts', 'Sticheleien bei Formtief', 'Ab 3 Aufnahmen in Folge unter 40 gibt es einen frechen Kommentar'),
+        toggle('say26', '„Twenty fucking six“ bei 26', 'Statt „26“ – auf Englisch, auch bei deutscher Ansage'),
         toggle('announceDart', 'Jeden Dart ansagen', '„Triple 20“'),
         toggle('announceTurn', 'Summe der Aufnahme ansagen', '„180“'),
         toggle('announceRest', 'Rest ansagen', '„Rest 141“'),
-        toggle('announceRequire', 'Rest vor dem Wurf ansagen', 'Nur wenn auscheckbar: „Kevin, Rest 80“'),
+        toggle('announceRequire', 'Rest vor dem Wurf ansagen', 'Nur wenn auscheckbar: „Rest 80“'),
+        s.announceRequire ? toggle('announceRequireName', 'Dabei den Namen sagen', '„Kevin, Rest 80“ statt nur „Rest 80“') : null,
         h('label', { class: 'field' }, h('span', {}, `Stimme (${voices.length} auf diesem Gerät gefunden)`),
           (() => {
             const sel = h('select', { onchange: (e) => updateSettings({ voiceURI: e.target.value || null }) },

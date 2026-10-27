@@ -14,6 +14,28 @@ const DE = {
   marks: (n) => (n === 1 ? 'Ein Mark' : `${n} Marks`), hits: (n) => (n === 1 ? 'Ein Treffer' : `${n} Treffer`),
   target: (x) => `Ziel ${x}`, darts: (n) => `${n} Darts`, points: (n) => `${n} Punkte`,
   trainingDone: 'Training beendet', failed: 'Nicht geschafft', out: 'Ausgeschieden', shanghai: 'Shanghai!',
+  // Sticheleien bei Formtief (Aufnahmen in Folge unter 40): mild ab 3, hart ab 5.
+  // Dialekte und Akzente erben sie, solange sie keine eigenen haben.
+  taunts: {
+    mild: [
+      (n) => `${n}, schon wieder unter vierzig. Alles okay bei dir?`,
+      (n) => `${n}, das Board ist übrigens das runde Ding an der Wand.`,
+      (n) => `Na ${n}, heute nur zum Zuschauen hier?`,
+      (n) => `${n}, die Zwanzig ist oben. Nur so als Tipp.`,
+      (n) => `Dreimal in Folge unter vierzig. Respekt, ${n}, das muss man erst mal hinkriegen.`,
+      (n) => `${n}, sollen wir das Board ein Stück näher hängen?`,
+      (n) => `${n}, wirfst du heute mit der falschen Hand?`,
+    ],
+    hard: [
+      (n) => `${n}, das ist kein Formtief mehr, das ist ein Lebensstil.`,
+      (n) => `Ganz ehrlich, ${n}: Schon mal über Minigolf nachgedacht?`,
+      (n) => `${n}, selbst der Computer hat inzwischen Mitleid.`,
+      (n) => `Wir können auch gern auf Mensch ärgere dich nicht umsteigen, ${n}.`,
+      (n) => `${n}, deine Darts haben gerade Urlaub beantragt.`,
+      (n) => `${n}, ich hab schon Leute mit verbundenen Augen besser werfen sehen.`,
+      (n) => `Mach mal Pause, ${n}. Die Scheibe braucht auch Erholung.`,
+    ],
+  },
 };
 
 // Dialekte: Deutsch als Grundlage, die Aussprache steckt in der Schreibweise.
@@ -245,6 +267,22 @@ const EN = {
   marks: (n) => (n === 1 ? 'One mark' : `${n} marks`), hits: (n) => (n === 1 ? 'One hit' : `${n} hits`),
   target: (x) => `Next, ${x}`, darts: (n) => `${n} darts`, points: (n) => `${n} points`,
   trainingDone: 'Practice complete', failed: 'Missed it', out: 'Game over', shanghai: 'Shanghai!',
+  taunts: {
+    mild: [
+      (n) => `${n}, under forty again. Everything alright?`,
+      (n) => `${n}, the board is the round thing on the wall.`,
+      (n) => `${n}, treble twenty is at the top. Just saying.`,
+      (n) => `Three in a row under forty. Impressive, ${n}.`,
+      (n) => `${n}, are you throwing with the wrong hand tonight?`,
+    ],
+    hard: [
+      (n) => `${n}, that is not a slump any more, that is a lifestyle.`,
+      (n) => `${n}, have you considered taking up bowls?`,
+      (n) => `${n}, even the computer feels sorry for you.`,
+      (n) => `${n}, my nan throws better than that, and she is ninety.`,
+      (n) => `Take a break, ${n}. The board needs a rest as well.`,
+    ],
+  },
 };
 
 // Englischer Slang (Sprüche wie bei den Dialekten, passende Stimme wenn vorhanden)
@@ -378,6 +416,16 @@ function quip(kind) {
   return list && list.length ? list[Math.floor(Math.random() * list.length)] : null;
 }
 
+/**
+ * Stichelei bei Formtief: bei 3 Aufnahmen in Folge unter 40 mild, bei 5 hart,
+ * danach alle zwei Aufnahmen wieder hart (sonst nervt es). Ohne Anlass: null.
+ */
+function taunt(slump, name) {
+  if (getSettings().taunts === false || !slump || slump < 3 || slump === 4 || (slump > 5 && slump % 2 === 0)) return null;
+  const list = t().taunts && t().taunts[slump === 3 ? 'mild' : 'hard'];
+  return list && list.length ? list[Math.floor(Math.random() * list.length)](name || '') : null;
+}
+
 export function speechSupported() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 }
@@ -427,16 +475,25 @@ export function unlock() {
   unlockAudio();
 }
 
-export function say(text, { interrupt = false } = {}) {
+/** Stimme einer anderen Sprache als der Ansage-Sprache (z. B. Englisch für „Twenty fucking six“). */
+function foreignVoice(forLang) {
+  const list = availableVoices(forLang);
+  return list.find((v) => /en-GB/i.test(v.lang) && /daniel|arthur/i.test(v.name))
+    || list.find((v) => /en-GB/i.test(v.lang)) || list.find((v) => v.default) || list[0] || null;
+}
+
+/** lang: Sprache dieses einen Satzes ('en'), wenn sie von der Ansage-Sprache abweicht. */
+export function say(text, { interrupt = false, lang: forLang = null } = {}) {
   if (!speechSupported() || !text) return;
   const synth = window.speechSynthesis;
   if (interrupt) synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  const v = pickVoice();
-  if (v) u.voice = v;
   const T = t();
-  u.lang = v ? v.lang : (T.bcp || (T.voiceLang === 'en' ? 'en-GB' : 'de-DE'));
-  u.rate = Math.min(2, (getSettings().speechRate || 1) * (T.rate || 1));
+  const foreign = forLang && forLang !== T.voiceLang;
+  const v = foreign ? foreignVoice(forLang) : pickVoice();
+  if (v) u.voice = v;
+  u.lang = v ? v.lang : foreign ? (forLang === 'en' ? 'en-GB' : forLang) : (T.bcp || (T.voiceLang === 'en' ? 'en-GB' : 'de-DE'));
+  u.rate = Math.min(2, (getSettings().speechRate || 1) * (foreign ? 1 : (T.rate || 1)));
   u.pitch = Math.min(2, Math.max(0.1, (T.pitch || 1) * (getSettings().speechPitch ?? 1)));
   // iOS bleibt manchmal im Pausenzustand hängen
   if (synth.paused) synth.resume();
@@ -463,7 +520,7 @@ export function announceDart(hit) {
 }
 
 /** Summe der Aufnahme (und ggf. Rest) ansagen. */
-export function announceTurn({ points, bust, finished, remaining, legWon, setWon, matchWon }) {
+export function announceTurn({ points, bust, finished, remaining, legWon, setWon, matchWon, slump = 0, name = '' }) {
   const s = getSettings();
   const T = t();
   const parts = [];
@@ -474,9 +531,14 @@ export function announceTurn({ points, bust, finished, remaining, legWon, setWon
     else if (legWon) parts.push(T.leg);
     parts.push(quip('game'));
   } else if (s.announceTurn) {
-    parts.push(bust ? T.bust : points === 0 ? T.noScore : String(points));
-    // Sprüche: bei 180, Überwerfen und 0 immer, sonst nur ab und zu (sonst nervt es)
-    if (bust) parts.push(quip('bust'));
+    // 26 („Bed and Breakfast“): auf Englisch, auch bei deutscher Ansage
+    if (!bust && points === 26 && s.say26 !== false) parts.push({ text: 'Twenty fucking six!', lang: 'en' });
+    else parts.push(bust ? T.bust : points === 0 ? T.noScore : String(points));
+    const sting = taunt(slump, name);
+    // Sprüche: bei 180, Überwerfen und 0 immer, sonst nur ab und zu (sonst nervt es).
+    // Eine Stichelei bei Formtief geht vor.
+    if (sting) parts.push(sting);
+    else if (bust) parts.push(quip('bust'));
     else if (points === 180) parts.push(quip('s180'));
     else if (points === 0) parts.push(quip('zero'));
     else if (points >= 100 && Math.random() < 0.5) parts.push(quip('ton'));
@@ -515,7 +577,7 @@ function speakWithRest(parts, restText) {
   restPending = false;
   followUp = null;
   if (!parts.length) { if (restText) say(restText); return; }
-  const u = say(parts.join('. '));
+  const u = sayParts(parts);
   if (!restText) return;
   restPending = true;
   // Rest erst nach einer Pause ansagen (einstellbar), damit Summe und Rest nicht ineinander laufen
@@ -537,6 +599,21 @@ function speakWithRest(parts, restText) {
   }
   // Sicherheitsnetz: iOS meldet „end“ nicht immer zuverlässig
   restTimer = setTimeout(sayRest, 2500 + pauseMs);
+}
+/**
+ * Teile nacheinander sprechen: Texte am Stück, Teile mit eigener Sprache ({ text, lang })
+ * als eigener Satz mit passender Stimme. Rückgabe: der letzte Satz (für „end“).
+ */
+function sayParts(parts) {
+  let last = null;
+  let buf = [];
+  const flush = () => { if (buf.length) { last = say(buf.join('. ')) || last; buf = []; } };
+  for (const p of parts) {
+    if (typeof p === 'string') buf.push(p);
+    else { flush(); last = say(p.text, { lang: p.lang }) || last; }
+  }
+  flush();
+  return last;
 }
 let restTimer = null;
 let restGen = 0;

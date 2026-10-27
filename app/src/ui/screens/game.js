@@ -9,7 +9,7 @@ import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings } from '../../core/settings.js';
 import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
 import { lsGet, dbGetAll } from '../../core/storage.js';
-import { playerStats, cricketStats, trainingRecords, trainingKey } from '../../stats/stats.js';
+import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
 import { isBotId, botLevel, botThrow } from '../../game/bot.js';
@@ -266,7 +266,7 @@ export function render(root, params, nav) {
       const after = rest - points;
       const bust = after < 0 || after === 1;
       const onFinishAfter = !bust && rest <= 170 && st.mode.isOnFinish(after);
-      if (checkoutPath(rest, 2) || onFinishAfter) {
+      if (session.match.options.doubleOut && (checkoutPath(rest, 2) || onFinishAfter)) {
         doubleDarts = await askDoubleDarts('Wie viele Darts aufs Doppel?', 0, 3);
         if (doubleDarts == null) return;
       }
@@ -507,7 +507,8 @@ export function render(root, params, nav) {
     if (st.finished || st.mode.id !== 'x01' || !session.match.options.doubleOut || !getSettings().announceRequire) return;
     const rest = st.scores[st.current];
     if (!checkoutPath(rest, 3)) return;
-    announceUpNext(`${session.match.playerNames[st.current]}, ${speechText().youRequire(rest)}`);
+    const text = speechText().youRequire(rest);
+    announceUpNext(getSettings().announceRequireName !== false ? `${session.match.playerNames[st.current]}, ${text}` : text);
   }
 
   // ---------- Ablauf ----------
@@ -516,6 +517,9 @@ export function render(root, params, nav) {
     if (botTurn() && reason !== 'bot') return; // Der Computer schließt seine Aufnahme selbst ab
     // Summen-Eingabe: eine eingetippte Zahl mit „Weiter“ übernehmen statt 0 einzutragen
     if (!useCamera && inputMode === 'total' && typed) { submitTotal(parseInt(typed, 10)); return; }
+    // NO SCORE (X01, nichts eingegeben): als Summe 0 eintragen. So kommt bei möglichem Finish
+    // die Frage „Wie viele Darts aufs Doppel?“ – sonst fehlen die Fehlversuche in der Checkout-Quote.
+    if (reason === 'manual' && session.state.mode.id === 'x01' && !session.state.turnDarts.length && !typed) { submitTotal(0); return; }
     const before = session.state;
     const ev = before.turnEval;
     const labels = [...before.turnDarts.slice(0, ev.usedDarts).map(hitLabel)];
@@ -621,40 +625,42 @@ export function render(root, params, nav) {
   }
 
   /**
-   * Neue persönliche Bestwerte in diesem Match (nur menschliche Spieler, nur X01 und Cricket).
-   * Verglichen wird mit allen früher beendeten Matches desselben Modus.
+   * Spielende: Plätze auf dem persönlichen Treppchen („🥈 Zweitbester Average ever“),
+   * neu erreichte Meilensteine und ein neuer Rang. Nur menschliche Spieler, nicht gegen den Computer.
+   * Verglichen wird mit allen beendeten Spielen gegen echte Spieler (wie Statistik › Rekorde).
    */
   async function showRecords(m, el) {
-    if (m.mode !== 'x01' && m.mode !== 'cricket') return;
     if (m.players.some(isBotId)) return; // gegen den Computer: Training, keine Rekorde
     try {
       const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
-      const earlier = new Set(matches.filter((x) => x.id !== m.id && x.status === 'finished' && x.mode === m.mode && !x.players.some(isBotId)).map((x) => x.id));
-      const now = throwRows(m);
-      const lines = [];
-      m.players.forEach((pid, i) => {
-        if (isBotId(pid)) return;
-        const prev = rows.filter((r) => r.playerId === pid && earlier.has(r.matchId));
-        if (!prev.length) return; // erstes Match: noch nichts zu vergleichen
-        const mine = now.filter((r) => r.playerId === pid);
-        const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
-        const byMatch = new Map();
-        for (const r of prev) (byMatch.get(r.matchId) || byMatch.set(r.matchId, []).get(r.matchId)).push(r);
-        if (m.mode === 'cricket') {
-          const c = cricketStats(mine);
-          const best = Math.max(...[...byMatch.values()].map((rs) => cricketStats(rs).mpr));
-          if (c.turns && c.mpr > best) lines.push(`${who}Beste MPR ${c.mpr.toFixed(2)} (bisher ${best.toFixed(2)})`);
-          return;
+      const real = [...matches.filter((x) => x.id !== m.id && x.status === 'finished' && !x.players.some(isBotId)), m];
+      const ids = new Set(real.map((x) => x.id));
+      const usable = [...rows.filter((r) => ids.has(r.matchId) && r.matchId !== m.id), ...throwRows(m)];
+      const parts = [];
+      // Bestenliste aller Spieler (nur sinnvoll, wenn mehr als ein Spieler in der Statistik ist)
+      if (new Set(usable.map((r) => r.playerId)).size > 1) {
+        for (const p of globalMatchPlaces(usable, real, m.id)) {
+          const ref = p.best ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text} von ${p.best.name})` : '';
+          parts.push(h('div', { class: 'recordsub' }, `🏆 ${MEDALS[p.place]} ${p.entry.name}: ${p.def.places[p.place]} aller Spieler: ${p.entry.text}${ref}`));
         }
-        const s = playerStats(mine);
-        const p = playerStats(prev);
-        const bestAvg = Math.max(...[...byMatch.values()].map((rs) => playerStats(rs).average));
-        if (s.darts && s.average > bestAvg) lines.push(`${who}Bester Average ${s.average.toFixed(1)} (bisher ${bestAvg.toFixed(1)})`);
-        if (s.bestLeg && (!p.bestLeg || s.bestLeg < p.bestLeg)) lines.push(`${who}Bestes Leg: ${s.bestLeg} Darts${p.bestLeg ? ` (bisher ${p.bestLeg})` : ''}`);
-        if (s.highestCheckout > p.highestCheckout) lines.push(`${who}Höchstes Finish ${s.highestCheckout} (bisher ${p.highestCheckout || '–'})`);
-        if (s.highest > p.highest) lines.push(`${who}Höchste Aufnahme ${s.highest} (bisher ${p.highest})`);
+      }
+      m.players.forEach((pid, i) => {
+        const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
+        for (const p of matchPlaces(usable, real, pid, m.id)) {
+          const ref = p.best ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text})` : '';
+          parts.push(h('div', {}, `${MEDALS[p.place]} ${who}${p.def.places[p.place]} ever: ${p.entry.text}${ref}`));
+        }
+        const ms = milestones(usable, real, pid);
+        const fresh = ms.filter((x) => x.at === m.createdAt);
+        if (!fresh.length) return;
+        parts.push(h('div', { class: 'recordsub' }, `🎖️ ${who}${fresh.length === 1 ? 'Neuer Meilenstein' : `${fresh.length} neue Meilensteine`}`));
+        const show = fresh.slice(0, 6);
+        parts.push(h('div', { class: 'newms' }, show.map((x) => h('span', {}, `${x.icon} ${x.title}`)),
+          fresh.length > show.length ? h('span', {}, `+ ${fresh.length - show.length} weitere`) : null));
+        const rk = playerRank(ms);
+        if (rankIndex(rk.done - fresh.length) < rk.index) parts.push(h('div', { class: 'rankup' }, `⬆️ ${who}Neuer Rang: ${rk.rank.icon} ${rk.rank.title}`));
       });
-      if (lines.length) el.replaceChildren(h('div', { class: 'recordhead' }, '🎉 Neuer Rekord!'), lines.map((l) => h('div', {}, l)));
+      if (parts.length) el.replaceChildren(h('div', { class: 'recordhead' }, '🎉 Glückwunsch!'), parts);
     } catch (e) { console.warn('Rekorde nicht ermittelbar', e); }
   }
 
@@ -662,10 +668,12 @@ export function render(root, params, nav) {
   function showTrainingEnd(st, m) {
     const res = st.mode.result(m.options, st.leg);
     const recordEl = h('p', { class: 'dim', style: { textAlign: 'center', margin: 0 } }, '…');
+    const milestonesEl = h('div', { class: 'records' });
     const s = sheet(h('div', { class: 'stack endsheet' },
       h('h2', {}, `${st.mode.label} – fertig`),
       h('div', { class: 'confirmturn num' }, res.text),
       recordEl,
+      milestonesEl,
       h('button', {
         class: 'btn primary',
         onclick: () => {
@@ -678,6 +686,7 @@ export function render(root, params, nav) {
       h('button', { class: 'btn ghost', onclick: () => { s.close(); nav.go('home'); } }, 'Startseite'),
       h('button', { class: 'btn ghost', onclick: () => { s.close(); session.undoDart(); keepAwake(true); } }, 'Letzten Dart zurücknehmen'),
     ), { dismissable: false });
+    showRecords(m, milestonesEl); // neue Meilensteine (z. B. „Erstes Training“)
     // Rekord aus den gespeicherten Trainings (das aktuelle ist schon gespeichert)
     dbGetAll('matches').then((all) => {
       const key = trainingKey(st.mode, m.options);

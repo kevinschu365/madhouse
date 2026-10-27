@@ -6,6 +6,7 @@ import { playerStats } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { isTraining } from '../../rules/index.js';
 import { GameSession } from '../../game/session.js';
+import { showWhatsNewOnce } from '../../changelog.js';
 
 export function render(root, params, nav) {
   const active = lsGet('activeMatch', null);
@@ -55,6 +56,7 @@ export function render(root, params, nav) {
     h('button', { class: 'btn', onclick: () => nav.go('help') }, '📖 Anleitung'),
     h('p', { class: 'dim', style: { textAlign: 'center', fontSize: '13px', marginTop: '20px' } }, `${BRAND.name} ${APP_VERSION} · Daten bleiben auf diesem Gerät`),
   ));
+  showWhatsNewOnce(); // nach einem Update: Checkliste „Neu in dieser Version“
 }
 
 /**
