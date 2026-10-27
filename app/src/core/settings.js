@@ -52,18 +52,40 @@ export function onSettings(fn) {
 }
 
 // ---------- Spieler ----------
+// Jeder Spieler hat eine feste Nummer (#12345). Sie wird beim Abgleich mitgeschickt: Darüber erkennt
+// das andere Handy den Spieler sicher wieder – auch wenn es zwei Spieler mit gleichem Namen gibt.
+
+/** Neue fünfstellige Nummer, die in der Liste noch nicht vorkommt. */
+export function newPlayerCode(list = []) {
+  const used = new Set(list.map((p) => p.code));
+  let code;
+  do code = String(10000 + Math.floor(Math.random() * 90000)); while (used.has(code));
+  return code;
+}
+
 export function getPlayers() {
-  return lsGet('players', []);
+  const list = lsGet('players', []);
+  // Ältere Spieler (vor 1.8.1) bekommen beim ersten Lesen ihre Nummer
+  if (list.some((p) => !p.code)) {
+    for (const p of list) if (!p.code) p.code = newPlayerCode(list);
+    lsSet('players', list);
+  }
+  return list;
 }
 export function savePlayers(list) {
   lsSet('players', list);
+}
+/** Anzeige mit Nummer, nur wenn der Name mehrfach vorkommt („Kevin #48213“). */
+export function displayName(p, list = getPlayers()) {
+  const twins = list.filter((x) => x.name.toLowerCase() === p.name.toLowerCase()).length > 1;
+  return twins ? `${p.name} #${p.code}` : p.name;
 }
 export function addPlayer(name) {
   const clean = String(name || '').trim().slice(0, 24);
   if (!clean) throw new Error('Bitte einen Namen eingeben.');
   const list = getPlayers();
-  if (list.some((p) => p.name.toLowerCase() === clean.toLowerCase())) throw new Error('Diesen Namen gibt es schon.');
-  const p = { id: newId('p'), name: clean, createdAt: Date.now() };
+  // Gleiche Namen sind erlaubt – die Nummer unterscheidet sie
+  const p = { id: newId('p'), code: newPlayerCode(list), name: clean, createdAt: Date.now() };
   list.push(p);
   savePlayers(list);
   return p;
@@ -71,9 +93,7 @@ export function addPlayer(name) {
 export function renamePlayer(id, name) {
   const clean = String(name || '').trim().slice(0, 24);
   if (!clean) throw new Error('Bitte einen Namen eingeben.');
-  const list = getPlayers();
-  if (list.some((p) => p.id !== id && p.name.toLowerCase() === clean.toLowerCase())) throw new Error('Diesen Namen gibt es schon.');
-  savePlayers(list.map((p) => (p.id === id ? { ...p, name: clean } : p)));
+  savePlayers(getPlayers().map((p) => (p.id === id ? { ...p, name: clean } : p)));
 }
 export function removePlayer(id) {
   // Spieler wird nur aus der Auswahl entfernt; alte Statistiken behalten den Namen im Match.

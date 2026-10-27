@@ -5,6 +5,7 @@ import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/s
 import { wakeLockSupported } from '../../core/wakelock.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { showChangelog } from '../../changelog.js';
+import { offerSync, syncImportButton } from '../syncUi.js';
 import { listCameras } from '../../vision/camera.js';
 
 export function render(root, params, nav) {
@@ -25,6 +26,13 @@ export function render(root, params, nav) {
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Einstellungen')),
       h('button', { class: 'btn', onclick: () => showChangelog() }, `🆕 Was ist neu? (Version ${APP_VERSION})`),
+
+      h('div', { class: 'card stack' },
+        h('h3', { style: { margin: 0 } }, '📲 Handys abgleichen'),
+        h('p', { class: 'dim', style: { margin: 0, fontSize: '14px' } }, 'So haben alle dieselben Spiele, Würfe und Meilensteine: Auf dem Handy, auf dem gespielt wurde, „Spiele senden“ tippen und per AirDrop oder WhatsApp schicken. Auf dem anderen Handy die Datei sichern und hier „einlesen“. Es wird zusammengeführt, nichts geht verloren. Spieler werden über ihre Nummer erkannt (#12345, siehe Spieler); beim ersten Abgleich über den Namen, danach haben beide Handys dieselbe Nummer. Am besten beide Richtungen einmal.'),
+        h('button', { class: 'btn primary', onclick: () => offerSync() }, '📤 Spiele senden'),
+        syncImportButton('📥 Spiele vom anderen Handy einlesen', () => draw()),
+      ),
 
       h('div', { class: 'card' },
         h('h3', {}, 'Ansage'),

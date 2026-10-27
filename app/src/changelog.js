@@ -8,6 +8,40 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.8.1',
+    date: '27.10.2026',
+    items: [
+      'Ränge nach oben deutlich schwerer: steilere Punkte-Grenzen (Master ab 3.700 Punkten)',
+      'Ab Tour-Card-Anwärter braucht es zusätzlich ★ Elite-Meilensteine (40+ Punkte, z. B. 9-Darter, Big Fish) – Master braucht 12',
+      'Elite-Meilensteine sind in der Liste mit ★ markiert',
+      '📆 Tages-Serie: Tage in Folge gespielt – Trainings und Spiele gegen den Computer zählen mit (dazu Meilensteine bis 100 Tage)',
+      'Jeder Spieler hat eine feste Nummer (#12345, siehe Spieler) – gleiche Namen sind jetzt erlaubt',
+      'Abgleich erkennt Spieler über ihre Nummer, so wird nichts verwechselt oder doppelt angelegt',
+    ],
+  },
+  {
+    version: '1.8.0',
+    date: '27.10.2026',
+    items: [
+      'Feier-Moment: neue Meilensteine werden schon während des Spiels eingeblendet und angesagt (mit Konfetti)',
+      'Neuer Rang: Vollbild mit Abzeichen und Konfetti',
+      'Startseite: Wochenaufgaben, Fortschritt je Spieler und „Fast geschafft“-Ziele',
+      'Wochenaufgaben: jeden Montag 3 neue, alle geschafft = 🏅 Wochen-Medaille',
+      'Punkte statt Anzahl: schwere Meilensteine zählen mehr, die Ränge richten sich nach Punkten',
+      'Zwei Ränge: All-Time und Saison (jedes Quartal neu, mit Abzeichen für vergangene Saisons)',
+      '10 geheime Meilensteine 🕵️ – erst sichtbar, wenn sie passieren',
+      'Abzeichen-Vitrine: 3 Lieblings-Meilensteine erscheinen neben dem Namen',
+      'Wochen-Serie 🔥: Wochen in Folge gespielt',
+      '⚔️ Duell-Bilanz gegen jeden Gegner, auch am Spielende',
+      '👑 Abend-Krone für den besten Average des Spieltags',
+      'Bestwerte nach Zeitraum: für immer, diese Saison, dieser Monat',
+      '„😱 … nimmt … den Rekord ab“ am Spielende',
+      'Neuer Bestwert: bester Leg-Average (dazu Meilensteine Leg-Average 60 bis 120+)',
+      '🌙 Abendbericht (Heute-Karte antippen) und 📅 Monatsrückblick – auch als Bild zum Teilen',
+      '📲 Handys abgleichen: Spiele per AirDrop/WhatsApp ans andere Handy schicken und zusammenführen',
+    ],
+  },
+  {
     version: '1.7.2',
     date: '27.10.2026',
     items: [

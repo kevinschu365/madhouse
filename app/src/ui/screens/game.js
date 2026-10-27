@@ -9,11 +9,13 @@ import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings } from '../../core/settings.js';
 import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
 import { lsGet, dbGetAll } from '../../core/storage.js';
-import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS } from '../../stats/stats.js';
+import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS, RANKS } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
 import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 import { showMatchDetail } from '../matchDetail.js';
+import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
+import { milestoneToast, rankUpScreen } from '../celebrate.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -45,6 +47,13 @@ export function render(root, params, nav) {
   let cam = null;            // Kamera-Steuerung (Stufe 3)
   let disposed = false;
   let statsCache = {};
+  let crownId = null;        // Abend-Krone (bester Average am letzten Spieltag)
+  // Name mit Krone und Abzeichen-Vitrine („👑 Kevin 🚀🐟“)
+  const nameLabel = (i) => {
+    const id = session.match.players[i];
+    const icons = isBotId(id) ? '' : showcaseIcons(id);
+    return `${id === crownId ? '👑 ' : ''}${session.match.playerNames[i]}${icons ? ` ${icons}` : ''}`;
+  };
 
   keepAwake(true);
 
@@ -321,7 +330,7 @@ export function render(root, params, nav) {
     else if (party) drawParty(st, m);
     else panels.forEach((p, i) => {
       p.el.classList.toggle('active', !st.finished && st.current === i);
-      p.name.textContent = m.playerNames[i];
+      p.name.textContent = nameLabel(i);
       const showScore = i === st.current && !st.finished ? st.turnEval.remaining : st.scores[i];
       p.score.textContent = showScore;
       p.sets.innerHTML = m.format.setsBestOf > 1 ? `Sets <b>${st.setsWon[i]}</b>` : '';
@@ -441,7 +450,7 @@ export function render(root, params, nav) {
     const live = st.finished ? st.leg : st.turnEval.after;
     panels.forEach((p, i) => {
       p.el.classList.toggle('active', !st.finished && st.current === i);
-      p.name.textContent = m.playerNames[i];
+      p.name.textContent = nameLabel(i);
       p.score.textContent = live.points[i];
       p.sets.innerHTML = m.format.setsBestOf > 1 ? `Sets <b>${st.setsWon[i]}</b>` : '';
       p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
@@ -466,7 +475,7 @@ export function render(root, params, nav) {
     panels.forEach((p, i) => {
       const v = st.mode.panel(m.options, live, i);
       p.el.classList.toggle('active', !st.finished && st.current === i);
-      p.name.textContent = m.playerNames[i];
+      p.name.textContent = nameLabel(i);
       p.score.textContent = v.big;
       p.sets.innerHTML = m.format.setsBestOf > 1 ? `Sets <b>${st.setsWon[i]}</b>` : '';
       p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
@@ -543,7 +552,7 @@ export function render(root, params, nav) {
 
   session.on((type, data) => {
     if (type === 'next' || type === 'undo' || type === 'correct') updateAverages();
-    if (type === 'next') announceRequire();
+    if (type === 'next') { announceRequire(); checkLiveMilestones(); }
     // Summen-Eingabe: Feld neu aufbauen (Rest-Taste hängt vom Rest des Spielers ab, der dran ist)
     if ((type === 'next' || type === 'undo') && !useCamera && inputMode === 'total') { typed = ''; drawPad(); }
     if (type === 'legWon') {
@@ -637,31 +646,104 @@ export function render(root, params, nav) {
       const ids = new Set(real.map((x) => x.id));
       const usable = [...rows.filter((r) => ids.has(r.matchId) && r.matchId !== m.id), ...throwRows(m)];
       const parts = [];
+      // Duell-Bilanz (nur zu zweit): „⚔️ Kevin 14 : 11 Nils“ und Serien
+      if (m.players.length === 2) {
+        const r = rivalries(real, m.players[0]).find((x) => x.id === m.players[1]);
+        if (r) {
+          parts.push(h('div', { class: 'recordsub' }, `⚔️ Bilanz ${m.playerNames[0]} ${r.wins} : ${r.losses} ${m.playerNames[1]}`));
+          const lead = r.streak > 0 ? m.playerNames[0] : m.playerNames[1];
+          const other = r.streak > 0 ? m.playerNames[1] : m.playerNames[0];
+          if (Math.abs(r.streak) >= 2) parts.push(h('div', {}, `🔥 ${lead} gewinnt ${Math.abs(r.streak)}× in Folge gegen ${other}`));
+        }
+      }
       // Bestenliste aller Spieler (nur sinnvoll, wenn mehr als ein Spieler in der Statistik ist)
       if (new Set(usable.map((r) => r.playerId)).size > 1) {
         for (const p of globalMatchPlaces(usable, real, m.id)) {
-          const ref = p.best ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text} von ${p.best.name})` : '';
+          if (p.place === 0 && p.best && p.best.playerId !== p.entry.playerId) {
+            parts.push(h('div', { class: 'recordsub' }, `😱 ${p.entry.name} nimmt ${p.best.name} den Rekord ab: ${p.def.label} ${p.entry.text} (bisher ${p.best.text})`));
+            continue;
+          }
+          const by = p.best && p.best.playerId !== p.entry.playerId ? ` von ${p.best.name}` : '';
+          const ref = p.best && p.best.value > 0 ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text}${by})` : '';
           parts.push(h('div', { class: 'recordsub' }, `🏆 ${MEDALS[p.place]} ${p.entry.name}: ${p.def.places[p.place]} aller Spieler: ${p.entry.text}${ref}`));
         }
       }
+      const rankUps = [];
       m.players.forEach((pid, i) => {
         const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
         for (const p of matchPlaces(usable, real, pid, m.id)) {
-          const ref = p.best ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text})` : '';
+          const ref = p.best && p.best.value > 0 ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text})` : '';
           parts.push(h('div', {}, `${MEDALS[p.place]} ${who}${p.def.places[p.place]} ever: ${p.entry.text}${ref}`));
         }
         const ms = milestones(usable, real, pid);
         const fresh = ms.filter((x) => x.at === m.createdAt);
+        // Wochenaufgaben: Medaille in diesem Spiel geholt?
+        const wkNow = weekStatus(usable, real, pid);
+        const wkBefore = weekStatus(usable.filter((r) => r.matchId !== m.id), real.filter((x) => x.id !== m.id), pid);
+        if (wkNow.done > wkBefore.done) parts.push(h('div', {}, `🗓️ ${who}Wochenaufgabe erledigt (${wkNow.done} / 3)${wkNow.medal ? ' – 🏅 Wochen-Medaille!' : ''}`));
         if (!fresh.length) return;
-        parts.push(h('div', { class: 'recordsub' }, `🎖️ ${who}${fresh.length === 1 ? 'Neuer Meilenstein' : `${fresh.length} neue Meilensteine`}`));
+        const pts = fresh.reduce((a, x) => a + x.pts, 0);
+        parts.push(h('div', { class: 'recordsub' }, `🎖️ ${who}${fresh.length === 1 ? 'Neuer Meilenstein' : `${fresh.length} neue Meilensteine`} (+${pts} Punkte)`));
         const show = fresh.slice(0, 6);
         parts.push(h('div', { class: 'newms' }, show.map((x) => h('span', {}, `${x.icon} ${x.title}`)),
           fresh.length > show.length ? h('span', {}, `+ ${fresh.length - show.length} weitere`) : null));
         const rk = playerRank(ms);
-        if (rankIndex(rk.done - fresh.length) < rk.index) parts.push(h('div', { class: 'rankup' }, `⬆️ ${who}Neuer Rang: ${rk.rank.icon} ${rk.rank.title}`));
+        if (rankIndex(rk.points - pts, rk.elite - fresh.filter((x) => x.elite).length) < rk.index) {
+          parts.push(h('div', { class: 'rankup' }, `⬆️ ${who}Neuer Rang: ${rk.rank.icon} ${rk.rank.title}`));
+          if (!live.shownRank.has(`${pid}:${rk.index}`)) rankUps.push([rk.rank, m.playerNames[i]]);
+        }
       });
       if (parts.length) el.replaceChildren(h('div', { class: 'recordhead' }, '🎉 Glückwunsch!'), parts);
+      for (const [rank, name] of rankUps) await rankUpScreen(rank, m.players.length > 1 ? name : '');
     } catch (e) { console.warn('Rekorde nicht ermittelbar', e); }
+  }
+
+  // ---------- Feier-Momente: neue Meilensteine schon während des Spiels ----------
+  // Beim Start wird gemerkt, was jeder schon hat; nach jeder Aufnahme wird neu gerechnet.
+  const live = { ready: false, rows: [], matches: [], reached: {}, rank: {}, shownRank: new Set(), timer: null };
+  if (!session.match.players.some(isBotId)) {
+    Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
+      const real = matches.filter((x) => x.id !== session.match.id && x.status === 'finished' && !x.players.some(isBotId));
+      const ids = new Set(real.map((x) => x.id));
+      live.rows = rows.filter((r) => ids.has(r.matchId));
+      live.matches = real;
+      const crown = crownHolder(live.rows, real);
+      crownId = crown ? crown.playerId : null;
+      for (const pid of session.match.players) {
+        const ms = milestones(live.rows, real, pid);
+        live.reached[pid] = new Set(ms.filter((x) => x.at).map((x) => x.id));
+        live.rank[pid] = playerRank(ms).index;
+      }
+      live.ready = true;
+      draw();
+    }).catch((e) => console.warn('Meilensteine nicht ladbar', e));
+  }
+  function checkLiveMilestones() {
+    if (!live.ready || disposed) return;
+    clearTimeout(live.timer);
+    live.timer = setTimeout(() => {
+      const m = session.match;
+      const rows = [...live.rows, ...throwRows(m)];
+      const all = [...live.matches, m];
+      m.players.forEach((pid, i) => {
+        const ms = milestones(rows, all, pid);
+        const got = live.reached[pid];
+        const fresh = ms.filter((x) => x.at && !got.has(x.id));
+        if (!fresh.length) return;
+        fresh.forEach((x) => got.add(x.id));
+        const who = m.players.length > 1 ? m.playerNames[i] : '';
+        for (const x of fresh.slice(0, 3)) milestoneToast(x, who);
+        if (getSettings().quips !== false) say(`${who ? `${who}, ` : ''}Meilenstein: ${fresh[0].title}`);
+        const idx = playerRank(ms).index;
+        if (idx > live.rank[pid]) {
+          live.rank[pid] = idx;
+          live.shownRank.add(`${pid}:${idx}`);
+          const r = RANKS[idx];
+          say(`${who ? `${who}, ` : ''}neuer Rang: ${r.title}`);
+          rankUpScreen(r, who);
+        }
+      });
+    }, 60);
   }
 
   // Ende eines Trainings: Ergebnis, Vergleich mit dem bisherigen Rekord, nochmal

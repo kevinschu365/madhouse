@@ -1,5 +1,5 @@
 import { h, toast, promptDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
 import { lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
@@ -64,7 +64,7 @@ export function render(root, params, nav) {
     const max = maxPlayers();
     if (cfg.selected.length > max) cfg.selected = cfg.selected.slice(0, max);
     const sel = cfg.selected;
-    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, p.name]), [NEW, '+ Neuer Spieler …']];
+    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, displayName(p, players)]), [NEW, '+ Neuer Spieler …']];
     const ready = sel.length >= 2 && sel.every(Boolean) && new Set(sel).size === sel.length;
     const twoPlayers = sel.length === 2;
     if (cfg.starter === 'bull' && !(cfg.camera && twoPlayers)) cfg.starter = 'p0';

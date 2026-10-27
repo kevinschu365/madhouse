@@ -1,11 +1,13 @@
 import { h, confirmDialog, toast } from '../dom.js';
 import { dbGetAll, deleteMatch } from '../../core/storage.js';
-import { getPlayers } from '../../core/settings.js';
-import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS } from '../../stats/stats.js';
+import { getPlayers, displayName } from '../../core/settings.js';
+import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { lineChart } from '../chart.js';
+import { crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, seasonOf, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, weekHistory, rivalries } from '../../stats/progress.js';
+import { showMonthRecap, MONTHS } from '../recapSheet.js';
 import { getMode, isTraining } from '../../rules/index.js';
 
 const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['records', 'Rekorde']];
@@ -18,6 +20,7 @@ export function render(root, params, nav) {
   let selectedPlayer = params.player || null;
   let tab = params.tab || 'x01';
   const openCats = new Set(); // aufgeklappte Meilenstein-Kategorien
+  let podPeriod = 'all';       // Zeitraum der Bestwerte: 'all' | 'season' | 'month'
   let podView = 'mine';        // Bestwerte: 'mine' (eigene) oder 'all' (Bestenliste aller Spieler)
 
   Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
@@ -29,7 +32,7 @@ export function render(root, params, nav) {
     const known = getPlayers();
     const names = new Map();
     for (const m of matches) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
-    for (const p of known) names.set(p.id, p.name);
+    for (const p of known) names.set(p.id, displayName(p, known));
     // Der Computer-Gegner bekommt keine eigene Statistik
     const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])].filter((id) => !isBotId(id));
     if (!selectedPlayer && ids.length) selectedPlayer = ids[0];
@@ -141,43 +144,117 @@ export function render(root, params, nav) {
       const realMatches = finished.filter((m) => !vsBot(m));
       const ms = milestones(usable, realMatches, selectedPlayer);
       const rk = playerRank(ms);
+      const me = names.get(selectedPlayer) || '?';
+      const crown = crownHolder(usable, realMatches);
+      const streak = weekStreak(realMatches, selectedPlayer);
+      const days = dayStreak(finished, selectedPlayer); // Tages-Serie: auch Trainings und Spiele gegen den Computer
 
-      // Rang-Abzeichen mit Fortschritt zum nächsten Rang und Zeitstrahl
-      const toNext = rk.next ? rk.next.min - rk.done : 0;
-      const span = rk.next ? rk.next.min - rk.rank.min : 1;
-      body.appendChild(h('div', { class: 'card rankcard' },
-        h('div', { class: 'rankhead' },
-          h('div', { class: 'badge', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
-          h('div', { class: 'rankinfo' },
-            h('div', { class: 'dim', style: { fontSize: '13px' } }, `Rang ${rk.index + 1} von ${RANKS.length}`),
-            h('div', { class: 'rankname' }, rk.rank.title),
-            h('div', { class: 'ratebar' }, h('div', { style: { width: `${rk.next ? Math.round(((rk.done - rk.rank.min) / span) * 100) : 100}%` } })),
-            h('div', { class: 'dim', style: { fontSize: '13px' } }, rk.next
-              ? `${rk.done} Meilensteine · noch ${toNext} bis ${rk.next.icon} ${rk.next.title}`
-              : `${rk.done} Meilensteine · höchster Rang erreicht`),
-          ),
-        ),
-        h('div', { class: 'ranktl' }, rk.timeline.map((r, i) => h('div', { class: `tlstep ${i <= rk.index ? 'on' : ''} ${i === rk.index ? 'cur' : ''}`, style: `--rc: ${r.color}` },
-          h('div', { class: 'tldot' }, i <= rk.index ? r.icon : '🔒'),
-          h('div', { class: 'tlname' }, r.title),
-          h('div', { class: 'tldate' }, i <= rk.index ? (r.at ? date(r.at) : '') : `ab ${r.min}`),
-        ))),
+      // Kopf: Krone, Name, Vitrine, Wochen-Serie
+      const vitrine = getShowcase(selectedPlayer).map((id) => ms.find((m) => m.id === id)).filter((m) => m && m.at);
+      body.appendChild(h('div', { class: 'card stack' },
+        h('div', { class: 'plinehead', style: { fontSize: '20px' } },
+          h('b', {}, `${crown && crown.playerId === selectedPlayer ? '👑 ' : ''}${me}`),
+          h('span', { class: 'dim small', style: { marginLeft: 'auto', textAlign: 'right' } },
+            `📆 ${days.current} ${days.current === 1 ? 'Tag' : 'Tage'} (beste: ${days.best})${days.current && !days.playedToday ? ' – heute noch!' : ''}`,
+            h('br'),
+            `🔥 ${streak.current} ${streak.current === 1 ? 'Woche' : 'Wochen'} (beste: ${streak.best})`)),
+        h('div', { class: 'vitrinebox' },
+          [0, 1, 2].map((i) => {
+            const m = vitrine[i];
+            return h('div', { class: `vslot ${m ? 'on' : ''}` }, h('div', { class: 'vicon' }, m ? m.icon : '＋'), h('div', { class: 'vtitle' }, m ? m.title : 'frei'));
+          })),
+        h('div', { class: 'dim small' }, 'Abzeichen-Vitrine: Tipp unten auf einen erreichten Meilenstein legt ihn hinein (bis zu 3). Sie erscheint neben dem Namen.'),
+        crown && crown.playerId === selectedPlayer ? h('div', { class: 'small' }, `👑 Abend-Krone: bester Average am letzten Spieltag (Ø ${crown.average.toFixed(1)}). Bleibt bis zum nächsten Spieltag.`) : null,
       ));
-      // Zeitstrahl so verschieben, dass der aktuelle Rang zu sehen ist
-      {
-        const tl = body.querySelector('.ranktl');
-        const cur = tl && tl.querySelector('.cur');
+
+      // Zwei Ränge: All-Time (Meilenstein-Punkte) und Saison (Quartal)
+      const rankCard = (title, r, sub, timeline) => {
+        const span = r.next ? r.next.min - r.rank.min : 1;
+        return h('div', { class: 'card rankcard' },
+          h('div', { class: 'rankhead' },
+            h('div', { class: 'badge', style: `--rc: ${r.rank.color}` }, r.rank.icon),
+            h('div', { class: 'rankinfo' },
+              h('div', { class: 'dim', style: { fontSize: '13px' } }, title),
+              h('div', { class: 'rankname' }, r.rank.title),
+              h('div', { class: 'ratebar' }, h('div', { style: { width: `${r.next ? Math.round(((r.points - r.rank.min) / span) * 100) : 100}%` } })),
+              h('div', { class: 'dim', style: { fontSize: '13px' } }, sub),
+            ),
+          ),
+          h('div', { class: 'ranktl' }, timeline.map((x, i) => h('div', { class: `tlstep ${i <= r.index ? 'on' : ''} ${i === r.index ? 'cur' : ''}`, style: `--rc: ${x.color}` },
+            h('div', { class: 'tldot' }, i <= r.index ? x.icon : '🔒'),
+            h('div', { class: 'tlname' }, x.title),
+            h('div', { class: 'tldate' }, i <= r.index ? (x.at ? date(x.at) : '') : rankNeed(x)),
+          ))),
+        );
+      };
+      const ss = seasonStatus(usable, realMatches, selectedPlayer, ms);
+      const past = pastSeasons(usable, realMatches, selectedPlayer, ms);
+      body.appendChild(rankCard(`All-Time · Rang ${rk.index + 1} von ${RANKS.length}`, rk,
+        `${rk.points.toLocaleString('de-DE')} Punkte · ${rk.done} Meilensteine · ${rk.elite}★ Elite · ${nextRankText(rk)}`,
+        rk.timeline));
+      body.appendChild(rankCard(`Saison ${ss.season.name}`, ss,
+        `${ss.points} Saison-Punkte${ss.next ? ` · noch ${ss.next.min - ss.points} bis ${ss.next.icon} ${ss.next.title}` : ' · Champion!'}`,
+        SEASON_RANKS.map((x) => ({ ...x, at: null }))));
+      // Zeitstrahlen so verschieben, dass der aktuelle Rang zu sehen ist
+      for (const tl of body.querySelectorAll('.ranktl')) {
+        const cur = tl.querySelector('.cur');
         if (cur) tl.scrollLeft = cur.offsetLeft - tl.clientWidth / 2 + cur.offsetWidth / 2;
+      }
+      body.appendChild(h('div', { class: 'dim small', style: { margin: '-4px 0 0' } },
+        `${SEASON_POINTS_NOTE} Diese Saison: ${ss.parts.msPts} aus Meilensteinen, ${ss.parts.tasks} Aufgaben, ${ss.parts.medals} Medaillen, ${ss.parts.wins} Siege, ${ss.parts.legs} Legs, ${ss.parts.played} Matches.`,
+        past.length ? ` Frühere Saisons: ${past.map((p) => `${p.season.name} ${p.rank.icon} ${p.rank.title}`).join(' · ')}` : ''));
+
+      // Wochenaufgaben
+      const wk = weekStatus(usable, realMatches, selectedPlayer);
+      const medals = weekHistory(usable, realMatches, selectedPlayer).filter((w) => w.medal).length;
+      body.appendChild(h('h3', { style: { marginTop: '10px' } }, `🗓️ Wochenaufgaben · ${wk.done} / 3`));
+      body.appendChild(h('div', { class: 'card stack' },
+        wk.items.map((i) => h('div', { class: 'taskrow' },
+          h('span', {}, i.done ? '✅' : i.icon),
+          h('span', { style: { flex: 1 } }, i.text),
+          h('span', { class: `num ${i.done ? 'accent' : 'dim'}` }, `${i.cur} / ${i.goal}`))),
+        h('div', { class: 'dim small' }, `${wk.medal ? '🏅 Medaille diese Woche geholt! ' : ''}Wochen-Medaillen insgesamt: ${medals}. Neue Aufgaben jeden Montag.`),
+      ));
+
+      // Rivalen-Bilanz
+      const rivals = rivalries(realMatches, selectedPlayer);
+      if (rivals.length) {
+        body.appendChild(h('h3', { style: { marginTop: '10px' } }, '⚔️ Duelle'));
+        body.appendChild(h('table', { class: 'hist' }, rivals.map((r) => h('tr', {},
+          h('td', {}, `vs. ${r.name}`),
+          h('td', { class: `num ${r.wins > r.losses ? 'accent' : ''}` }, `${r.wins} : ${r.losses}`),
+          h('td', { class: 'dim', style: { fontSize: '13px' } }, r.streak >= 2 ? `🔥 ${r.streak} Siege in Folge` : r.streak <= -2 ? `${-r.streak} Niederlagen in Folge` : ''),
+        ))));
+      }
+
+      // Monatsrückblick
+      const now = new Date();
+      const monthOpts = Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - i, 1))
+        .filter((d) => realMatches.some((m) => m.createdAt >= d.getTime() && m.createdAt < new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()));
+      if (monthOpts.length) {
+        const sel = h('select', {}, monthOpts.map((d) => h('option', { value: `${d.getFullYear()}-${d.getMonth()}` }, `${MONTHS[d.getMonth()]} ${d.getFullYear()}`)));
+        body.appendChild(h('div', { class: 'grid2', style: { alignItems: 'end' } },
+          h('label', { class: 'field' }, h('span', {}, '📅 Monatsrückblick'), sel),
+          h('button', { class: 'btn', onclick: () => { const [y, mo] = sel.value.split('-').map(Number); showMonthRecap(y, mo); } }, 'Anzeigen')));
       }
 
       // Treppchen: die drei besten Matches je Bestwert – eigene oder über alle Spieler (Bestenliste)
       const global = podView === 'all';
-      const pods = global ? allPlayersPodiums(usable, realMatches) : personalPodiums(usable, realMatches, selectedPlayer);
+      // Zeitraum: für immer, diese Saison oder dieser Monat (so haben auch Neue eine Chance auf Gold)
+      const nowD = new Date();
+      const periodFrom = podPeriod === 'month' ? new Date(nowD.getFullYear(), nowD.getMonth(), 1).getTime()
+        : podPeriod === 'season' ? seasonOf().start : 0;
+      const podMatches = realMatches.filter((m) => m.createdAt >= periodFrom);
+      const pods = global ? allPlayersPodiums(usable, podMatches) : personalPodiums(usable, podMatches, selectedPlayer);
       body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Bestwerte'));
       body.appendChild(h('div', { class: 'chips' },
         h('button', { class: `chip ${global ? '' : 'on'}`, onclick: () => { podView = 'mine'; draw(); } }, `Meine (${names.get(selectedPlayer) || '?'})`),
         h('button', { class: `chip ${global ? 'on' : ''}`, onclick: () => { podView = 'all'; draw(); } }, '🏆 Alle Spieler'),
       ));
+      body.appendChild(h('label', { class: 'field' }, h('span', {}, 'Zeitraum'),
+        h('select', { onchange: (e) => { podPeriod = e.target.value; draw(); } },
+          [['all', 'Für immer'], ['season', `Diese Saison (${seasonOf().name})`], ['month', `Dieser Monat (${MONTHS[nowD.getMonth()]})`]]
+            .map(([v, l]) => h('option', { value: v, selected: v === podPeriod }, l)))));
       const step = (e, place) => h('button', {
         class: `step p${place + 1} ${e ? '' : 'empty'} ${e && global && e.playerId === selectedPlayer ? 'me' : ''}`,
         onclick: () => { const m = e && finished.find((x) => x.id === e.matchId); if (m) showMatchDetail(m); },
@@ -197,12 +274,22 @@ export function render(root, params, nav) {
       body.appendChild(h('h3', { style: { marginTop: '14px' } }, `Meilensteine · ${rk.done} / ${ms.length}`));
       const latest = ms.filter((m) => m.at).sort((a, b) => b.at - a.at).slice(0, 4);
       if (latest.length) body.appendChild(h('div', { class: 'dim', style: { fontSize: '13px', margin: '-4px 0 6px' } }, `Zuletzt: ${latest.map((m) => `${m.icon} ${m.title}`).join(' · ')}`));
-      const tile = (m) => h('div', { class: `ms ${m.at ? 'on' : ''}` },
-        h('div', { class: 'msicon' }, m.at ? m.icon : '🔒'),
-        h('div', { class: 'mstext' },
-          h('b', {}, m.title),
-          h('span', {}, m.at ? date(m.at) : m.progress ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'),
-        ),
+      // Tipp auf einen erreichten Meilenstein: in die Vitrine legen bzw. herausnehmen
+      const inShowcase = new Set(getShowcase(selectedPlayer));
+      const tile = (m) => h('div', {
+        class: `ms ${m.at ? 'on tap' : ''} ${inShowcase.has(m.id) ? 'shown' : ''}`,
+        onclick: () => {
+          if (!m.at) return;
+          const list = toggleShowcase(selectedPlayer, m.id);
+          toast(list.includes(m.id) ? `${m.icon} in der Vitrine` : 'Aus der Vitrine genommen');
+          draw();
+        },
+      },
+      h('div', { class: 'msicon' }, m.at ? m.icon : m.secret ? '❓' : '🔒'),
+      h('div', { class: 'mstext' },
+        h('b', {}, m.secret && !m.at ? '???' : `${m.elite ? '★ ' : ''}${m.title}`),
+        h('span', {}, `${m.at ? date(m.at) : m.progress && !m.secret ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'} · ${m.pts} P.${inShowcase.has(m.id) ? ' · ⭐ Vitrine' : ''}`),
+      ),
       );
       // Eine aufklappbare Gruppe (Kategorie oder Unterteilung). key merkt sich, was offen ist.
       const fold = (key, icon, title, list, inner, cls = 'mscat') => {

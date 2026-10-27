@@ -7,6 +7,10 @@ import { isBotId } from '../../game/bot.js';
 import { isTraining } from '../../rules/index.js';
 import { GameSession } from '../../game/session.js';
 import { showWhatsNewOnce } from '../../changelog.js';
+import { getPlayers } from '../../core/settings.js';
+import { milestones, playerRank, nextRankText } from '../../stats/stats.js';
+import { weeklyChallenges, weekStatus, weekStreak, dayStreak, crownHolder, nearGoals, goalText, showcaseIcons } from '../../stats/progress.js';
+import { showEveningRecap } from '../recapSheet.js';
 
 export function render(root, params, nav) {
   const active = lsGet('activeMatch', null);
@@ -41,7 +45,10 @@ export function render(root, params, nav) {
     );
   }
   // Abendbilanz: wird nachgeladen und erscheint nur, wenn heute schon gespielt wurde
-  const tonight = h('div', { class: 'card tonight hidden', onclick: () => nav.go('stats') });
+  const tonight = h('div', { class: 'card tonight hidden', onclick: () => showEveningRecap() });
+  // Fortschritt: Wochenaufgaben, Ränge, Serien, „Fast geschafft“ (wird nachgeladen)
+  const progress = h('div', { class: 'card progresscard hidden' });
+  progressCard(nav).then((parts) => { if (parts) { progress.replaceChildren(...parts); progress.classList.remove('hidden'); } }).catch((e) => console.warn(e));
   eveningSummary().then((parts) => { if (parts) { tonight.replaceChildren(...parts); tonight.classList.remove('hidden'); } }).catch(() => {});
   root.appendChild(h('div', { class: 'home' },
     h('div', { class: 'hero' }, h('span', { class: 'logo', html: BRAND.logoSvg }), h('h1', {}, BRAND.name)),
@@ -49,6 +56,7 @@ export function render(root, params, nav) {
     h('button', { class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, onclick: () => nav.go('setup') }, 'Neues Spiel'),
     h('button', { class: 'btn', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('training') }, '🎯 Training'),
     tonight,
+    progress,
     h('button', { class: 'btn', onclick: () => nav.go('players') }, 'Spieler'),
     h('button', { class: 'btn', onclick: () => nav.go('stats') }, 'Statistik'),
     h('button', { class: 'btn', onclick: () => nav.go('calibrate', { back: 'home' }) }, 'Kamera kalibrieren'),
@@ -107,5 +115,48 @@ async function eveningSummary() {
       h('span', {}, d.names[0]), h('b', {}, `${d.wins[0]} : ${d.wins[1]}`), h('span', {}, d.names[1]))),
     multi.size ? h('div', { class: 'dim small' }, `Mehrspieler-Siege: ${[...multi.entries()].map(([n, w]) => `${n} ${w}`).join(' · ')}`) : null,
     avgs.length ? h('div', { class: 'dim small' }, `Ø heute (X01): ${avgs.map((e) => `${e.name} ${e.s.average.toFixed(1)}`).join(' · ')}`) : null,
+  ];
+}
+
+/**
+ * Fortschritt auf der Startseite: Wochenaufgaben (für alle gleich) und je Spieler
+ * Krone, Vitrine, Rang, Wochen-Serie, erledigte Aufgaben und das nächste erreichbare Ziel.
+ */
+async function progressCard(nav) {
+  const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
+  const finishedAll = matches.filter((m) => m.status === 'finished');
+  const real = finishedAll.filter((m) => !m.players.some(isBotId));
+  if (!real.length) return null;
+  const ids = new Set(real.map((m) => m.id));
+  const usable = rows.filter((r) => ids.has(r.matchId));
+  const crown = crownHolder(usable, real);
+  const people = getPlayers().filter((p) => real.some((m) => m.players.includes(p.id)));
+  if (!people.length) return null;
+  const tasks = weeklyChallenges();
+  const lines = people.map((p) => {
+    const ms = milestones(usable, real, p.id);
+    const rk = playerRank(ms);
+    const wk = weekStatus(usable, real, p.id);
+    const streak = weekStreak(real, p.id);
+    const days = dayStreak(finishedAll, p.id); // Trainings und Spiele gegen den Computer zählen mit
+    const goal = nearGoals(ms, 1)[0];
+    const toRank = rk.next ? nextRankText(rk) : '';
+    return h('div', { class: 'pline', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
+      h('div', { class: 'plinehead' },
+        h('b', {}, `${crown && crown.playerId === p.id ? '👑 ' : ''}${p.name}`),
+        h('span', { class: 'vitrine' }, showcaseIcons(p.id)),
+        h('span', { class: 'dim small', style: { marginLeft: 'auto' } }, `${rk.rank.icon} ${rk.rank.title}`)),
+      h('div', { class: 'plinesub' },
+        h('span', { class: 'taskdots' }, wk.items.map((i) => (i.done ? '✅' : '⬜')).join('')),
+        days.current ? h('span', {}, `📆 ${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}${days.playedToday ? '' : ' – heute noch!'}`) : null,
+        streak.current ? h('span', {}, `🔥 ${streak.current} ${streak.current === 1 ? 'Woche' : 'Wochen'}${streak.playedThisWeek ? '' : ' – diese Woche!'}`) : null),
+      h('div', { class: 'dim small' }, goal ? `🎯 ${goalText(goal)}` : toRank),
+      goal && toRank ? h('div', { class: 'dim small' }, `⬆️ ${toRank}`) : null);
+  });
+  return [
+    h('div', { class: 'tonighthead' }, h('b', {}, '🗓️ Aufgaben dieser Woche'), h('span', { class: 'dim small' }, 'alle 3 = 🏅 Medaille')),
+    h('div', { class: 'tasks' }, tasks.map((t) => h('div', {}, `${t.icon} ${t.text}`))),
+    crown ? h('div', { class: 'dim small' }, `👑 Abend-Krone: ${crown.name} (Ø ${crown.average.toFixed(1)} am ${new Date(crown.day).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })})`) : null,
+    ...lines,
   ];
 }

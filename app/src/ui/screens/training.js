@@ -1,6 +1,6 @@
 // Trainingsbereich: Übungen für einen Spieler, mit Rekord und letztem Ergebnis je Variante.
 import { h, toast, promptDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
@@ -225,7 +225,7 @@ export function render(root, params, nav) {
   const draw = () => {
     const ps = players();
     const hasCal = !!lsGet('calibration', null);
-    const playerOptions = [['', '– wählen –'], ...ps.map((p) => [p.id, p.name]), [NEW, '+ Neuer Spieler …']];
+    const playerOptions = [['', '– wählen –'], ...ps.map((p) => [p.id, displayName(p, ps)]), [NEW, '+ Neuer Spieler …']];
     const cats = [...new Set(DRILLS.map((d) => d.cat))];
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Training'),

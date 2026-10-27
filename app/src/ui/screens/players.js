@@ -9,7 +9,7 @@ export function render(root, params, nav) {
     if (!players.length) list.appendChild(h('p', { class: 'dim' }, 'Noch keine Spieler angelegt.'));
     for (const p of players) {
       list.appendChild(h('div', { class: 'list-item' },
-        h('span', { class: 'name' }, p.name),
+        h('span', { class: 'name' }, p.name, h('span', { class: 'dim', style: { fontSize: '13px', marginLeft: '8px' } }, `#${p.code}`)),
         h('button', {
           class: 'iconbtn', 'aria-label': 'Umbenennen',
           onclick: async () => {
