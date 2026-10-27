@@ -8,8 +8,8 @@ import { isTraining } from '../../rules/index.js';
 import { GameSession } from '../../game/session.js';
 import { showWhatsNewOnce } from '../../changelog.js';
 import { getPlayers } from '../../core/settings.js';
-import { milestones, playerRank, nextRankText } from '../../stats/stats.js';
-import { weeklyChallenges, weekStatus, weekStreak, dayStreak, crownHolder, nearGoals, goalText, showcaseIcons } from '../../stats/progress.js';
+import { milestones, playerRank } from '../../stats/stats.js';
+import { weeklyChallenges, weekStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
 
 export function render(root, params, nav) {
@@ -47,7 +47,7 @@ export function render(root, params, nav) {
   // Abendbilanz: wird nachgeladen und erscheint nur, wenn heute schon gespielt wurde
   const tonight = h('div', { class: 'card tonight hidden', onclick: () => showEveningRecap() });
   // Fortschritt: Wochenaufgaben, Ränge, Serien, „Fast geschafft“ (wird nachgeladen)
-  const progress = h('div', { class: 'card progresscard hidden' });
+  const progress = h('div', { class: 'homeprogress hidden' });
   progressCard(nav).then((parts) => { if (parts) { progress.replaceChildren(...parts); progress.classList.remove('hidden'); } }).catch((e) => console.warn(e));
   eveningSummary().then((parts) => { if (parts) { tonight.replaceChildren(...parts); tonight.classList.remove('hidden'); } }).catch(() => {});
   root.appendChild(h('div', { class: 'home' },
@@ -119,8 +119,9 @@ async function eveningSummary() {
 }
 
 /**
- * Fortschritt auf der Startseite: Wochenaufgaben (für alle gleich) und je Spieler
- * Krone, Vitrine, Rang, Wochen-Serie, erledigte Aufgaben und das nächste erreichbare Ziel.
+ * Fortschritt auf der Startseite, in zwei ruhigen Karten:
+ *  - Wochenaufgaben: die drei Aufgaben (für alle gleich) und wer wie viele geschafft hat
+ *  - Fortschritt: je Spieler Rang-Abzeichen, Balken zum nächsten Rang, Serie und nächstes Ziel
  */
 async function progressCard(nav) {
   const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
@@ -132,31 +133,53 @@ async function progressCard(nav) {
   const crown = crownHolder(usable, real);
   const people = getPlayers().filter((p) => real.some((m) => m.players.includes(p.id)));
   if (!people.length) return null;
-  const tasks = weeklyChallenges();
-  const lines = people.map((p) => {
+
+  const data = people.map((p) => {
     const ms = milestones(usable, real, p.id);
-    const rk = playerRank(ms);
-    const wk = weekStatus(usable, real, p.id);
-    const streak = weekStreak(real, p.id);
-    const days = dayStreak(finishedAll, p.id); // Trainings und Spiele gegen den Computer zählen mit
-    const goal = nearGoals(ms, 1)[0];
-    const toRank = rk.next ? nextRankText(rk) : '';
-    return h('div', { class: 'pline', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
-      h('div', { class: 'plinehead' },
-        h('b', {}, `${crown && crown.playerId === p.id ? '👑 ' : ''}${p.name}`),
-        h('span', { class: 'vitrine' }, showcaseIcons(p.id)),
-        h('span', { class: 'dim small', style: { marginLeft: 'auto' } }, `${rk.rank.icon} ${rk.rank.title}`)),
-      h('div', { class: 'plinesub' },
-        h('span', { class: 'taskdots' }, wk.items.map((i) => (i.done ? '✅' : '⬜')).join('')),
-        days.current ? h('span', {}, `📆 ${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}${days.playedToday ? '' : ' – heute noch!'}`) : null,
-        streak.current ? h('span', {}, `🔥 ${streak.current} ${streak.current === 1 ? 'Woche' : 'Wochen'}${streak.playedThisWeek ? '' : ' – diese Woche!'}`) : null),
-      h('div', { class: 'dim small' }, goal ? `🎯 ${goalText(goal)}` : toRank),
-      goal && toRank ? h('div', { class: 'dim small' }, `⬆️ ${toRank}`) : null);
+    return { p, ms, rk: playerRank(ms), wk: weekStatus(usable, real, p.id), weeks: weekStreak(real, p.id), days: dayStreak(finishedAll, p.id), goal: nearGoals(ms, 1)[0] };
   });
-  return [
-    h('div', { class: 'tonighthead' }, h('b', {}, '🗓️ Aufgaben dieser Woche'), h('span', { class: 'dim small' }, 'alle 3 = 🏅 Medaille')),
-    h('div', { class: 'tasks' }, tasks.map((t) => h('div', {}, `${t.icon} ${t.text}`))),
-    crown ? h('div', { class: 'dim small' }, `👑 Abend-Krone: ${crown.name} (Ø ${crown.average.toFixed(1)} am ${new Date(crown.day).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })})`) : null,
-    ...lines,
-  ];
+
+  // Karte 1: Wochenaufgaben
+  const tasks = weeklyChallenges();
+  const daysLeft = Math.max(1, Math.ceil((data[0].wk.end - Date.now()) / 86400000));
+  const dots = (wk) => h('span', { class: 'dots' }, wk.items.map((i) => h('i', { class: i.done ? 'on' : '' })));
+  const weekCard = h('div', { class: 'card homecard' },
+    h('div', { class: 'cardhead' }, h('span', { class: 'cardtitle' }, 'Wochenaufgaben'), h('span', { class: 'dim small' }, `noch ${daysLeft} ${daysLeft === 1 ? 'Tag' : 'Tage'}`)),
+    h('ol', { class: 'tasklist' }, tasks.map((t) => h('li', {}, t.text))),
+    h('div', { class: 'weekplayers' }, data.map(({ p, wk }) => h('span', { class: `wchip ${wk.medal ? 'medal' : ''}` }, p.name, dots(wk)))),
+    h('div', { class: 'dim small' }, 'Alle drei geschafft = Wochen-Medaille. Neue Aufgaben jeden Montag.'),
+  );
+
+  // Karte 2: Fortschritt je Spieler
+  const rowsEl = data.map(({ p, rk, weeks, days, goal }) => {
+    const span = rk.next ? rk.next.min - rk.rank.min : 1;
+    const pct = rk.next ? Math.min(100, Math.round(((rk.points - rk.rank.min) / span) * 100)) : 100;
+    // Was zum nächsten Rang fehlt, ohne Emoji: „158 P. bis Weltranglisten-Spieler“
+    const need = rk.next
+      ? `${[rk.next.min > rk.points ? `${(rk.next.min - rk.points).toLocaleString('de-DE')} P.` : null, rk.next.elite > rk.elite ? `${rk.next.elite - rk.elite} Elite` : null].filter(Boolean).join(' + ')} bis ${rk.next.title}`
+      : 'Höchster Rang erreicht';
+    const atRisk = days.current && !days.playedToday;
+    const serie = days.current ? `${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}` : weeks.current ? `${weeks.current} ${weeks.current === 1 ? 'Woche' : 'Wochen'}` : null;
+    return h('div', { class: 'prow', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
+      h('div', { class: 'badge sm', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
+      h('div', { class: 'prowmain' },
+        h('div', { class: 'prowtop' },
+          h('div', { class: 'prowname' },
+            h('b', {}, p.name, crown && crown.playerId === p.id ? h('span', { class: 'crown', title: 'Abend-Krone' }, ' 👑') : null),
+            h('span', { class: 'prowrank', style: `color: ${rk.rank.color}` }, rk.rank.title)),
+          serie ? h('span', { class: 'pill', title: 'Tage bzw. Wochen in Folge gespielt' }, `Serie ${serie}`) : null),
+        h('div', { class: 'rankbar' }, h('div', { style: { width: `${pct}%`, background: rk.rank.color } })),
+        h('div', { class: 'prowmeta' }, need),
+        goal ? h('div', { class: 'prowgoal' }, h('span', { class: 'dim' }, 'Nächstes Ziel '), `${goal.title} · noch ${goal.left.toLocaleString('de-DE')}`) : null,
+        atRisk ? h('div', { class: 'prowwarn' }, 'Heute noch spielen, damit die Serie hält') : null,
+      ),
+      h('span', { class: 'chev' }, '›'),
+    );
+  });
+  const progressEl = h('div', { class: 'card homecard' },
+    h('div', { class: 'cardhead' }, h('span', { class: 'cardtitle' }, 'Fortschritt'),
+      crown ? h('span', { class: 'dim small' }, `Abend-Krone: ${crown.name}`) : null),
+    rowsEl,
+  );
+  return [weekCard, progressEl];
 }

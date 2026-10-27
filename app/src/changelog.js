@@ -8,6 +8,16 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.8.2',
+    date: '27.10.2026',
+    items: [
+      'Startseite aufgeräumt: Wochenaufgaben und Fortschritt als zwei ruhige Karten',
+      'Wochenaufgaben nummeriert, darunter je Spieler drei Punkte für den Stand',
+      'Fortschritt je Spieler: Rang-Abzeichen, Balken zum nächsten Rang, nächstes Ziel und Serie',
+      'Deutlich weniger Emojis, Hinweis nur, wenn die Serie heute zu reißen droht',
+    ],
+  },
+  {
     version: '1.8.1',
     date: '27.10.2026',
     items: [

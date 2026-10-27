@@ -419,3 +419,38 @@ tr.tap:active { background: var(--surface2); }
 .progresscard .tonighthead { display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; }
 .recapcard .newms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .recapcard .newms span { background: var(--surface2); border-radius: 10px; padding: 3px 8px; font-size: 13px; }
+
+/* Startseite: Wochenaufgaben und Fortschritt als ruhige, hochwertige Karten */
+.homeprogress { display: flex; flex-direction: column; gap: 14px; }
+.homecard { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 20px;
+  background: linear-gradient(180deg, #161616 0%, #0e0e0e 100%); border: 1px solid #242424;
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 8px 24px rgba(0,0,0,.35); }
+.homecard .cardhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.homecard .cardtitle { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
+.tasklist { list-style: none; counter-reset: task; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tasklist li { counter-increment: task; display: flex; align-items: center; gap: 12px; font-size: 17px; font-weight: 600; }
+.tasklist li::before { content: counter(task); flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #333;
+  color: var(--text-dim); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.weekplayers { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid #222; }
+.wchip { display: inline-flex; align-items: center; gap: 10px; background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; }
+.wchip.medal { border-color: #f5c542; }
+.dots { display: inline-flex; gap: 5px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: #3a3a3a; }
+.dots i.on { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.prow { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0 2px; border-top: 1px solid #222; cursor: pointer; }
+.cardhead + .prow { border-top: 0; padding-top: 0; }
+.badge.sm { width: 46px; height: 46px; font-size: 22px; margin-top: 2px; box-shadow: 0 0 0 2px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 35%, transparent); }
+.prowmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.prowtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.prowname { display: flex; flex-direction: column; min-width: 0; }
+.prowname b { font-size: 18px; line-height: 1.2; }
+.prowname .crown { font-size: 14px; }
+.prowrank { font-size: 13px; font-weight: 700; }
+.pill { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #1c1c1c; border: 1px solid #2a2a2a; color: var(--text-dim); white-space: nowrap; }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.rankbar { height: 6px; border-radius: 3px; background: #262626; overflow: hidden; }
+.rankbar > div { height: 100%; border-radius: 3px; }
+.prowmeta { font-size: 13px; color: var(--text-dim); }
+.prowgoal { font-size: 14px; }
+.prowwarn { font-size: 12px; color: var(--warn); }
+.prow .chev { color: #555; font-size: 22px; flex: none; align-self: center; }
