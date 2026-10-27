@@ -1,7 +1,7 @@
 import { h, confirmDialog, toast } from '../dom.js';
 import { dbGetAll, deleteMatch } from '../../core/storage.js';
 import { getPlayers } from '../../core/settings.js';
-import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES } from '../../stats/stats.js';
+import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
 import { showMatchDetail } from '../matchDetail.js';
@@ -185,7 +185,8 @@ export function render(root, params, nav) {
       h('div', { class: 'medal' }, MEDALS[place]),
       global && e ? h('div', { class: 'who' }, e.name) : null,
       h('div', { class: 'v num' }, e ? e.text : '–'),
-      h('div', { class: 'd' }, e ? (global ? date(e.at) : `${date(e.at)}${e.opponents.length ? ` · ${e.opponents.join(', ')}` : ''}`) : ''));
+      // Eigene Bestwerte: darunter der Gegner („vs. Kevin“), nicht der eigene Name
+      h('div', { class: 'd' }, e ? (global ? date(e.at) : `${date(e.at)}${e.opponents.length ? ` · vs. ${e.opponents.join(', ')}` : ''}`) : ''));
       const shown = RECORD_DEFS.filter((d) => pods[d.key]);
       if (!shown.length) body.appendChild(h('p', { class: 'dim' }, 'Noch keine Bestwerte – erst ein Match gegen echte Gegner beenden.'));
       body.appendChild(h('div', { class: 'podiums' }, shown.map((d) => h('div', { class: 'podcard' },
@@ -203,25 +204,38 @@ export function render(root, params, nav) {
           h('span', {}, m.at ? date(m.at) : m.progress ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'),
         ),
       );
-      for (const c of MILESTONE_CATEGORIES) {
-        const list = ms.filter((m) => m.cat === c.id);
+      // Eine aufklappbare Gruppe (Kategorie oder Unterteilung). key merkt sich, was offen ist.
+      const fold = (key, icon, title, list, inner, cls = 'mscat') => {
         const n = list.filter((m) => m.at).length;
-        const det = h('details', { class: 'mscat' },
+        const det = h('details', { class: cls },
           h('summary', {},
-            h('span', { class: 'mscicon' }, c.icon),
+            h('span', { class: 'mscicon' }, icon),
             h('span', { class: 'msctext' },
-              h('b', {}, c.title),
+              h('b', {}, title),
               h('span', { class: 'ratebar' }, h('span', { style: { width: `${Math.round((n / list.length) * 100)}%` } })),
             ),
             h('span', { class: `msccount num ${n === list.length ? 'accent' : ''}` }, `${n} / ${list.length}`),
           ),
-          h('p', { class: 'dim', style: { fontSize: '13px', margin: '0 0 8px' } }, c.note),
-          h('div', { class: 'milestones' }, list.map(tile)),
+          inner,
         );
-        // Aufgeklappte Kategorien bleiben beim Spielerwechsel offen
-        if (openCats.has(c.id)) det.open = true;
-        det.addEventListener('toggle', () => { if (det.open) openCats.add(c.id); else openCats.delete(c.id); });
-        body.appendChild(det);
+        // Aufgeklappte Gruppen bleiben beim Spielerwechsel offen
+        if (openCats.has(key)) det.open = true;
+        det.addEventListener('toggle', () => { if (det.open) openCats.add(key); else openCats.delete(key); });
+        return det;
+      };
+      for (const c of MILESTONE_CATEGORIES) {
+        const list = ms.filter((m) => m.cat === c.id);
+        const groups = MILESTONE_GROUPS[c.id];
+        body.appendChild(fold(c.id, c.icon, c.title, list, [
+          h('p', { class: 'dim', style: { fontSize: '13px', margin: '0 0 8px' } }, c.note),
+          // Schnelltasten: je Zahl eine eigene Gruppe, sonst wird es zu lang
+          groups
+            ? groups.map((g) => {
+              const sub = list.filter((m) => m.group === g.id);
+              return fold(`${c.id}:${g.id}`, g.icon, g.title, sub, h('div', { class: 'milestones' }, sub.map(tile)), 'mscat sub');
+            })
+            : h('div', { class: 'milestones' }, list.map(tile)),
+        ]));
       }
       body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Gezählt werden beendete Spiele gegen echte Spieler und Trainings (Bestwerte: X01 und Cricket; Siege: alle Spielarten mit 2+ Spielern). Spiele gegen den Computer zählen nicht. Tipp auf eine Treppchen-Stufe öffnet das Match.'));
     };
@@ -288,8 +302,10 @@ export function render(root, params, nav) {
         h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Statistik')),
       );
       if (!ids.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Spiele gespeichert.')); return; }
-      body.appendChild(h('div', { class: 'chips' }, ids.map((id) =>
-        h('button', { class: `chip ${id === selectedPlayer ? 'on' : ''}`, onclick: () => { selectedPlayer = id; draw(); } }, names.get(id) || '?'))));
+      // Spieler per Auswahlliste (bei vielen Spielern wäre eine Knopfreihe zu voll)
+      body.appendChild(h('label', { class: 'field' }, h('span', {}, 'Spieler'),
+        h('select', { onchange: (e) => { selectedPlayer = e.target.value; draw(); } },
+          ids.map((id) => h('option', { value: id, selected: id === selectedPlayer }, names.get(id) || '?')))));
       body.appendChild(h('div', { class: 'tabs' }, TABS.map(([k, label]) =>
         h('button', { class: `tab ${tab === k ? 'on' : ''}`, onclick: () => { tab = k; draw(); } }, label))));
       if (tab === 'training') { drawTraining(); return; }

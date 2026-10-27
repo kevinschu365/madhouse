@@ -324,14 +324,22 @@ const QUICK = [
   [85, '🔸', ''], [100, '💯', 'Ton'], [140, '🔥', 'Ton-40'], [180, '🚀', 'Maximum'],
 ];
 const QUICK_TIERS = [1, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+
+/** Unterteilungen einer Kategorie (Meilenstein.group): Schnelltasten je Zahl. */
+export const MILESTONE_GROUPS = {
+  quick: QUICK.map(([n, icon, nick]) => ({ id: String(n), icon, title: nick ? `${n} – ${nick}` : String(n) })),
+};
 const ALL_DOUBLES = 21; // D1–D20 und Bull
 
 /** Alle Meilensteine; progress liefert [erreicht, Ziel] für die Anzeige. */
 export const MILESTONES = [
   // Schnelltasten-Scores (die 180 behält ihre alten Kennungen 180-1, 180-10 …)
   ...QUICK.flatMap(([n, icon, nick]) => (n === 180 ? [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000] : QUICK_TIERS).map((g) =>
-    count('quick', n === 180 ? `180-${g}` : `s${n}-${g}`, icon,
-      g === 1 ? `Erste ${n}${nick ? ` – ${nick}` : ''}` : `${fmt(g)}× ${n}`, (s) => s.exact[n] || 0, g))),
+    ({
+      ...count('quick', n === 180 ? `180-${g}` : `s${n}-${g}`, icon,
+        g === 1 ? `Erste ${n}${nick ? ` – ${nick}` : ''}` : `${fmt(g)}× ${n}`, (s) => s.exact[n] || 0, g),
+      group: String(n), // Unterteilung je Zahl (zum Aufklappen)
+    }))),
 
   // Scoring
   ...tiers('scoring', 'ton', '💯', (s) => s.ton, [1, 10, 50, 100, 250, 500, 1000], (g) => (g === 1 ? 'Erste Aufnahme 100+' : `${fmt(g)}× 100+`)),

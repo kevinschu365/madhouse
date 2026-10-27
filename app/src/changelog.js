@@ -8,6 +8,16 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.7.2',
+    date: '27.10.2026',
+    items: [
+      'Statistik: Spieler per Auswahlliste statt Knopfreihe',
+      'Eigene Bestwerte: unter dem Wert steht jetzt „vs. Gegner“, damit klar ist, wessen Treppchen es ist',
+      'Schnelltasten-Meilensteine je Zahl unterteilt: Zahl antippen, dann nur deren Stufen sehen',
+      'Checkliste „Was ist neu?“ lässt sich sicher schließen (✕ oben, Knopf oben und unten, Tipp daneben)',
+    ],
+  },
+  {
     version: '1.7.1',
     date: '27.10.2026',
     items: [
@@ -53,20 +63,25 @@ export function showWhatsNewOnce() {
   const idx = seen ? CHANGELOG.findIndex((e) => e.version === seen) : CHANGELOG.length;
   const fresh = idx < 0 ? CHANGELOG.slice(0, 1) : CHANGELOG.slice(0, idx);
   if (!fresh.length) return;
-  let s;
-  s = sheet(h('div', { class: 'stack' },
-    h('h2', {}, '🎉 Neu in dieser Version'),
-    changelogView(fresh),
-    h('button', { class: 'btn primary', onclick: () => s.close() }, 'Alles klar'),
-  ));
+  openList('🎉 Neu in dieser Version', fresh, 'Alles klar');
 }
 
 /** Alle Versionen anzeigen (Einstellungen › Was ist neu?). */
 export function showChangelog() {
+  openList('Was ist neu?', CHANGELOG, 'Schließen');
+}
+
+/**
+ * Checkliste als Fenster. Schließen geht immer: ✕ oben (bleibt beim Scrollen stehen),
+ * Knopf oben und unten, Tipp neben das Fenster.
+ */
+function openList(title, entries, okLabel) {
   let s;
+  const close = () => s.close();
   s = sheet(h('div', { class: 'stack' },
-    h('h2', {}, 'Was ist neu?'),
-    changelogView(),
-    h('button', { class: 'btn primary', onclick: () => s.close() }, 'Schließen'),
+    h('div', { class: 'sheethead' }, h('h2', {}, title), h('button', { class: 'iconbtn', 'aria-label': 'Schließen', onclick: close }, '✕')),
+    h('button', { class: 'btn primary', onclick: close }, okLabel),
+    changelogView(entries),
+    h('button', { class: 'btn', onclick: close }, okLabel),
   ));
 }

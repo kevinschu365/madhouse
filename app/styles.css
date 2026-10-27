@@ -123,7 +123,9 @@ label.field > span { display: block; color: var(--text-dim); font-size: 14px; ma
 
 /* Overlays */
 .overlay-bg { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: flex-end; justify-content: center; z-index: 50; padding: calc(var(--safe-top) + 12px) 12px calc(var(--safe-bottom) + 12px); }
-.sheet { background: var(--surface); border: 1px solid #2a2a2a; border-radius: 20px; padding: 16px; width: 100%; max-width: 560px; max-height: 92dvh; overflow: auto; }
+.sheet { background: var(--surface); border: 1px solid #2a2a2a; border-radius: 20px; padding: 16px; width: 100%; max-width: 560px; max-height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.sheethead { position: sticky; top: -16px; z-index: 2; display: flex; align-items: center; gap: 10px; background: var(--surface); margin: -16px -16px 0; padding: 16px 16px 8px; }
+.sheethead h2 { flex: 1; margin: 0; }
 .sheet h2 { font-size: 22px; }
 .banner { position: fixed; left: 50%; top: 30%; transform: translateX(-50%); background: var(--accent); color: #000; padding: 18px 26px; border-radius: 20px; font-size: clamp(22px, 6.5vw, 48px); font-weight: 900; z-index: 60; width: max-content; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.6); pointer-events: none; max-width: 92vw; white-space: pre-line; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--safe-bottom) + 20px); transform: translateX(-50%); background: #222; color: #fff; padding: 12px 18px; border-radius: 12px; z-index: 70; font-size: 16px; max-width: 90vw; }
@@ -370,3 +372,10 @@ tr.tap:active { background: var(--surface2); }
 .changelog ul { list-style: none; padding: 0; margin: 0 0 6px; }
 .changelog li { position: relative; padding: 4px 0 4px 26px; line-height: 1.35; }
 .changelog li::before { content: "✅"; position: absolute; left: 0; top: 4px; font-size: 15px; }
+
+/* Unterteilung innerhalb einer Meilenstein-Kategorie (Schnelltasten je Zahl) */
+.mscat.sub { background: var(--surface2); margin-bottom: 6px; }
+.mscat.sub > summary { padding: 9px 0; }
+.mscat.sub .mscicon { font-size: 20px; }
+.mscat.sub .msctext b { font-size: 15px; }
+.mscat.sub .ms { background: var(--surface); }
