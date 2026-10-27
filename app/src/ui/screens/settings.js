@@ -1,5 +1,5 @@
 import { h, toast, confirmDialog } from '../dom.js';
-import { getSettings, updateSettings, reloadSettings } from '../../core/settings.js';
+import { getSettings, updateSettings, reloadSettings, getPlayers, displayName } from '../../core/settings.js';
 import { availableVoices, unlock, speechSupported, announceTurn, say, t, voiceLangOf, SPEECH_LANGS } from '../../audio/speech.js';
 import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/storage.js';
 import { wakeLockSupported } from '../../core/wakelock.js';
@@ -26,6 +26,18 @@ export function render(root, params, nav) {
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Einstellungen')),
       h('button', { class: 'btn', onclick: () => showChangelog() }, `🆕 Was ist neu? (Version ${APP_VERSION})`),
+
+      h('div', { class: 'card stack' },
+        h('h3', { style: { margin: 0 } }, 'Dieses Handy'),
+        h('label', { class: 'field', style: { margin: 0 } }, h('span', {}, 'Ich bin'),
+          h('select', { onchange: (e) => { updateSettings({ ownerId: e.target.value || null }); draw(); } },
+            h('option', { value: '' }, '– niemand bestimmtes –'),
+            getPlayers().map((p) => h('option', { value: p.id, selected: p.id === s.ownerId }, displayName(p))))),
+        h('p', { class: 'dim', style: { margin: 0, fontSize: '14px' } }, 'Die Startseite zeigt dann nur deinen Fortschritt, Statistik und Training starten mit dir. Jedes Handy stellt das für sich ein.'),
+        toggle('homeShowWeek', 'Startseite: Wochenaufgaben zeigen'),
+        toggle('homeShowProgress', 'Startseite: Fortschritt zeigen'),
+        toggle('homeAllPlayers', 'Startseite: alle Spieler zeigen', 'Sonst nur du'),
+      ),
 
       h('div', { class: 'card stack' },
         h('h3', { style: { margin: 0 } }, '📲 Handys abgleichen'),

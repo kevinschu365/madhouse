@@ -1,6 +1,6 @@
 import { h, confirmDialog, toast } from '../dom.js';
 import { dbGetAll, deleteMatch } from '../../core/storage.js';
-import { getPlayers, displayName } from '../../core/settings.js';
+import { getPlayers, displayName, ownerId } from '../../core/settings.js';
 import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
@@ -35,7 +35,8 @@ export function render(root, params, nav) {
     for (const p of known) names.set(p.id, displayName(p, known));
     // Der Computer-Gegner bekommt keine eigene Statistik
     const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])].filter((id) => !isBotId(id));
-    if (!selectedPlayer && ids.length) selectedPlayer = ids[0];
+    // Ohne Vorgabe: der Spieler, dem dieses Handy gehört, sonst der erste
+    if (!selectedPlayer && ids.length) selectedPlayer = ids.includes(ownerId()) ? ownerId() : ids[0];
 
     const stat = (v, k) => h('div', { class: 'stat' }, h('div', { class: 'v num' }, v), h('div', { class: 'k' }, k));
     const date = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });

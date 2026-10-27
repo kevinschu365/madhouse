@@ -1,4 +1,4 @@
-import { h, confirmDialog } from '../dom.js';
+import { h, confirmDialog, sheet } from '../dom.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
 import { derive, throwRows } from '../../game/match.js';
@@ -7,7 +7,7 @@ import { isBotId } from '../../game/bot.js';
 import { isTraining } from '../../rules/index.js';
 import { GameSession } from '../../game/session.js';
 import { showWhatsNewOnce } from '../../changelog.js';
-import { getPlayers } from '../../core/settings.js';
+import { getPlayers, getSettings, updateSettings, ownerId, displayName } from '../../core/settings.js';
 import { milestones, playerRank } from '../../stats/stats.js';
 import { weeklyChallenges, weekStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
@@ -124,6 +124,8 @@ async function eveningSummary() {
  *  - Fortschritt: je Spieler Rang-Abzeichen, Balken zum nächsten Rang, Serie und nächstes Ziel
  */
 async function progressCard(nav) {
+  const s = getSettings();
+  if (s.homeShowWeek === false && s.homeShowProgress === false) return null;
   const [rows, matches] = await Promise.all([dbGetAll('throws'), dbGetAll('matches')]);
   const finishedAll = matches.filter((m) => m.status === 'finished');
   const real = finishedAll.filter((m) => !m.players.some(isBotId));
@@ -134,52 +136,99 @@ async function progressCard(nav) {
   const people = getPlayers().filter((p) => real.some((m) => m.players.includes(p.id)));
   if (!people.length) return null;
 
-  const data = people.map((p) => {
+  // Wem gehört dieses Handy? Dann zeigt die Startseite nur diesen Spieler (andere auf Wunsch).
+  const owner = ownerId();
+  const showAll = !owner || s.homeAllPlayers === true;
+  const visible = showAll ? people : people.filter((p) => p.id === owner);
+  const others = people.length - visible.length;
+  const data = visible.map((p) => {
     const ms = milestones(usable, real, p.id);
     return { p, ms, rk: playerRank(ms), wk: weekStatus(usable, real, p.id), weeks: weekStreak(real, p.id), days: dayStreak(finishedAll, p.id), goal: nearGoals(ms, 1)[0] };
   });
+  const redraw = () => nav.go('home');
+  const collapsed = s.homeCollapsed || {};
+  const toggleCollapse = (key) => { updateSettings({ homeCollapsed: { ...collapsed, [key]: !collapsed[key] } }); redraw(); };
+  // Kartenkopf: Tipp klappt die Karte ein und aus. summary = Kurzfassung im eingeklappten Zustand.
+  const head = (key, title, right, summary) => h('button', { class: 'cardhead', onclick: () => toggleCollapse(key), 'aria-expanded': String(!collapsed[key]) },
+    h('span', { class: 'cardtitle' }, title),
+    h('span', { class: 'cardright' }, collapsed[key] ? h('span', { class: 'dim small' }, summary) : right, h('span', { class: `fold ${collapsed[key] ? '' : 'open'}` }, '›')));
+  const footer = () => {
+    if (!owner) {
+      return h('button', { class: 'linkbtn', onclick: () => pickOwner(people, redraw) }, 'Wem gehört dieses Handy? Dann siehst du hier nur dich.');
+    }
+    return others || s.homeAllPlayers
+      ? h('button', { class: 'linkbtn', onclick: () => { updateSettings({ homeAllPlayers: !s.homeAllPlayers }); redraw(); } },
+        s.homeAllPlayers ? 'Nur mich zeigen' : `Alle Spieler zeigen (${people.length})`)
+      : null;
+  };
+  const cards = [];
 
   // Karte 1: Wochenaufgaben
-  const tasks = weeklyChallenges();
-  const daysLeft = Math.max(1, Math.ceil((data[0].wk.end - Date.now()) / 86400000));
-  const dots = (wk) => h('span', { class: 'dots' }, wk.items.map((i) => h('i', { class: i.done ? 'on' : '' })));
-  const weekCard = h('div', { class: 'card homecard' },
-    h('div', { class: 'cardhead' }, h('span', { class: 'cardtitle' }, 'Wochenaufgaben'), h('span', { class: 'dim small' }, `noch ${daysLeft} ${daysLeft === 1 ? 'Tag' : 'Tage'}`)),
-    h('ol', { class: 'tasklist' }, tasks.map((t) => h('li', {}, t.text))),
-    h('div', { class: 'weekplayers' }, data.map(({ p, wk }) => h('span', { class: `wchip ${wk.medal ? 'medal' : ''}` }, p.name, dots(wk)))),
-    h('div', { class: 'dim small' }, 'Alle drei geschafft = Wochen-Medaille. Neue Aufgaben jeden Montag.'),
-  );
+  if (s.homeShowWeek !== false && data.length) {
+    const tasks = weeklyChallenges();
+    const daysLeft = Math.max(1, Math.ceil((data[0].wk.end - Date.now()) / 86400000));
+    const dots = (wk) => h('span', { class: 'dots' }, wk.items.map((i) => h('i', { class: i.done ? 'on' : '' })));
+    const mine = data.find((d) => d.p.id === owner) || data[0];
+    const summary = `${mine.wk.done} von 3 erledigt`;
+    cards.push(h('div', { class: `card homecard ${collapsed.week ? 'folded' : ''}` },
+      head('week', 'Wochenaufgaben', h('span', { class: 'dim small' }, `noch ${daysLeft} ${daysLeft === 1 ? 'Tag' : 'Tage'}`), summary),
+      collapsed.week ? null : [
+        // Jede Aufgabe mit eigenem Stand (dein Spieler bzw. der erste): „1 / 2“ oder „geschafft“
+        h('ol', { class: 'tasklist' }, tasks.map((t, i) => {
+          const it = mine.wk.items[i];
+          return h('li', { class: it.done ? 'done' : '' },
+            h('span', { class: 'tasktext' }, t.text),
+            h('span', { class: 'taskstate' }, it.done ? 'geschafft' : `${it.cur.toLocaleString('de-DE')} / ${it.goal.toLocaleString('de-DE')}`));
+        })),
+        data.length > 1 ? h('div', { class: 'dim small', style: { marginTop: '-4px' } }, `Haken und Stand: ${mine.p.name}`) : null,
+        data.length > 1
+          ? h('div', { class: 'weekplayers' }, data.map(({ p, wk }) => h('span', { class: `wchip ${wk.medal ? 'medal' : ''}` }, p.name, dots(wk))))
+          : h('div', { class: 'weekplayers' }, h('span', { class: `wchip ${mine.wk.medal ? 'medal' : ''}` }, mine.wk.medal ? 'Wochen-Medaille geholt' : `${mine.wk.done} von 3 erledigt`, dots(mine.wk))),
+        h('div', { class: 'dim small' }, 'Alle drei geschafft = Wochen-Medaille. Neue Aufgaben jeden Montag.'),
+      ]));
+  }
 
   // Karte 2: Fortschritt je Spieler
-  const rowsEl = data.map(({ p, rk, weeks, days, goal }) => {
-    const span = rk.next ? rk.next.min - rk.rank.min : 1;
-    const pct = rk.next ? Math.min(100, Math.round(((rk.points - rk.rank.min) / span) * 100)) : 100;
-    // Was zum nächsten Rang fehlt, ohne Emoji: „158 P. bis Weltranglisten-Spieler“
-    const need = rk.next
-      ? `${[rk.next.min > rk.points ? `${(rk.next.min - rk.points).toLocaleString('de-DE')} P.` : null, rk.next.elite > rk.elite ? `${rk.next.elite - rk.elite} Elite` : null].filter(Boolean).join(' + ')} bis ${rk.next.title}`
-      : 'Höchster Rang erreicht';
-    const atRisk = days.current && !days.playedToday;
-    const serie = days.current ? `${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}` : weeks.current ? `${weeks.current} ${weeks.current === 1 ? 'Woche' : 'Wochen'}` : null;
-    return h('div', { class: 'prow', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
-      h('div', { class: 'badge sm', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
-      h('div', { class: 'prowmain' },
-        h('div', { class: 'prowtop' },
-          h('div', { class: 'prowname' },
-            h('b', {}, p.name, crown && crown.playerId === p.id ? h('span', { class: 'crown', title: 'Abend-Krone' }, ' 👑') : null),
-            h('span', { class: 'prowrank', style: `color: ${rk.rank.color}` }, rk.rank.title)),
-          serie ? h('span', { class: 'pill', title: 'Tage bzw. Wochen in Folge gespielt' }, `Serie ${serie}`) : null),
-        h('div', { class: 'rankbar' }, h('div', { style: { width: `${pct}%`, background: rk.rank.color } })),
-        h('div', { class: 'prowmeta' }, need),
-        goal ? h('div', { class: 'prowgoal' }, h('span', { class: 'dim' }, 'Nächstes Ziel '), `${goal.title} · noch ${goal.left.toLocaleString('de-DE')}`) : null,
-        atRisk ? h('div', { class: 'prowwarn' }, 'Heute noch spielen, damit die Serie hält') : null,
-      ),
-      h('span', { class: 'chev' }, '›'),
-    );
-  });
-  const progressEl = h('div', { class: 'card homecard' },
-    h('div', { class: 'cardhead' }, h('span', { class: 'cardtitle' }, 'Fortschritt'),
-      crown ? h('span', { class: 'dim small' }, `Abend-Krone: ${crown.name}`) : null),
-    rowsEl,
-  );
-  return [weekCard, progressEl];
+  if (s.homeShowProgress !== false && data.length) {
+    const rowsEl = data.map(({ p, rk, weeks, days, goal }) => {
+      const span = rk.next ? rk.next.min - rk.rank.min : 1;
+      const pct = rk.next ? Math.min(100, Math.round(((rk.points - rk.rank.min) / span) * 100)) : 100;
+      // Was zum nächsten Rang fehlt, ohne Emoji: „158 P. bis Weltranglisten-Spieler“
+      const need = rk.next
+        ? `${[rk.next.min > rk.points ? `${(rk.next.min - rk.points).toLocaleString('de-DE')} P.` : null, rk.next.elite > rk.elite ? `${rk.next.elite - rk.elite} Elite` : null].filter(Boolean).join(' + ')} bis ${rk.next.title}`
+        : 'Höchster Rang erreicht';
+      const atRisk = days.current && !days.playedToday;
+      const serie = days.current ? `${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}` : weeks.current ? `${weeks.current} ${weeks.current === 1 ? 'Woche' : 'Wochen'}` : null;
+      return h('div', { class: 'prow', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
+        h('div', { class: 'badge sm', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
+        h('div', { class: 'prowmain' },
+          h('div', { class: 'prowtop' },
+            h('div', { class: 'prowname' },
+              h('b', {}, p.name, crown && crown.playerId === p.id ? h('span', { class: 'crown', title: 'Abend-Krone' }, ' 👑') : null),
+              h('span', { class: 'prowrank', style: `color: ${rk.rank.color}` }, rk.rank.title)),
+            serie ? h('span', { class: 'pill', title: 'Tage bzw. Wochen in Folge gespielt' }, `Serie ${serie}`) : null),
+          h('div', { class: 'rankbar' }, h('div', { style: { width: `${pct}%`, background: rk.rank.color } })),
+          h('div', { class: 'prowmeta' }, need),
+          goal ? h('div', { class: 'prowgoal' }, h('span', { class: 'dim' }, 'Nächstes Ziel '), `${goal.title} · noch ${goal.left.toLocaleString('de-DE')}`) : null,
+          atRisk ? h('div', { class: 'prowwarn' }, 'Heute noch spielen, damit die Serie hält') : null,
+        ),
+        h('span', { class: 'chev' }, '›'),
+      );
+    });
+    const mine = data.find((d) => d.p.id === owner) || data[0];
+    cards.push(h('div', { class: `card homecard ${collapsed.prog ? 'folded' : ''}` },
+      head('prog', 'Fortschritt', crown ? h('span', { class: 'dim small' }, `Abend-Krone: ${crown.name}`) : null, `${mine.rk.rank.title} · ${mine.rk.points.toLocaleString('de-DE')} P.`),
+      collapsed.prog ? null : [rowsEl, footer()]));
+  }
+  return cards.length ? cards : null;
+}
+
+/** Fenster: Wem gehört dieses Handy? Speichert die Auswahl in den Einstellungen. */
+function pickOwner(people, done) {
+  let s;
+  s = sheet(h('div', { class: 'stack' },
+    h('div', { class: 'sheethead' }, h('h2', {}, 'Wem gehört dieses Handy?'), h('button', { class: 'iconbtn', 'aria-label': 'Schließen', onclick: () => s.close() }, '✕')),
+    h('p', { class: 'dim', style: { margin: 0 } }, 'Die Startseite zeigt dann nur deinen Fortschritt, Statistik und Training starten mit dir. Ändern geht jederzeit unter Einstellungen.'),
+    people.map((p) => h('button', { class: 'btn', onclick: () => { updateSettings({ ownerId: p.id }); s.close(); done(); } }, displayName(p))),
+  ));
 }

@@ -12,6 +12,11 @@ export const DEFAULT_SETTINGS = {
   announceRequireName: true, // dabei den Namen dazusagen („Kevin, Rest 80“ statt „Rest 80“)
   taunts: true,              // Sticheleien, wenn jemand mehrere Aufnahmen in Folge unter 40 bleibt
   say26: true,               // bei 26 „Twenty fucking six“ statt „26“
+  ownerId: null,             // Wem gehört dieses Handy? (Spieler-Kennung) – Startseite zeigt dann nur ihn
+  homeAllPlayers: false,     // Startseite: trotzdem alle Spieler zeigen
+  homeShowWeek: true,        // Startseite: Karte „Wochenaufgaben“
+  homeShowProgress: true,    // Startseite: Karte „Fortschritt“
+  homeCollapsed: {},         // eingeklappte Karten der Startseite: { week, prog }
   voiceURI: null,            // gewählte Stimme (null = automatisch)
   speechRate: 1.0,
   speechPitch: 1.0,          // Stimmlage: unter 1 = tiefer (männlicher), über 1 = höher
@@ -98,6 +103,11 @@ export function renamePlayer(id, name) {
 export function removePlayer(id) {
   // Spieler wird nur aus der Auswahl entfernt; alte Statistiken behalten den Namen im Match.
   savePlayers(getPlayers().filter((p) => p.id !== id));
+}
+/** Spieler, dem dieses Handy gehört (Einstellungen), oder null, wenn keiner gewählt bzw. gelöscht ist. */
+export function ownerId() {
+  const id = getSettings().ownerId;
+  return id && getPlayers().some((p) => p.id === id) ? id : null;
 }
 export function playerName(id, fallback = '?') {
   const p = getPlayers().find((x) => x.id === id);

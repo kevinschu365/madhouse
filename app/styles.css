@@ -454,3 +454,15 @@ tr.tap:active { background: var(--surface2); }
 .prowgoal { font-size: 14px; }
 .prowwarn { font-size: 12px; color: var(--warn); }
 .prow .chev { color: #555; font-size: 22px; flex: none; align-self: center; }
+/* Startseite: Karten einklappbar, nur eigener Spieler */
+button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.homecard .cardright { display: inline-flex; align-items: center; gap: 10px; }
+.homecard .fold { color: #555; font-size: 20px; line-height: 1; transition: transform .15s; }
+.homecard .fold.open { transform: rotate(90deg); }
+.homecard.folded { padding-top: 14px; padding-bottom: 14px; }
+.tasklist li.done .tasktext { color: var(--text-dim); }
+.tasklist li.done::before { content: "✓"; border-color: var(--accent); background: var(--accent); color: #000; }
+.linkbtn { align-self: flex-start; padding: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--accent); }
+.tasklist .tasktext { flex: 1; min-width: 0; }
+.tasklist .taskstate { flex: none; font-size: 13px; font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.tasklist li.done .taskstate { color: var(--accent); }

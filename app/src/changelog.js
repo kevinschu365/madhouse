@@ -8,6 +8,24 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.8.4',
+    date: '27.10.2026',
+    items: [
+      'Wochenaufgaben: bei jeder Aufgabe steht dein Stand („1 / 2“), erledigte haben einen grünen Haken und „geschafft“',
+    ],
+  },
+  {
+    version: '1.8.3',
+    date: '27.10.2026',
+    items: [
+      '„Ich bin“: jedes Handy weiß, wem es gehört (Einstellungen › Dieses Handy)',
+      'Startseite zeigt dann nur deinen Fortschritt – „Alle Spieler zeigen“ bei Bedarf',
+      'Karten auf der Startseite einklappbar: Tipp auf den Titel, eingeklappt bleibt nur eine Zeile',
+      'Wochenaufgaben und Fortschritt lassen sich in den Einstellungen ganz ausblenden',
+      'Statistik und Training starten direkt mit deinem Spieler',
+    ],
+  },
+  {
     version: '1.8.2',
     date: '27.10.2026',
     items: [

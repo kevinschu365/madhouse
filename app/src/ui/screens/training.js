@@ -1,6 +1,6 @@
 // Trainingsbereich: Übungen für einen Spieler, mit Rekord und letztem Ergebnis je Variante.
 import { h, toast, promptDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName, ownerId } from '../../core/settings.js';
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
@@ -70,7 +70,7 @@ export const DRILLS = [
 export function render(root, params, nav) {
   const s = getSettings();
   const players = () => getPlayers();
-  let player = params.player || s.trainingPlayer || null;
+  let player = params.player || s.trainingPlayer || ownerId() || null;
   if (!players().some((p) => p.id === player)) player = players()[0]?.id || null;
   let camera = s.cameraEnabled;
   // Handeingabe im Training: pro Dart, Scheibe oder Summe (Summe nur X01 gegen den Computer, sonst pro Dart)
