@@ -6,6 +6,7 @@ import { wakeLockSupported } from '../../core/wakelock.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { showChangelog } from '../../changelog.js';
 import { offerSync, syncImportButton } from '../syncUi.js';
+import { importSync, SYNC_FORMAT } from '../../core/sync.js';
 import { listCameras } from '../../vision/camera.js';
 
 export function render(root, params, nav) {
@@ -165,8 +166,17 @@ export function render(root, params, nav) {
   async function doImport(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    e.target.value = ''; // dieselbe Datei kann so noch einmal gewählt werden
     try {
       const data = JSON.parse(await file.text());
+      // Abgleich-Datei vom anderen Handy hier gewählt? Dann zusammenführen statt ablehnen (nichts wird ersetzt).
+      if (data && data.format === SYNC_FORMAT) {
+        if (!(await confirmDialog('Abgleich-Datei erkannt', 'Das ist eine Abgleich-Datei vom anderen Handy. Die Spiele werden zu deinen dazugelegt, deine eigenen bleiben erhalten.', { ok: 'Zusammenführen' }))) return;
+        const r = await importSync(data);
+        toast(`${r.added} neu, ${r.updated} aktualisiert${r.newPlayers.length ? ` · neue Spieler: ${r.newPlayers.join(', ')}` : ''}`);
+        draw();
+        return;
+      }
       if (!(await confirmDialog('Sicherung importieren?', 'Vorhandene Matches und Statistiken werden durch die Sicherung ersetzt.', { ok: 'Importieren' }))) return;
       await importAll(data, { replace: true });
       reloadSettings();

@@ -8,6 +8,13 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.8.5',
+    date: '27.10.2026',
+    items: [
+      'Abgleich: „Sicherung importieren“ erkennt jetzt auch eine Abgleich-Datei und führt die Spiele zusammen, statt einen Fehler zu zeigen',
+    ],
+  },
+  {
     version: '1.8.4',
     date: '27.10.2026',
     items: [
