@@ -729,7 +729,7 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .livemain, .liveside { min-width: 0; }
 .liveside > .sechead:first-child { margin-top: 4px; }
 @media (min-width: 1300px) {
-  .livegrid.plan-auto { grid-template-columns: minmax(0, 2.2fr) minmax(340px, 1fr); }
+  .livegrid.plan-auto { grid-template-columns: minmax(0, 1.5fr) minmax(420px, 1fr); }
 }
 .boardgrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; }
 .boardtile { gap: 10px; padding: 14px 16px 12px; }
@@ -765,3 +765,406 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .drawslot { width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; background: var(--surface2); border: 2px solid transparent; font-size: 17px; font-weight: 700; color: var(--text); }
 .drawslot.bye { color: var(--text-dim); font-style: italic; font-weight: 600; }
 .drawslot.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }
+
+/* Live-Ansicht ab 1.18.0: Uhr, Fortschritt, Größe, freie Boards, Bereich „Turnier“ */
+.liveprog { height: 6px; border-radius: 999px; background: #1f1f1f; margin-top: 6px; max-width: 360px; overflow: hidden; }
+.liveprog i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .6s; }
+.liveclock { font-size: 30px; font-weight: 900; letter-spacing: .04em; padding: 0 8px; }
+.livescreen.tv .liveclock { font-size: 44px; }
+.toolbar .boardctl .small { min-width: 44px; text-align: center; color: var(--text-dim); }
+.bfreebody { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.bfreebody .qrimg svg { width: 130px; height: 130px; }
+.bsoon { font-size: 17px; }
+.bsoon b { font-size: 20px; }
+.sidehead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid #222; }
+.sidehead b { font-size: 18px; }
+.zoomctl { display: inline-flex; align-items: center; gap: 8px; }
+.zoomctl .toolbtn { min-width: 34px; height: 34px; font-size: 16px; }
+.zoomctl .num { min-width: 46px; text-align: center; color: var(--text-dim); font-size: 14px; }
+.livenext { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.nextcard { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid #262626; }
+.nextcard:first-child { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.nextno { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface2); font-weight: 900; font-size: 18px; }
+.nextcard:first-child .nextno { background: var(--accent); color: #000; }
+.nexttext { display: flex; flex-direction: column; min-width: 0; }
+.nexttext b { font-size: 20px; line-height: 1.2; }
+.nexttext .vs { color: var(--text-dim); font-weight: 600; }
+.bestgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.bestcard { padding: 12px 14px; border-radius: 14px; background: linear-gradient(180deg, #1a1408, var(--surface)); border: 1px solid color-mix(in srgb, #f5c542 35%, transparent); display: flex; flex-direction: column; gap: 2px; }
+.besticon { font-size: 22px; }
+.bestval { font-size: 34px; font-weight: 900; color: #f5c542; line-height: 1.1; }
+.bestlabel { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.bestwho { font-size: 15px; font-weight: 700; }
+.resultlist { display: flex; flex-direction: column; gap: 6px; }
+.resultrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid #222; font-size: 17px; }
+.resultrow > span:first-child { text-align: right; }
+.resultrow .win { font-weight: 900; color: var(--accent); }
+.resultrow > b { font-size: 20px; padding: 2px 10px; border-radius: 8px; background: var(--surface2); }
+/* Turnierbaum in der Live-Ansicht größer */
+.liveside .bcol { flex-basis: 220px; }
+.liveside .tside { font-size: 17px; padding: 10px 12px; }
+.liveside .tplay { font-size: 14px; padding: 6px; }
+.liveside .ttable { font-size: 16px; }
+.liveinfo { margin-top: 6px; }
+
+/* Live-Ansicht ab 1.19.0: Bereiche ordnen, Fokus */
+.sectionrow { gap: 10px; }
+.orderbtns { display: inline-flex; gap: 4px; }
+.orderbtns .toolbtn { min-width: 34px; height: 34px; font-size: 16px; }
+.orderbtns .toolbtn:disabled { opacity: .3; }
+.livescreen.focus .liveclock { font-size: 44px; }
+.livescreen.focus .livetitle h1 { font-size: 22px; }
+.livescreen.focus .bnum .phone { display: none; }
+
+/* Live-Ansicht ab 1.20.0: Beitreten als eine Zeile */
+.joinbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; }
+.joinbar .qrimg svg { width: 96px; height: 96px; }
+.joinmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.joinline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.joincode { font-size: 30px; letter-spacing: .1em; color: var(--accent); }
+.joincount { font-size: 22px; font-weight: 900; color: var(--warn); white-space: nowrap; }
+.joincount.ok { color: var(--accent); }
+
+/* Live-Ansicht ab 1.20.1: Kacheln mit Spiel stechen heraus, freie Boards treten zurück */
+.boardtile.running, .boardtile.called {
+  position: relative;
+  border-width: 2px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04) inset;
+  transform: translateY(-2px);
+}
+.boardtile.running {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(34,197,94,.22), rgba(34,197,94,0) 60%),
+    linear-gradient(180deg, #1b231e, #121614);
+  box-shadow: 0 14px 34px rgba(0,0,0,.55), 0 0 26px rgba(34,197,94,.28), 0 0 0 1px rgba(255,255,255,.05) inset;
+}
+.boardtile.called:not(.late) {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(245,158,11,.20), rgba(245,158,11,0) 60%),
+    linear-gradient(180deg, #221c12, #15120d);
+}
+.boardtile.late {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(245,197,66,.24), rgba(245,197,66,0) 60%),
+    linear-gradient(180deg, #24200f, #16140c);
+}
+.boardtile.running .bside { background: rgba(0,0,0,.28); }
+.boardtile.running .bside.on { background: linear-gradient(180deg, rgba(34,197,94,.26), rgba(34,197,94,.08)); box-shadow: 0 0 18px rgba(34,197,94,.25); }
+.boardtile.called .bside { background: rgba(0,0,0,.25); }
+.boardtile.free { background: #090909; border: 2px dashed #262626; box-shadow: none; opacity: .85; }
+
+/* Live-Ansicht ab 1.21.0: Boards im Mittelpunkt */
+.boardgrid.cols1 { grid-template-columns: minmax(0, 1fr); }
+.boardgrid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.boardgrid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .boardgrid.cols2, .boardgrid.cols3 { grid-template-columns: minmax(0, 1fr); } }
+/* Schrift wächst mit der Kachel */
+.boardtile { container-type: inline-size; }
+.brest { font-size: clamp(56px, 13cqw, 200px); }
+.bname { font-size: clamp(20px, 3.6cqw, 52px); }
+.bline, .bturn { font-size: clamp(14px, 2cqw, 28px); }
+.bturn b { font-size: clamp(16px, 2.6cqw, 34px); }
+.bway { font-size: clamp(14px, 2.2cqw, 30px); }
+.bfoot { font-size: clamp(13px, 1.7cqw, 24px); }
+.boardtile.called .bside .bname { font-size: clamp(24px, 4.4cqw, 64px); }
+.bfreebody .qrimg svg { width: clamp(110px, 16cqw, 220px); height: clamp(110px, 16cqw, 220px); }
+/* Fokus: die Seite füllt genau den Bildschirm, die Boards nehmen den freien Platz */
+.livescreen.focus { display: flex; flex-direction: column; height: calc((100vh - 24px) / var(--z, 1)); overflow: hidden; }
+.livescreen.focus > .livegrid { flex: 1; min-height: 0; display: flex; }
+.livescreen.focus .livemain { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.livescreen.focus .boardgrid { flex: 1; min-height: 0; grid-auto-rows: minmax(0, 1fr); }
+.livescreen.focus .boardtile { min-height: 0; overflow: hidden; }
+.livescreen.focus .bsides { flex: 1; }
+.livescreen.focus .bside { justify-content: center; }
+.livescreen.focus .liveinfo { flex: none; }
+/* Bestwerte: schmale Leiste in der Mitte */
+.bestgrid { grid-template-columns: repeat(auto-fit, minmax(200px, 280px)); justify-content: center; }
+.bestcard { flex-direction: row; align-items: center; gap: 10px; padding: 10px 14px; }
+.bestcard .besticon { font-size: 24px; }
+.bestcard .bestval { font-size: 30px; }
+.besttext { display: flex; flex-direction: column; min-width: 0; }
+.besttext .bestwho { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.livenext { grid-template-columns: repeat(auto-fit, minmax(240px, 340px)); justify-content: center; }
+.liveinfo .sechead { justify-content: center; }
+.livescreen.tv .brest { font-size: clamp(64px, 14cqw, 220px); }
+.livescreen.tv .bname { font-size: clamp(22px, 3.8cqw, 56px); }
+.livescreen.tv .bline, .livescreen.tv .bturn { font-size: clamp(16px, 2.1cqw, 30px); }
+.livescreen.tv .bturn b { font-size: clamp(18px, 2.7cqw, 36px); }
+.livescreen.tv .bway { font-size: clamp(16px, 2.3cqw, 32px); }
+.livescreen.tv .bfoot { font-size: clamp(14px, 1.8cqw, 26px); }
+.livescreen.focus .boardtile { display: flex; flex-direction: column; }
+.livescreen.focus .bsides { flex: 1; align-items: stretch; }
+.livescreen.focus .bfreebody { flex: 1; justify-content: center; }
+/* ab 1.21.1: Werfer-Hinweis */
+.bnow { display: inline-block; padding: .15em .7em; border-radius: 999px; background: var(--danger); color: #fff; font-weight: 900; letter-spacing: .03em; box-shadow: 0 0 16px rgba(239,68,68,.55); animation: nowpulse 1.6s ease-in-out infinite; }
+@keyframes nowpulse { 50% { box-shadow: 0 0 4px rgba(239,68,68,.2); filter: brightness(.85); } }
+.livescreen.focus > .livegrid { align-items: stretch; }
+/* Fokus: Kacheln haben eine feste Größe – Schrift nach Breite UND Höhe */
+.livescreen.focus .boardtile { container-type: size; }
+.livescreen.focus .brest { font-size: clamp(56px, min(17cqw, 24cqh), 280px); }
+.livescreen.focus .bname { font-size: clamp(20px, min(4.4cqw, 7cqh), 72px); }
+.livescreen.focus .bline, .livescreen.focus .bturn { font-size: clamp(14px, min(2.4cqw, 4cqh), 36px); }
+.livescreen.focus .bturn b { font-size: clamp(16px, min(3cqw, 5cqh), 44px); }
+.livescreen.focus .bway { font-size: clamp(14px, min(2.6cqw, 4.4cqh), 40px); }
+.livescreen.focus .bfoot { font-size: clamp(13px, min(1.8cqw, 3cqh), 28px); }
+.livescreen.focus .bnum { font-size: clamp(12px, min(1.5cqw, 2.6cqh), 22px); }
+
+/* ab 1.22.0: größere Zahlen, Leg-Punkte, Zusatzinfos je Spieler */
+.brest { font-size: clamp(64px, 17cqw, 240px); margin: 2px 0 4px; }
+.bname { font-size: clamp(22px, 4.2cqw, 60px); }
+.bline, .bturn { font-size: clamp(15px, 2.4cqw, 32px); }
+.bturn b { font-size: clamp(17px, 3cqw, 40px); }
+.livescreen.tv .brest { font-size: clamp(64px, 17cqw, 260px); }
+.livescreen.tv .bname { font-size: clamp(22px, 4.2cqw, 64px); }
+.livescreen.tv .bline, .livescreen.tv .bturn { font-size: clamp(16px, 2.4cqw, 34px); }
+.livescreen.focus .brest { font-size: clamp(64px, min(18cqw, 26cqh), 300px); }
+.livescreen.focus .bline, .livescreen.focus .bturn { font-size: clamp(15px, min(2.5cqw, 4.2cqh), 38px); }
+.livescreen.focus .bchips { font-size: clamp(12px, min(1.7cqw, 3cqh), 26px); }
+.bside { padding: clamp(10px, 1.6cqw, 22px) clamp(12px, 1.8cqw, 26px); }
+.bline { display: flex; align-items: center; flex-wrap: wrap; gap: 0 .5em; }
+.legdots { display: inline-flex; gap: .3em; }
+.legdots i { width: .7em; height: .7em; border-radius: 50%; border: 2px solid currentColor; opacity: .7; }
+.legdots i.on { background: var(--accent); border-color: var(--accent); opacity: 1; box-shadow: 0 0 8px rgba(34,197,94,.6); }
+.bchips { display: flex; flex-wrap: wrap; gap: .4em; margin-top: .5em; font-size: clamp(12px, 1.6cqw, 22px); }
+.bchips span { padding: .2em .6em; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--text-dim); font-weight: 700; white-space: nowrap; }
+.bchips span.gold { color: #f5c542; background: rgba(245,197,66,.12); }
+/* Fokus: Zahl darf mehr Höhe nehmen; Infos kompakt */
+.livescreen.focus .brest { font-size: clamp(56px, min(18cqw, 33cqh), 300px); line-height: .95; }
+.livescreen.focus .bname { font-size: clamp(18px, min(4.4cqw, 8.5cqh), 72px); }
+.livescreen.focus .bline, .livescreen.focus .bturn { font-size: clamp(13px, min(2.4cqw, 5.2cqh), 38px); }
+.livescreen.focus .bchips { font-size: clamp(11px, min(1.7cqw, 4cqh), 26px); margin-top: .3em; }
+.livescreen.focus .bturn { margin-top: .25em; }
+.livescreen.focus .bnum { margin-bottom: 0; }
+.livescreen.focus .boardtile { gap: clamp(4px, 1.4cqh, 12px); padding-top: clamp(8px, 2cqh, 16px); padding-bottom: clamp(8px, 2cqh, 14px); }
+.livescreen.focus .brest { font-size: clamp(56px, min(18cqw, 28cqh), 300px); }
+.livescreen.focus .bside { padding: clamp(6px, 2cqh, 18px) clamp(10px, 1.8cqw, 24px); }
+.livescreen.focus .bsides { min-height: 0; }
+/* Freie Boards: Inhalt immer mittig in der Kachel (auch wenn das Nachbar-Board die Zeile höher macht) */
+.boardtile.free { display: flex; flex-direction: column; }
+.boardtile.free .bfreebody { flex: 1; justify-content: center; }
+.boardtile .bsides { flex: 1; }
+.boardtile .bside { justify-content: center; }
+/* Bestwerte und Als Nächstes: mittige Reihe, Karten schrumpfen bei Bedarf statt umzubrechen */
+.bestgrid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bestgrid > .bestcard { flex: 0 1 260px; min-width: 180px; }
+.livenext { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.livenext > .nextcard { flex: 0 1 330px; min-width: 220px; }
+/* ab 1.22.1: Checkout-Weg bei beiden Spielern */
+.bway { display: inline-flex; align-items: baseline; gap: .3em; flex-wrap: wrap; margin-top: .35em; padding: .15em .6em; border-radius: 10px; background: rgba(245,158,11,.14); color: var(--warn); font-weight: 700; align-self: flex-start; }
+.bway b { color: #fff; letter-spacing: .04em; }
+/* ab 1.22.2: Spiel- und Leg-Average */
+.bavg { gap: 0 1em; }
+.bavg b { color: var(--text); }
+/* ab 1.22.3: Turnierlaufzeit unter der Uhr */
+.liveclockbox { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; padding: 0 8px; }
+.liveclockbox .liveclock { padding: 0; }
+.liveruntime { margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+.livescreen.tv .liveruntime, .livescreen.focus .liveruntime { font-size: 16px; }
+
+/* ab 1.22.4: Fokus mit vielen Bereichen darunter – Boards behalten eine Mindesthöhe, die Seite darf scrollen */
+.livescreen.focus { height: auto; min-height: calc((100vh - 24px) / var(--z, 1)); overflow: visible; }
+.livescreen.focus > .livegrid { flex: 1 0 auto; }
+.livescreen.focus .livemain { flex: 1 0 auto; }
+.livescreen.focus .boardgrid { flex: 1 0 auto; min-height: calc(60vh / var(--z, 1)); }
+
+/* ===== ab 1.23.0: Board-Kachel neu – jede Spieler-Hälfte richtet die Schrift nach sich selbst ===== */
+.livescreen .bside { container-type: inline-size; position: relative; display: flex; flex-direction: column; justify-content: center; gap: .15em; min-width: 0; }
+.livescreen .bside .bstop { display: flex; align-items: flex-start; justify-content: space-between; gap: .5em; min-width: 0; }
+.livescreen .bside .bname { font-size: clamp(16px, 8cqw, 64px); line-height: 1.15; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.livescreen .bside .bnow { flex: none; font-size: clamp(11px, 3.8cqw, 30px); margin-top: .15em; }
+.livescreen .bside .bmain { display: flex; align-items: center; gap: 5cqw; min-width: 0; }
+.livescreen .bside .brest { flex: none; font-size: clamp(44px, 30cqw, 280px); line-height: .9; margin: 0; }
+.livescreen .bside .bstats { display: flex; flex-direction: column; gap: .2em; min-width: 0; font-size: clamp(11px, 4.6cqw, 36px); font-weight: 700; color: var(--text-dim); }
+.livescreen .bside .bstats > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.livescreen .bside .bstats b { color: var(--text); }
+.livescreen .bside .blegs { display: flex; align-items: center; gap: .45em; }
+.livescreen .bside .bdarts b { color: var(--text); letter-spacing: .04em; }
+.livescreen .bside .bchips { font-size: clamp(10px, 3.4cqw, 26px); margin-top: .35em; }
+.livescreen .bside .bbottom { display: flex; align-items: center; justify-content: space-between; gap: .3em .8em; flex-wrap: wrap; margin-top: .3em; font-size: clamp(11px, 4.3cqw, 34px); color: var(--text-dim); font-weight: 600; }
+.livescreen .bside .bbottom b { color: var(--text); }
+.livescreen .bside .blast { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.livescreen .bside .bway { margin: 0; font-size: 1em; padding: .1em .55em; white-space: nowrap; }
+.livescreen .boardtile.called .bside .bname { font-size: clamp(22px, 11cqw, 90px); white-space: normal; }
+
+/* Fokus: Kacheln haben eine feste Größe – feste Aufteilung (Kopf / Spieler / Fuß), Schrift nach Breite UND Höhe der Hälfte */
+.livescreen.focus .boardtile.running, .livescreen.focus .boardtile.called { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.livescreen.focus .bsides { min-height: 0; height: 100%; }
+.livescreen.focus .bside { container-type: size; min-height: 0; height: 100%; overflow: hidden; }
+.livescreen.focus .bside .bname { font-size: clamp(14px, min(8cqw, 11cqh), 72px); }
+.livescreen.focus .bside .bnow { font-size: clamp(10px, min(3.8cqw, 6cqh), 32px); }
+.livescreen.focus .bside .brest { font-size: clamp(40px, min(30cqw, 40cqh), 320px); }
+.livescreen.focus .bside .bstats { font-size: clamp(10px, min(4.6cqw, 7.2cqh), 40px); }
+.livescreen.focus .bside .bchips { font-size: clamp(9px, min(3.4cqw, 5.6cqh), 28px); }
+.livescreen.focus .bside .bbottom { font-size: clamp(10px, min(4.3cqw, 6.8cqh), 36px); flex-wrap: nowrap; }
+.livescreen.focus .boardtile.called .bside .bname { font-size: clamp(18px, min(11cqw, 22cqh), 100px); }
+.livescreen.focus .bfoot { padding-top: 4px; }
+/* Schmale Spieler-Hälfte (z. B. Turnierbaum daneben oder 3 Boards nebeneinander): Werte unter die Zahl, Zahl breiter */
+@container (max-width: 340px) {
+  .livescreen .bside .bmain { flex-direction: column; align-items: flex-start; gap: .1em; }
+  .livescreen .bside .brest { font-size: clamp(44px, 42cqw, 280px); }
+  .livescreen .bside .bstats { font-size: clamp(11px, 6cqw, 30px); flex-direction: row; flex-wrap: wrap; gap: .1em .8em; }
+  .livescreen .bside .bname { font-size: clamp(16px, 10cqw, 48px); }
+  .livescreen .bside .bbottom, .livescreen .bside .bchips { font-size: clamp(10px, 5cqw, 26px); }
+  .livescreen.focus .bside .brest { font-size: clamp(40px, min(42cqw, 30cqh), 280px); }
+  .livescreen.focus .bside .bstats { font-size: clamp(10px, min(6cqw, 6.5cqh), 30px); }
+}
+
+/* ===== ab 1.23.1: Spieler-Hälfte als Raster – Zahl so groß wie möglich, Infos an den Rändern ===== */
+.livescreen .bside {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "rest stats" "bot bot"; column-gap: 3cqw; row-gap: .25em; align-content: stretch;
+}
+.livescreen .bside .bstop { grid-area: top; }
+.livescreen .bside .brest { grid-area: rest; align-self: center; font-size: clamp(48px, 33cqw, 340px); line-height: .88; letter-spacing: -.01em; }
+.livescreen .bside .bstats { grid-area: stats; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; text-align: right; gap: .4em; font-size: clamp(11px, 4.6cqw, 40px); }
+.livescreen .bside .bstatsend { display: flex; flex-direction: column; align-items: flex-end; gap: .15em; }
+.livescreen .bside .bstatsend > div { white-space: nowrap; }
+.livescreen .bside .blast { color: var(--text-dim); }
+.livescreen .bside .bbottom { grid-area: bot; display: flex; align-items: center; justify-content: space-between; gap: .3em .8em; flex-wrap: wrap; margin-top: .2em; font-size: clamp(10px, 3.6cqw, 30px); }
+.livescreen .bside .bchips { display: flex; flex-wrap: wrap; gap: .35em; margin: 0; font-size: 1em; }
+.livescreen .bside .bway { font-size: 1.1em; }
+/* Fokus: Schrift nach Breite UND Höhe der Hälfte */
+.livescreen.focus .bside .bname { font-size: clamp(14px, min(7.5cqw, 10cqh), 72px); }
+.livescreen.focus .bside .brest { font-size: clamp(40px, min(33cqw, 56cqh), 380px); }
+.livescreen.focus .bside .bstats { font-size: clamp(10px, min(4.6cqw, 6.8cqh), 44px); }
+.livescreen.focus .bside .bbottom { font-size: clamp(9px, min(3.6cqw, 5.4cqh), 32px); flex-wrap: nowrap; }
+/* Schmale Hälfte: Zahl oben über die ganze Breite, Werte darunter in einer Reihe */
+@container (max-width: 340px) {
+  .livescreen .bside { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "rest" "stats" "bot"; }
+  .livescreen .bside .brest { font-size: clamp(44px, 44cqw, 300px); }
+  .livescreen .bside .bstats { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; text-align: left; font-size: clamp(10px, 5.6cqw, 30px); gap: .1em .8em; }
+  .livescreen .bside .bstatsend { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: .1em .8em; }
+  .livescreen.focus .bside .brest { font-size: clamp(40px, min(44cqw, 34cqh), 300px); }
+  .livescreen.focus .bside .bstats { font-size: clamp(10px, min(5.6cqw, 6cqh), 30px); }
+}
+/* Raster sitzt im inneren .bgrid, damit es sich nach der Breite der Hälfte (Container) umstellen kann */
+.livescreen .bside { display: flex; flex-direction: column; }
+.livescreen .bside .bgrid {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "rest stats" "bot bot"; column-gap: 3cqw; row-gap: .25em;
+}
+@container (max-width: 340px) {
+  .livescreen .bside .bgrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto; grid-template-areas: "top" "rest" "stats" "bot"; }
+}
+
+/* ===== ab 1.24.0: Fokus-Seiten, Hervorhebungen in Baum und Gruppen ===== */
+.focustabs { display: inline-flex; gap: 4px; padding: 3px; border-radius: 14px; background: var(--surface); border: 1px solid #222; }
+.focustabs .toolbtn { font-size: 15px; padding: 0 12px; }
+.blast.newleg { color: var(--accent); font-weight: 800; }
+.livescreen.focus > .livegrid.pagegrid { display: block; }
+.focuspage { padding-top: 6px; }
+.focuspage .pagehint { text-align: center; color: var(--text-dim); font-weight: 700; }
+.focuspage .groupgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; }
+.focuspage .groupcard { padding: 14px 16px; }
+.focuspage .grouphead b { font-size: 22px; }
+.focuspage .ttable { font-size: 19px; }
+.focuspage .ttable td { padding-top: 8px; padding-bottom: 8px; }
+.focuspage .bracket { overflow-x: auto; gap: 16px; align-items: stretch; }
+.focuspage .bracket .bcol { flex: 1 1 0; min-width: 210px; }
+.focuspage .bracket .bgames { display: flex; flex-direction: column; justify-content: space-around; flex: 1; gap: 10px; }
+.focuspage .tside { font-size: 18px; padding: 10px 12px; }
+.focuspage .bhead { font-size: 15px; padding: 8px 0; }
+
+/* Gruppen: Weiterkommer-Plätze (1 und 2) */
+.ttable tr.zone td { background: rgba(34,197,94,.06); }
+.ttable tr.zone td:first-child { box-shadow: inset 4px 0 0 rgba(34,197,94,.45); }
+.ttable tr.zone.qual td { background: rgba(34,197,94,.13); }
+.ttable tr.zone.qual td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.ttable tr.zone td:nth-child(2) b { color: var(--accent); }
+.ttable tr.through td:nth-child(2) b::after { content: ' ✓'; }
+
+/* K.-o.: aktuelle Runde und Weiterkommer */
+.bcol.current { background: rgba(34,197,94,.07); border-radius: 14px; box-shadow: 0 0 0 2px rgba(34,197,94,.45); padding: 6px; }
+.bcol.current .bhead { color: var(--accent); }
+.bnowtag { margin-left: .5em; padding: .1em .5em; border-radius: 999px; background: var(--accent); color: #000; font-size: .8em; letter-spacing: .04em; }
+.bcol.past { opacity: .8; }
+.tside.win { background: linear-gradient(90deg, rgba(34,197,94,.22), rgba(34,197,94,.04)); color: var(--text); }
+.tside.win span::before { content: '▶ '; color: var(--accent); }
+.tside.lose { opacity: .45; }
+.tside.lose span { text-decoration: line-through; text-decoration-color: rgba(255,255,255,.35); }
+/* Fokus-Seite K.-o.: Baum über die ganze Bildschirmhöhe, Spiele je Runde gleichmäßig verteilt */
+.livescreen.focus .pagegrid .focuspage { min-height: calc((100vh - 110px) / var(--z, 1)); display: flex; flex-direction: column; }
+.livescreen.focus .focuspage .bracket { flex: 1; }
+.livescreen.focus .focuspage .bcol { display: flex; flex-direction: column; }
+.livescreen.focus .focuspage .tside { font-size: 22px; padding: 12px 14px; }
+.livescreen.focus .focuspage .tplay { font-size: 16px; }
+.livescreen.focus .focuspage .bhead { font-size: 17px; }
+/* Hochformat-Hälfte (z. B. 2 Boards im Fokus): Zahl groß und mittig, Werte zentriert darunter, Infos unten */
+@container (orientation: portrait) {
+  .livescreen .bside .bgrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "top" "rest" "stats" "bot"; row-gap: .6em; }
+  .livescreen.focus .bside .bname { font-size: clamp(16px, min(9cqw, 6.5cqh), 80px); }
+  .livescreen.focus .bside .brest { justify-self: center; align-self: center; font-size: clamp(48px, min(46cqw, 36cqh), 420px); }
+  .livescreen.focus .bside .bstats { align-items: center; text-align: center; justify-content: flex-start; gap: .35em; font-size: clamp(12px, min(6.4cqw, 4.8cqh), 44px); }
+  .livescreen.focus .bside .blegs { justify-content: center; }
+  .livescreen.focus .bside .bstatsend { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: .15em 1em; }
+  .livescreen.focus .bside .bbottom { justify-content: center; flex-wrap: wrap; font-size: clamp(10px, min(4.8cqw, 3.6cqh), 32px); }
+  .livescreen.focus .bside .bchips { justify-content: center; }
+}
+/* Fokus-Seite Gruppen: groß, 2 × 2 bei bis zu 4 Gruppen, sonst 3 nebeneinander, über die ganze Höhe */
+.livescreen.focus .focuspage .groupgrid { flex: 1; grid-auto-rows: 1fr; gap: 16px; }
+.livescreen.focus .focuspage .groupgrid.gcols1 { grid-template-columns: minmax(0, 1fr); }
+.livescreen.focus .focuspage .groupgrid.gcols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.livescreen.focus .focuspage .groupgrid.gcols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.livescreen.focus .focuspage .groupcard { display: flex; flex-direction: column; justify-content: center; padding: 16px 20px; }
+.livescreen.focus .focuspage .grouphead b { font-size: 26px; }
+.livescreen.focus .focuspage .ttable { font-size: 24px; width: 100%; }
+.livescreen.focus .focuspage .ttable td { padding-top: 10px; padding-bottom: 10px; }
+.livescreen.focus .focuspage .pagehint { font-size: 18px; }
+
+/* ===== ab 1.25.0: Fernseher-Fenster, eine Reihe Boards im Fokus ===== */
+.tvurlrow { display: flex; align-items: center; gap: 12px; }
+.tvurlrow .qrimg svg { width: 110px; height: 110px; }
+.tvurl { word-break: break-all; font-size: 14px; }
+.viewerwait { max-width: 560px; margin: 20vh auto 0; text-align: center; font-size: 20px; display: flex; flex-direction: column; gap: 10px; }
+/* Nur eine Reihe Boards (z. B. 2 Boards): Boards gut halb so hoch wie der Bildschirm, darunter Bestwerte und
+   „Als Nächstes“ größer und mit mehr Luft – statt lang gezogener Kacheln */
+.livescreen.focus.onerow .boardgrid { flex: 0 0 auto; height: calc(58vh / var(--z, 1)); min-height: 0; margin-top: 1vh; }
+.livescreen.focus.onerow .livemain { justify-content: flex-start; }
+.livescreen.focus.onerow .liveinfo { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-evenly; padding: 1.5vh 0; }
+.livescreen.focus.onerow .liveinfo .sechead { font-size: 18px; }
+.livescreen.focus.onerow .bestgrid > .bestcard { flex-basis: 330px; padding: 14px 18px; }
+.livescreen.focus.onerow .bestcard .besticon { font-size: 30px; }
+.livescreen.focus.onerow .bestcard .bestval { font-size: 42px; }
+.livescreen.focus.onerow .bestcard .bestlabel { font-size: 15px; }
+.livescreen.focus.onerow .bestcard .bestwho { font-size: 19px; }
+.livescreen.focus.onerow .livenext > .nextcard { flex-basis: 400px; padding: 16px 20px; }
+.livescreen.focus.onerow .nexttext b { font-size: 26px; }
+.livescreen.focus.onerow .nexttext .dim { font-size: 17px; }
+.livescreen.focus.onerow .nextno { width: 46px; height: 46px; font-size: 22px; }
+/* Aufgerufenes Spiel (noch nicht begonnen): Namen groß in der Mitte der Hälfte */
+.livescreen .boardtile.called .bside .bgrid { grid-template-rows: minmax(0, 1fr); grid-template-areas: "top"; align-items: center; }
+.livescreen .boardtile.called .bside .bstop { justify-content: center; text-align: center; }
+.livescreen .boardtile.called .bside .bname { white-space: normal; }
+.livescreen.focus .boardtile.called .bside .bname { font-size: clamp(22px, min(12cqw, 16cqh), 120px); }
+
+/* ===== ab 1.26.0: Überwachung der Handys, Abmelden ===== */
+.phonecard > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 4px; }
+.phonecard > summary::-webkit-details-marker { display: none; }
+.phonecard > summary::after { content: '▾'; margin-left: auto; color: var(--text-dim); }
+.phonecard[open] > summary { margin-bottom: 8px; }
+.phonelist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.phonerow { display: grid; grid-template-columns: 80px minmax(120px, 1fr) 130px minmax(160px, 2fr) auto; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface2); font-size: 15px; }
+.phonerow.ok { box-shadow: inset 3px 0 0 var(--accent); }
+.phonerow.off { box-shadow: inset 3px 0 0 var(--warn); }
+.phonerow .warn { color: var(--warn); }
+.phonerow .btn.small { width: auto; min-height: 34px; padding: 4px 12px; font-size: 14px; }
+.boardtile.free.tap { cursor: pointer; }
+@media (max-width: 900px) { .phonerow { grid-template-columns: 1fr 1fr; } }
+.phonecard .warn { color: var(--warn); }
+
+/* ===== ab 1.27.0: Siegerehrung, Aufgabe, Anwurf ===== */
+.podiumpage { justify-content: space-evenly; text-align: center; }
+.podtitle { font-size: 34px; font-weight: 900; color: #f5c542; letter-spacing: .02em; }
+.podium { display: flex; justify-content: center; align-items: flex-end; gap: 18px; flex: 1; min-height: 340px; }
+.pod { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(28vw, 380px); }
+.podnames { display: flex; flex-direction: column; gap: 4px; }
+.podname { font-size: 32px; font-weight: 900; }
+.pod.p1 .podname { font-size: 44px; color: #f5c542; }
+.podblock { width: 100%; border-radius: 18px 18px 6px 6px; display: grid; place-items: center; background: linear-gradient(180deg, #2a2a2a, #151515); border: 2px solid #333; }
+.pod.p1 .podblock { height: 240px; background: linear-gradient(180deg, rgba(245,197,66,.45), rgba(245,197,66,.08)); border-color: #f5c542; box-shadow: 0 0 40px rgba(245,197,66,.35); }
+.pod.p2 .podblock { height: 170px; background: linear-gradient(180deg, rgba(200,200,210,.3), rgba(200,200,210,.05)); border-color: #c8c8d2; }
+.pod.p3 .podblock { height: 120px; background: linear-gradient(180deg, rgba(205,127,50,.35), rgba(205,127,50,.06)); border-color: #cd7f32; }
+.podnum { font-size: 64px; font-weight: 900; }
+.outtag { color: var(--danger); font-size: .75em; font-weight: 700; }
+/* Großer Knopf vor dem ersten Dart: „⇄ ANWURF WECHSELN“ (danach NO SCORE) */
+.btn.next.starterswitch { background: var(--surface2); color: var(--accent); border: 2px solid var(--accent); font-size: 18px; }

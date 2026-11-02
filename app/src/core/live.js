@@ -173,6 +173,21 @@ export const PRESENCE_TIMEOUT = 30000; // so lange ohne Meldung gilt ein Handy a
 let heartbeat = null;
 
 /** Name dieses Geräts für die Anzeige an der Turnierleitung. */
+/** Feste Kennung dieses Handys (zufällig, einmal erzeugt) – damit die Turnierleitung genau dieses Handy abmelden kann. */
+export function deviceId() {
+  let id = lsGet('liveDeviceId', null);
+  if (!id) { id = Math.random().toString(36).slice(2, 10); lsSet('liveDeviceId', id); }
+  return id;
+}
+
+/** Hat die Turnierleitung dieses Handy an seinem Board abgemeldet? (t.kick = { Board: Handy-Kennung }) */
+export const isKicked = (t, p) => !!(t && t.kick && p && p.id && t.kick[p.board] === p.id);
+
+/** Anmeldungen ohne die von der Turnierleitung abgemeldeten Handys (gelten als „left“). */
+export function withoutKicked(presence, t) {
+  return Object.fromEntries(Object.entries(presence || {}).map(([k, p]) => [k, isKicked(t, p) ? { ...p, left: true } : p]));
+}
+
 export function deviceName() {
   return lsGet('liveDevice', null) || (/iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : 'Handy');
 }
@@ -184,7 +199,8 @@ async function beat() {
   if (!info) return;
   // Online-Turnier schon beendet (gelöscht)? Dann nicht mehr melden – sonst entstünden dort neue Reste
   if (info.cloud && cloud && cloud.code === info.code && cloud.state && !cloud.state.tournament) return;
-  const p = { board, device: deviceName(), at: Date.now(), active: (lsGet('activeMatch', null) || {}).id || null };
+  // pending: Spielstände, die wegen Netz-Aussetzern noch nicht beim PC angekommen sind (Turnierleitung zeigt sie an)
+  const p = { board, id: deviceId(), device: deviceName(), at: Date.now(), active: (lsGet('activeMatch', null) || {}).id || null, pending: pendingCount() };
   try {
     if (info.cloud) await putPresence(info.code, p); else await call('/api/presence', p);
   } catch { /* nächster Versuch in 5 Sekunden */ }
@@ -195,6 +211,23 @@ export function startHeartbeat() {
   if (heartbeat) return;
   beat();
   heartbeat = setInterval(beat, PRESENCE_MS);
+}
+
+/**
+ * Board freigeben: Dieses Handy meldet sich sofort ab („left“), statt erst nach 30 Sekunden Stille als weg zu gelten.
+ * Die Turnierleitung zeigt dann gleich wieder den QR-Code des Boards, damit ein anderes Handy übernehmen kann.
+ */
+export async function leaveBoard() {
+  const board = myBoard();
+  if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
+  setMyBoard(null);
+  if (!board) return;
+  const info = await liveServer();
+  if (!info) return;
+  const p = { board, device: deviceName(), at: Date.now(), left: true };
+  try {
+    if (info.cloud) await putPresence(info.code, p); else await call('/api/presence', p);
+  } catch { /* dann gilt das Board nach 30 Sekunden ohne Meldung als frei */ }
 }
 
 /**
@@ -210,9 +243,15 @@ export function presenceTracker() {
         if (!p || !p.board) continue;
         const b = Number(p.board);
         const old = seen.get(b);
+        if (p.left) { seen.set(b, { at: p.at, localAt: now - PRESENCE_TIMEOUT, device: p.device }); continue; } // abgemeldet: sofort frei
         if (!old) seen.set(b, { at: p.at, localAt: now - PRESENCE_TIMEOUT, device: p.device });
         else if (old.at !== p.at) seen.set(b, { at: p.at, localAt: now, device: p.device });
       }
+    },
+    /** Wann (eigene Uhr) sich das Handy an diesem Board zuletzt gemeldet hat – oder null. */
+    lastSeen(board) {
+      const v = seen.get(Number(board));
+      return v ? v.localAt : null;
     },
     connected(now = Date.now()) {
       return new Set([...seen].filter(([, v]) => now - v.localAt < PRESENCE_TIMEOUT).map(([b]) => b));
@@ -222,7 +261,7 @@ export function presenceTracker() {
 
 /** Boards, an denen gerade ein Handy angemeldet ist (Set der Nummern), nach den Zeitstempeln der Handys. */
 export function connectedBoards(presence, now = Date.now()) {
-  return new Set(Object.values(presence || {}).filter((p) => p && now - p.at < PRESENCE_TIMEOUT).map((p) => Number(p.board)));
+  return new Set(Object.values(presence || {}).filter((p) => p && !p.left && now - p.at < PRESENCE_TIMEOUT).map((p) => Number(p.board)));
 }
 
 /** Welches Board zählt dieses Handy? (bleibt gespeichert) */

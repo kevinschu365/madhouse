@@ -13,7 +13,7 @@ export const nameOf = (t, id, label) => (id ? t.playerNames[id] || '?' : label |
 export function gameCard(t, g, { onTap = null, board = null, noPlay = false } = {}) {
   const side = (id, label) => h('div', { class: `tside ${g.winnerId && g.winnerId === id ? 'win' : g.winnerId ? 'lose' : ''}` },
     h('span', {}, nameOf(t, id, label)),
-    g.result ? h('b', { class: 'num' }, g.result.legs[id] ?? '') : null);
+    g.result ? h('b', { class: 'num' }, g.result.walkover ? (g.winnerId === id ? 'w.o.' : '–') : g.result.legs[id] ?? '') : null);
   const live = g.status === 'running' && g.match ? liveScore(g.match) : null;
   return h('div', {
     class: `tgame ${g.status}${onTap && ['ready', 'running', 'done'].includes(g.status) ? ' tap' : ''}`,
@@ -29,7 +29,9 @@ export function gameCard(t, g, { onTap = null, board = null, noPlay = false } = 
 export function liveScore(m) {
   try {
     const st = derive(m);
-    return `${st.legsWon.join(':')} · ${st.scores.join('–')}`;
+    // X01: beim Werfer schon die Darts der laufenden Aufnahme abziehen (wie in der Board-Kachel)
+    const scores = st.scores.map((v, i) => (m.mode === 'x01' && !st.finished && i === st.current && st.turnEval && st.turnEval.remaining != null ? st.turnEval.remaining : v));
+    return `${st.legsWon.join(':')} · ${scores.join('–')}`;
   } catch { return ''; }
 }
 
@@ -37,16 +39,20 @@ export function liveScore(m) {
 export function groupTable(t, grp, withKo) {
   return h('table', { class: 'hist ttable' },
     h('tr', { class: 'dim small' }, h('td', {}, '#'), h('td', {}, 'Spieler'), h('td', { class: 'num' }, 'Sp.'), h('td', { class: 'num' }, 'S'), h('td', { class: 'num' }, 'N'), h('td', { class: 'num' }, 'Legs')),
-    grp.table.map((r, i) => h('tr', { class: withKo && i < 2 && r.played ? 'qual' : i === 0 && r.played ? 'lead' : '' },
-      h('td', { class: 'num' }, i + 1), h('td', {}, h('b', {}, nameOf(t, r.id))),
+    // Weiterkommer-Plätze (1 und 2 bei Gruppen + K.-o.) immer markiert, mit Spielen kräftiger, bei fertiger Gruppe ✓
+    grp.table.map((r, i) => h('tr', { class: [withKo && i < 2 ? 'zone' : '', withKo && i < 2 && r.played ? 'qual' : !withKo && i === 0 && r.played ? 'lead' : '', withKo && i < 2 && grp.done ? 'through' : ''].join(' ') },
+      h('td', { class: 'num' }, i + 1), h('td', {}, h('b', {}, nameOf(t, r.id)), (t.withdrawn || {})[r.id] ? h('span', { class: 'outtag' }, ' aufgegeben') : null),
       h('td', { class: 'num' }, r.played), h('td', { class: 'num accent' }, r.won), h('td', { class: 'num' }, r.lost),
       h('td', { class: 'num' }, `${r.legsFor}:${r.legsAgainst}`))));
 }
 
 /** K.-o.-Baum: eine Spalte je Runde (waagerecht wischen). */
 export function bracket(t, st, opts = {}) {
-  return h('div', { class: 'bracket' }, st.koRounds.map((r) => h('div', { class: 'bcol' },
-    h('div', { class: 'bhead' }, r.name),
+  // Aktuelle Runde: die erste mit offenen Spielen (bei Gruppen + K.-o. erst, wenn die Gruppen fertig sind)
+  const open = (r) => r.games.some((g) => g.status !== 'done' && g.status !== 'bye');
+  const cur = t.format === 'gko' && !st.groupsDone ? -1 : st.koRounds.findIndex(open);
+  return h('div', { class: 'bracket' }, st.koRounds.map((r, i) => h('div', { class: `bcol ${i === cur ? 'current' : ''} ${i < cur || (cur < 0 && !open(r) && st.done) ? 'past' : ''}` },
+    h('div', { class: 'bhead' }, r.name, i === cur ? h('span', { class: 'bnowtag' }, 'läuft') : null),
     h('div', { class: 'bgames' }, r.games.map((g) => gameCard(t, g, { ...opts, board: opts.boardOf ? opts.boardOf(g) : null }))))));
 }
 

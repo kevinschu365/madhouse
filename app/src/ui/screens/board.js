@@ -5,7 +5,7 @@ import { h, toast } from '../dom.js';
 import { lsGet, lsSet } from '../../core/storage.js';
 import { unlock, say } from '../../audio/speech.js';
 import { tournamentState, boardStatus, planCalls, matchTag } from '../../core/tournament.js';
-import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards } from '../../core/live.js';
+import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards, leaveBoard, isKicked, withoutKicked, deviceId } from '../../core/live.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { showCode } from '../../core/cloud.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
@@ -49,9 +49,17 @@ export function render(root, params, nav) {
       body.replaceChildren(topbar('Board-Handy'), h('div', { class: 'card' }, h('b', {}, 'Noch kein Turnier live.'), h('div', { class: 'small dim' }, 'Am PC ein Turnier anlegen und „Live schalten“ tippen.')));
       return;
     }
+    // Von der Turnierleitung abgemeldet („📴 Handy abmelden“): Board verlassen, damit ein anderes Handy übernehmen kann
+    if (board && isKicked(t, { board, id: deviceId() })) {
+      const was = board;
+      await leaveBoard();
+      toast(`📴 Die Turnierleitung hat dieses Handy von Board ${was} abgemeldet.`);
+      nav.go('home');
+      return;
+    }
     // Beim Beitreten automatisch das erste freie Board (an dem gerade kein anderes Handy angemeldet ist)
     if ((!board || board > t.boards) && !manualPick) {
-      const taken = connectedBoards(state.presence || {});
+      const taken = connectedBoards(withoutKicked(state.presence || {}, t));
       const free = Array.from({ length: t.boards }, (_, i) => i + 1).find((b) => !taken.has(b));
       if (free) {
         board = free; setMyBoard(board);
@@ -121,9 +129,12 @@ export function render(root, params, nav) {
       h('div', { class: 'small dim' }, `${t.name}${pendingCount() ? ` · ⚠️ ${pendingCount()} Spielstand wartet auf Übertragung` : ''}`),
       content,
       h('button', { class: 'btn ghost', onclick: () => { manualPick = true; tick(); } }, 'Anderes Board wählen'),
+      // Handy abmelden: die Turnierleitung zeigt sofort wieder den QR-Code dieses Boards (ein anderes Handy kann übernehmen)
+      cloudInfo ? null : h('button', { class: 'btn ghost', onclick: async () => { await leaveBoard(); toast(`📴 Board ${board} freigegeben`); nav.go('home'); } }, `📴 Board ${board} freigeben (Handy abmelden)`),
       // Online: Spiele dieses Turniers in die eigene Statistik übernehmen (Spieler wählbar) und das Turnier verlassen
       cloudInfo ? h('button', { class: 'btn', onclick: () => importSyncData(cloudSyncData(t, state.matches)) }, '📥 Turnier-Spiele in meine Statistik übernehmen') : null,
-      cloudInfo ? h('button', { class: 'btn ghost', onclick: () => { setCloudCode(null); setMyBoard(null); nav.go('home'); } }, `🌐 Turnier verlassen (Code ${showCode(cloudInfo.code)})`) : null,
+      cloudInfo ? h('button', { class: 'btn ghost', onclick: async () => { await leaveBoard(); toast(`📴 Board ${board} freigegeben`); nav.go('home'); } }, `📴 Board ${board} freigeben (im Turnier bleiben)`) : null,
+      cloudInfo ? h('button', { class: 'btn ghost', onclick: async () => { await leaveBoard(); setCloudCode(null); nav.go('home'); } }, `🌐 Turnier verlassen (Code ${showCode(cloudInfo.code)})`) : null,
     );
   }
 

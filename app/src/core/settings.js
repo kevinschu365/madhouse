@@ -39,7 +39,12 @@ export const DEFAULT_SETTINGS = {
   tourDelayWarn: true,       // warnen, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat
   tourSound: true,           // Ansagen am PC (Aufrufe, Pausen, Highlights); Knopf 🔊 in der Live-Ansicht
   tourPlan: 'auto',          // Live-Ansicht: Turnierbaum/Tabellen 'auto' (breit: daneben) | 'below' | 'off'
-  tourBig: false,            // Live-Ansicht: große Schrift
+  tourRotate: true,          // Fokus/Fernseher: in Pausen automatisch Boards → Gruppen → K.-o. wechseln
+  tourRotateSec: 20,         // … alle so viele Sekunden
+  tourZoomTv: 1,             // Fernseher-Fenster: eigene Größe (A− / A+)
+  tourPlanZoomTv: 1,         // Fernseher-Fenster: eigene Größe der Bereiche
+  tourZoom: 1,               // Live-Ansicht: Größe von allem (A− / A+, 0,8–1,6)
+  tourPlanZoom: 1,           // Live-Ansicht: Größe des Bereichs „Turnier“ (− / ＋, 0,7–2)
 };
 
 let settings = { ...DEFAULT_SETTINGS, ...lsGet('settings', {}) };

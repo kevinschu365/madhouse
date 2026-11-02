@@ -16,7 +16,7 @@ import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
 import { milestoneToast, rankUpScreen } from '../celebrate.js';
-import { startHeartbeat } from '../../core/live.js';
+import { startHeartbeat, leaveBoard } from '../../core/live.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -94,12 +94,34 @@ export function render(root, params, nav) {
   const camPanel = h('div', { class: 'campanel' });
   const padEl = h('div', { class: 'pad' });
   const nextBtn = h('button', { class: 'btn primary next', onclick: () => doNext('manual') }, 'WEITER');
+  // Anwurf wechseln (z. B. nach dem Ausbullen): Der große Knopf heißt vor dem ersten Dart „⇄ ANWURF WECHSELN“.
+  // Einmal gedrückt, wird er zum normalen NO-SCORE-Knopf. Wer mit No Score beginnt, tippt 0 ein.
+  let starterSwitched = false;
+  const canSwitchStarter = () => {
+    const m = session.match;
+    return !starterSwitched && !training && m.players.length >= 2 && m.turns.length === 0 && !session.state.turnDarts.length && !typed && !m.players.some(isBotId);
+  };
 
   const actions = h('div', { class: 'actions' },
     h('button', { class: 'btn', onclick: () => undo('dart') }, '↶ Dart'),
     h('button', { class: 'btn', onclick: () => undo('turn') }, '↶ Aufn.'),
     nextBtn,
   );
+
+  /** Anwurf an den nächsten Spieler geben (vor dem ersten Dart). Im Live-Turnier geht die Änderung an den PC. */
+  function switchStarter() {
+    const m = session.match;
+    if (m.turns.length || m.players.length < 2) return;
+    unlock();
+    starterSwitched = true;
+    m.firstStarter = (m.firstStarter + 1) % m.players.length;
+    m.updatedAt = Date.now();
+    session.set(m, 'starter', {});
+    session.persist().catch(() => {});
+    const name = m.playerNames[m.firstStarter];
+    banner(`${name} wirft an`, 1500);
+    say(speechText().next(name), { interrupt: true });
+  }
   // Hochformat: Kamera oben, Eingabe darunter, Knöpfe unten. Querformat: Knöpfe links unter dem Spielstand.
   const landscape = window.matchMedia('(orientation: landscape) and (min-width: 640px)');
   const left = h('div', { class: 'left' },
@@ -358,12 +380,15 @@ export function render(root, params, nav) {
     // X01: Solange in der Aufnahme nichts eingegeben ist, heißt „Weiter“ NO SCORE (rot) und trägt 0 ein
     const bot = botTurn();
     const noScore = st.mode.id === 'x01' && !st.finished && !darts.length && !typed && !bot;
-    nextBtn.classList.toggle('noscore', noScore);
+    const switchStarterNow = !bot && canSwitchStarter();
+    nextBtn.classList.toggle('starterswitch', switchStarterNow);
+    nextBtn.classList.toggle('noscore', (noScore && !switchStarterNow) || typed === '0');
     nextBtn.disabled = bot;
     let label = 'WEITER';
     if (bot) label = 'Computer wirft …';
     else if (ev.closed) label = `${darts.slice(0, ev.usedDarts).map(hitLabel).join(', ')} = ${turnText(ev, true)}  ▶`;
-    else if (noScore) label = 'NO SCORE';
+    else if (switchStarterNow) label = '⇄ ANWURF WECHSELN';
+    else if (noScore || typed === '0') label = 'NO SCORE';
     else if (typed) label = parseInt(typed, 10) === ev.startRemaining ? `CHECK ${typed} ✓` : `WEITER ${typed}`; // Summen-Eingabe
     nextBtn.textContent = label;
     nextBtn.style.fontSize = ev.closed ? '20px' : '';
@@ -547,6 +572,7 @@ export function render(root, params, nav) {
   async function doNext(reason) {
     if (session.state.finished) { showMatchEnd(); return; }
     if (botTurn() && reason !== 'bot') return; // Der Computer schließt seine Aufnahme selbst ab
+    if (reason === 'manual' && canSwitchStarter()) { switchStarter(); return; } // vor dem ersten Dart: Anwurf wechseln
     // Summen-Eingabe: eine eingetippte Zahl mit „Weiter“ übernehmen statt 0 einzutragen
     if (!useCamera && inputMode === 'total' && typed) { submitTotal(parseInt(typed, 10)); return; }
     // NO SCORE (X01, nichts eingegeben): als Summe 0 eintragen. So kommt bei möglichem Finish
@@ -644,7 +670,12 @@ export function render(root, params, nav) {
       m.tournament ? h('button', {
         class: 'btn primary',
         onclick: () => { s.close(); nav.go(m.liveBoard ? 'board' : 'tournament', { id: m.tournament.id, celebrate: true }); },
-      }, m.liveBoard ? `🎯 Zurück zu Board ${m.liveBoard}` : '🏆 Zurück zum Turnier') : null,
+      }, m.liveBoard ? `🎯 Nächstes Spiel auch an Board ${m.liveBoard}` : '🏆 Zurück zum Turnier') : null,
+      // Live-Turnier: Handy abmelden, damit ein anderes Handy dieses Board übernehmen kann (PC zeigt sofort den QR-Code)
+      m.tournament && m.liveBoard ? h('button', {
+        class: 'btn',
+        onclick: async () => { s.close(); await leaveBoard(); toast(`📴 Board ${m.liveBoard} freigegeben`); nav.go('home'); },
+      }, `📴 Board ${m.liveBoard} freigeben (Handy abmelden)`) : null,
       m.tournament ? null : h('button', {
         class: 'btn primary',
         onclick: () => {

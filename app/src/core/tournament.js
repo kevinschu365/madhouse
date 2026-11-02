@@ -5,7 +5,7 @@
 // und Spiele von anderen Handys kommen über den Abgleich oder den Turnier-Server ins Turnier.
 
 import { lsGet, lsSet } from './storage.js';
-import { derive, newId } from '../game/match.js';
+import { derive, newId, winsNeeded } from '../game/match.js';
 
 export const TOURNAMENT_FORMATS = { ko: 'K.-o.', rr: 'Jeder gegen Jeden', gko: 'Gruppen + K.-o.' };
 export const LIMITS = { ko: [4, 32], rr: [3, 8], gko: [8, 32] };
@@ -257,9 +257,17 @@ function matchesByGame(id, matches) {
 export function tournamentState(t, matches) {
   const byGame = matchesByGame(t.id, matches);
   const games = [];
+  // Aufgabe (t.withdrawn = { Spieler: Zeitpunkt }): offene Spiele dieses Spielers gewinnt der Gegner kampflos
+  const out_ = t.withdrawn || {};
+  const walkover = (g) => {
+    if (!g.a || !g.b || !(out_[g.a] || out_[g.b])) return null;
+    const winnerId = out_[g.a] && !out_[g.b] ? g.b : out_[g.b] && !out_[g.a] ? g.a : (out_[g.a] <= out_[g.b] ? g.b : g.a);
+    const need = winsNeeded(t.legsBestOf);
+    return { winnerId, legs: { [winnerId]: need, [winnerId === g.a ? g.b : g.a]: 0 }, at: Math.max(out_[g.a] || 0, out_[g.b] || 0), walkover: true };
+  };
   const add = (g) => {
     const m = byGame.get(g.key) || null;
-    const res = matchResult(m);
+    const res = matchResult(m) || walkover(g);
     let status = 'waiting';
     let winnerId = null;
     if (g.bye) { status = 'bye'; winnerId = g.a || g.b; }
@@ -269,7 +277,7 @@ export function tournamentState(t, matches) {
     const out = {
       ...g, status, match: m, winnerId,
       result: res && { ...res, players: [g.a, g.b] },
-      score: res ? `${res.legs[g.a] || 0} : ${res.legs[g.b] || 0}` : '',
+      score: res ? (res.walkover ? 'kampflos' : `${res.legs[g.a] || 0} : ${res.legs[g.b] || 0}`) : '',
     };
     games.push(out);
     return out;
@@ -363,6 +371,8 @@ export function queueOrder(games) {
  * Ergebnis: { calls: [{ board, game }], pauseUntil (Zeitpunkt, falls ein Board nur wegen der Pause frei bleibt) }.
  */
 export function planCalls(t, st, now = Date.now(), { boards: allowed = null } = {}) {
+  // Von Hand angehalten („⏸ Turnier anhalten“, t.pausedUntil): bis dahin keine neuen Aufrufe
+  if (t.pausedUntil && t.pausedUntil > now) return { calls: [], pauseUntil: t.pausedUntil, manualPause: true };
   const boards = boardStatus(t, st);
   const busy = new Set();
   for (const b of boards) if (b.game) { busy.add(b.game.a); busy.add(b.game.b); }
@@ -431,7 +441,7 @@ export function tournamentChampions(matches) {
  */
 export function pickWriter(t, st, board, game, busy = new Set()) {
   const byKey = new Map(st.games.map((g) => [g.key, g]));
-  const free = (p) => p && p !== game.a && p !== game.b && !busy.has(p);
+  const free = (p) => p && p !== game.a && p !== game.b && !busy.has(p) && !(t.withdrawn || {})[p]; // wer aufgegeben hat, schreibt nicht
   const last = Object.entries(t.calls || {})
     .filter(([key, c]) => c.board === board && byKey.get(key)?.status === 'done')
     .sort((x, y) => y[1].at - x[1].at)[0];

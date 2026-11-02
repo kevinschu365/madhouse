@@ -8,6 +8,171 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.27.0',
+    date: '02.11.2026',
+    items: [
+      'Spiel: Vor dem ersten Dart heißt der große Knopf „⇄ ANWURF WECHSELN“ (z. B. nach dem Ausbullen) – einmal gedrückt, wird er zu NO SCORE; mit No Score beginnen: 0 eintippen. Auch am Board-Handy im Turnier',
+      'Turnierleitung 🛠️: „Spieler gibt auf“ – offene Spiele gehen kampflos (w.o.) an die Gegner; zurücknehmbar',
+      'Turnierleitung 🛠️: Turnier anhalten (10–60 Min.) – laufende Spiele enden normal, danach wird bis zur Zeit nichts aufgerufen',
+      'Board antippen: „Aufruf nochmal ansagen“ und „Auf anderes Board verschieben“ (mit Ansage)',
+      'Karte „📱 Handys“: zeigt, wenn ein Handy Spielstände noch nicht senden konnte',
+      'Fokus/Fernseher: Seite „🏆 Siegerehrung“ mit Podest und Bestwerten – erscheint am Turnierende von selbst',
+    ],
+  },
+  {
+    version: '1.26.0',
+    date: '02.11.2026',
+    items: [
+      'Fernseher-Fenster zeigt keine QR-Codes und keinen Code mehr – verbunden wird nur über die Turnierleitung am Laptop',
+      'Turnierleitung: Handys abmelden („📴 Abmelden“) – z. B. wenn jemand vergessen hat, sein Board freizugeben',
+      'Neue Karte „📱 Handys“: je Board das Handy, letzte Meldung, was dort läuft, mit Abmelde-Knopf',
+      'Jedes Board-Handy hat jetzt eine eigene Kennung, damit genau das richtige abgemeldet wird',
+    ],
+  },
+  {
+    version: '1.25.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Neuer Knopf 🖥️ Fernseher – Fernseher-Fenster für den zweiten Bildschirm, Adresse/QR für ein anderes Gerät oder Fokus nur auf dem Laptop',
+      'Das Fernseher-Fenster zeigt nur die Fokus-Ansicht, ruft nichts auf und sagt nichts an – gesteuert wird am Laptop',
+      'In Pausen bzw. wenn kein Spiel läuft, wechselt der Fokus automatisch Boards → Gruppen → K.-o. (🔄, Dauer unter ⚙️), bei einem Aufruf sofort zurück',
+      'Fokus mit nur einer Reihe Boards (z. B. 2): Boards nicht mehr lang gezogen, Bestwerte und „Als Nächstes“ darunter größer mit mehr Abstand',
+      'Aufgerufene, noch nicht begonnene Spiele: Namen groß in der Mitte der Kachel',
+    ],
+  },
+  {
+    version: '1.24.0',
+    date: '02.11.2026',
+    items: [
+      'Fokus: oben drei Seiten zum Durchklicken – 🎯 Boards, 👥 Gruppen und 🌳 K.-o. jeweils bildschirmfüllend',
+      'Turnierbaum: aktuelle Runde umrahmt („läuft“), Weiterkommer grün mit ▶, Ausgeschiedene grau durchgestrichen',
+      'Gruppen: Plätze 1 und 2 (kommen weiter) mit grünem Balken; bei fertiger Gruppe mit ✓',
+      'Board-Kachel: Bei einem neuen Leg steht „Neues Leg“ statt der alten Aufnahme aus dem vorigen Leg',
+      'Fokus mit 2 Boards: Die Kachel stellt sich auf Hochformat um – Zahl groß und mittig, Werte zentriert darunter',
+      'Fokus-Seiten Gruppen und K.-o. füllen den ganzen Bildschirm (Gruppen 2 × 2 bzw. 3 nebeneinander)',
+    ],
+  },
+  {
+    version: '1.23.1',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Der Rest ist jetzt so groß wie möglich – Legs rechts oben, Zuletzt und Averages rechts unten in der Ecke',
+      'Die kleinen Infos (Darts, Max, F9, 180er) und der Checkout-Weg stehen am unteren Rand der Karte',
+    ],
+  },
+  {
+    version: '1.23.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Board-Kacheln neu aufgeteilt – der Rest ganz groß, Legs und Averages daneben, „wirft jetzt“ oben rechts in der Ecke',
+      'Die Schrift richtet sich nach jeder Spieler-Hälfte – die Karten sind gefüllt, nichts wird abgeschnitten oder überlappt',
+      'Fußzeile mit Schreiber und Spieldauer bleibt immer sichtbar (auch bei 4 Boards im Fokus)',
+      '„Zuletzt“ steht immer – am Leg-Anfang die letzte Aufnahme aus dem vorigen Leg; Checkout-Weg in derselben Zeile',
+      'Schmale Kacheln (Turnierbaum daneben): Werte rücken unter die Zahl, die Zahl wird dafür größer',
+    ],
+  },
+  {
+    version: '1.22.4',
+    date: '02.11.2026',
+    items: [
+      'Fokus: Die Boards behalten immer mindestens gut die halbe Bildschirmhöhe – auch wenn Tabellen und Turnierbaum eingeblendet sind',
+      'Fokus: Ist unten mehr eingeblendet, als auf den Bildschirm passt, kann man jetzt scrollen',
+    ],
+  },
+  {
+    version: '1.22.3',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Unter der Uhr steht die Turnierlaufzeit („Turnier läuft 1:24 Std.“), mit Zeitplan auch das geschätzte Ende',
+    ],
+  },
+  {
+    version: '1.22.2',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Beide Averages je Spieler – „Ø Spiel“ und „Ø Leg“ (laufendes Leg)',
+      'Board-Kacheln ohne Emojis: „wirft jetzt“, „Checkout: …“, „6 Darts“, „Max 140“',
+    ],
+  },
+  {
+    version: '1.22.1',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: „✅ Checkout: T20 T20 D20“ steht bei jedem Spieler, dessen Rest auscheckbar ist – nicht nur beim Werfer',
+    ],
+  },
+  {
+    version: '1.22.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Rest und Namen in den Board-Kacheln deutlich größer – die Zahlen füllen die Karte',
+      'Legs als Punkte: ●○ = 1 von 2 nötigen Legs gewonnen',
+      'Zusatzinfos je Spieler: Darts im Leg, höchste Aufnahme, First 9 und 180er',
+      'Fokus mit 4 Boards: Zahlen etwa ein Viertel größer, ohne dass unten etwas abgeschnitten wird',
+      'Freie Boards zeigen ihren Inhalt mittig; Bestwerte und „Als Nächstes“ stehen in einer mittigen Reihe statt umzubrechen',
+    ],
+  },
+  {
+    version: '1.21.1',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Beim Werfer steht rot „🎯 wirft jetzt“ (bzw. seine Darts) und darunter trotzdem „Zuletzt: …“',
+      'Fokus: Auch bei nur 1–2 Boards füllen die Kacheln die ganze Höhe, die Zahlen werden entsprechend größer',
+    ],
+  },
+  {
+    version: '1.21.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Höchstens 2 Boards nebeneinander (ab 5 Boards 3) – die Kacheln werden groß, die Schrift wächst mit',
+      'Im Fokus füllen die Boards den ganzen Bildschirm, unten nur noch Bestwerte und die nächsten 4 Spiele',
+      'Bestwerte als schmale Leiste in der Mitte (Zahl und Name in einer Zeile), standardmäßig über „Als Nächstes“',
+      '⚙️ › Anzeige: Boards nebeneinander wählbar (Auto, 1, 2, 3)',
+    ],
+  },
+  {
+    version: '1.20.1',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Boards mit laufendem Spiel stechen heraus – heller Hintergrund, grünes Leuchten, leichter Schatten',
+      'Aufgerufene Spiele leuchten orange, freie Boards treten dunkel mit gestricheltem Rand zurück',
+    ],
+  },
+  {
+    version: '1.20.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Beitreten steht jetzt in einer schmalen Zeile (ein QR-Code, Code, Zahl der Handys) – die vielen QR-Codes oben sind weg',
+      'Den QR-Code für ein bestimmtes Board zeigt die Kachel des freien Boards',
+      'Board-Handy nach dem Spiel: „🎯 Nächstes Spiel auch an Board 3“ oder „📴 Board freigeben“',
+      'Board freigeben meldet das Handy sofort ab – am PC erscheint gleich wieder der QR-Code, ein anderes Handy kann übernehmen',
+      'War dort schon das nächste Spiel aufgerufen, nimmt der PC den Aufruf zurück – das Spiel geht an ein Board mit Handy',
+    ],
+  },
+  {
+    version: '1.19.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: Neuer Knopf 👁 oben – Als Nächstes, Bestwerte, Letzte Ergebnisse und Turnierbaum ein- und ausblenden',
+      'Reihenfolge dieser Bereiche frei wählbar (↑ / ↓ unter 👁 oder ⚙️ › Anordnung)',
+      'Neuer Knopf 🎯 Fokus: nur Uhr, Boards, Als Nächstes und Bestwerte – was der Fokus zeigt, ist einstellbar',
+      'Unter jedem Spieler steht jetzt „Legs 1 von 2“: so viele Legs braucht man zum Sieg',
+      'Die Leiste „📋 Turnier“ mitten auf der Seite ist weg – ihre Größen-Knöpfe − 📋 ＋ sitzen jetzt oben in der Leiste',
+      'Behoben: „Bald geschafft“ auf der Meilenstein-Seite wurde seit 1.18.0 als Raster statt als Liste angezeigt',
+    ],
+  },
+  {
+    version: '1.18.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung: A− / A+ oben macht alles kleiner oder größer, − / ＋ im Bereich „Turnier“ nur diesen Bereich (wird gespeichert)',
+      'Neu: große Uhr oben und ein Fortschrittsbalken fürs Turnier',
+      'Neu: „🔥 Turnier-Bestwerte“ (180er, höchstes Finish, bester Average, beste Aufnahme) und „🏁 Letzte Ergebnisse“',
+      '„Als Nächstes“ als große, nummerierte Karten, Turnierbaum größer',
+      'Freies Board ohne Handy zeigt seinen QR-Code direkt in der Kachel, sonst das Spiel, das gleich dort startet',
+    ],
+  },
+  {
     version: '1.17.0',
     date: '02.11.2026',
     items: [
