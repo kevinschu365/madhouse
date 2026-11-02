@@ -8,6 +8,29 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.17.0',
+    date: '02.11.2026',
+    items: [
+      'Turnier anlegen: Starke Spieler mit ⭐ setzen (den besten zuerst) – sie treffen sich erst spät, ⭐1 und ⭐2 frühestens im Finale',
+      'Freilose gehen an die Gesetzten; bei Gruppen kommt jeder Gesetzte in eine andere Gruppe',
+      'Neu: „✏️ Auslosung ändern“ vor dem ersten Spiel – zwei Spieler antippen, sie tauschen die Plätze (auch mit Freilosen)',
+      '„🎲 Neu auslosen“: Die Gesetzten bleiben gesetzt, alle anderen werden neu zugelost',
+    ],
+  },
+  {
+    version: '1.16.0',
+    date: '02.11.2026',
+    items: [
+      'Turnierleitung neu: Jedes Board zeigt links und rechts den Rest groß, dazu Legs und Average',
+      'Wer wirft, ist grün markiert (▶) – mit den Darts der laufenden Aufnahme und ab Rest 170 dem Checkout-Weg',
+      'Beim anderen Spieler steht „Zuletzt: …“, unten Schreiber und seit wann das Spiel läuft; oben Runde und Best of',
+      'Neue Leiste oben: Boards − / ＋, 🔊 Ansagen an/aus, QR-Codes ein/aus, ⚙️ Einstellungen, 📺 Fernseher',
+      '⚙️ in der Turnierleitung: Ton, Highlights, Schreiber, Turnierbaum daneben/darunter/aus, große Schrift',
+      'QR-Codes klappen von selbst zu, sobald alle Handys verbunden sind; auf breiten Bildschirmen steht der Turnierbaum rechts',
+      'Turnier-Seite: Läuft das Turnier live, gibt es oben „🖥️ Zur Turnierleitung“ statt der Spielen-Knöpfe; ‹ in der Turnierleitung führt zur Turnier-Seite',
+    ],
+  },
+  {
     version: '1.15.2',
     date: '02.11.2026',
     items: [

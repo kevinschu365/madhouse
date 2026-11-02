@@ -5,7 +5,7 @@ import { h, toast, promptDialog, confirmDialog } from '../dom.js';
 import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGuest, isGuestId } from '../../core/settings.js';
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
-import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
+import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, canEditDraw, swapDraw, redraw, groupName, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
 import { liveServer, postTournament, setCloudCode, setMyBoard, liveActive, endLive } from '../../core/live.js';
 import { cloudEnabled, newCode, normCode, showCode, fetchState } from '../../core/cloud.js';
 import { confetti } from '../celebrate.js';
@@ -112,6 +112,7 @@ export function render(root, params, nav) {
       boards: last.boards || 2, pauseMin: last.pauseMin ?? 0,
       selected: (last.players || []).filter((id) => getPlayers().some((p) => p.id === id)),
       guests: [], // Gäste dieses Turniers (ohne Statistik)
+      seeded: [], // gesetzte Spieler ⭐, bester zuerst
     };
     const draw = () => {
       const players = getPlayers();
@@ -189,6 +190,21 @@ export function render(root, params, nav) {
           }, '＋ Gäste'),
           players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); cfg.guests = []; draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
         cfg.guests.length ? h('p', { class: 'dim small', style: { margin: 0 } }, '👤 Gäste spielen mit, bekommen aber keine Statistik und keine Meilensteine. Für ihre Gegner zählt das Match normal.') : null,
+        // Setzliste: die Stärksten antippen (bester zuerst), damit sie sich nicht schon in Runde 1 rauswerfen
+        cfg.format !== 'rr' && n ? [
+          sec('⭐ Gesetzt (optional)', cfg.seeded.length ? h('button', { class: 'chip', onclick: () => { cfg.seeded = []; draw(); } }, 'Keinen') : null),
+          h('div', { class: 'chips' }, cfg.selected.map((id) => {
+            const k = cfg.seeded.indexOf(id);
+            const nm = isGuestId(id) ? `👤 ${cfg.guests.find((g) => g.id === id)?.name || '?'}` : displayName(players.find((p) => p.id === id), players);
+            return h('button', {
+              class: `chip ${k >= 0 ? 'on seed' : ''}`,
+              onclick: () => { cfg.seeded = k >= 0 ? cfg.seeded.filter((x) => x !== id) : [...cfg.seeded, id]; draw(); },
+            }, k >= 0 ? h('span', { class: 'pick num' }, `⭐${k + 1}`) : null, nm);
+          })),
+          h('p', { class: 'dim small', style: { margin: 0 } }, cfg.format === 'ko'
+            ? `Die Stärksten antippen, den besten zuerst. Gesetzte treffen sich erst spät: ⭐1 und ⭐2 frühestens im Finale, ⭐1–4 frühestens im Halbfinale.${size(n) > n ? ` Die ${size(n) - n} Freilos${size(n) - n > 1 ? 'e' : ''} bekommen die Gesetzten.` : ''} Alle anderen werden zugelost.`
+            : `Die Stärksten antippen, den besten zuerst. Jeder Gesetzte kommt in eine andere Gruppe (bei ${groupCount(n, cfg.groupSize)} Gruppen also bis zu ${groupCount(n, cfg.groupSize)} Gesetzte). Alle anderen werden zugelost.`),
+        ] : null,
         h('p', { class: 'dim small', style: { margin: 0 } }, info),
         h('button', {
           class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, disabled: !ready,
@@ -199,6 +215,7 @@ export function render(root, params, nav) {
                 name: cfg.name.trim() || 'Turnier', format: cfg.format, mode: cfg.mode,
                 options: cfg.mode === 'x01' ? { startScore: cfg.startScore, doubleOut: true } : { cutThroat: cfg.cutThroat },
                 legsBestOf: cfg.legsBestOf, input: cfg.input, camera: false, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin,
+                seeded: cfg.format === 'rr' ? [] : cfg.seeded.filter((id) => cfg.selected.includes(id)),
                 players: cfg.selected, playerNames: cfg.selected.map((id) => (isGuestId(id) ? cfg.guests.find((g) => g.id === id).name : displayName(players.find((p) => p.id === id), players))),
               });
             } catch (e) { toast(e.message); return; }
@@ -215,6 +232,55 @@ export function render(root, params, nav) {
     draw();
   }
 
+  // ---------- Auslosung ändern (vor dem ersten Spiel) ----------
+  // Zwei Spieler nacheinander antippen: sie tauschen die Plätze. Im K.-o. geht das auch mit Freilosen.
+  function drawEditDraw(t, matches, live) {
+    let pick = null; // erster angetippter Platz
+    const same = (a, b) => a && b && a.slot === b.slot && a.group === b.group && a.index === b.index;
+    const draw = () => {
+      const slotBtn = (pos, id) => h('button', {
+        class: `drawslot ${same(pick, pos) ? 'sel' : ''} ${id ? '' : 'bye'}`,
+        onclick: () => {
+          if (!pick) { pick = pos; draw(); return; }
+          if (same(pick, pos)) { pick = null; draw(); return; }
+          try { t = swapDraw(t, pick, pos); saveTournament(t); } catch (e) { toast(e.message); }
+          pick = null;
+          draw();
+        },
+      }, id ? h('span', {}, (t.seeded || []).includes(id) ? `⭐${t.seeded.indexOf(id) + 1} ` : '', nameOf(t, id)) : 'Freilos');
+      let content;
+      if (t.format === 'ko') {
+        const slots = t.ko.slots;
+        content = h('div', { class: 'drawgrid' }, Array.from({ length: slots.length / 2 }, (_, i) => h('div', { class: 'card drawpair' },
+          h('div', { class: 'small dim' }, `Spiel ${i + 1}${i === slots.length / 4 ? ' · untere Hälfte' : i === 0 ? ' · obere Hälfte' : ''}`),
+          slotBtn({ slot: 2 * i }, slots[2 * i] && slots[2 * i].p),
+          h('div', { class: 'vs small dim' }, 'gegen'),
+          slotBtn({ slot: 2 * i + 1 }, slots[2 * i + 1] && slots[2 * i + 1].p))));
+      } else {
+        content = h('div', { class: 'drawgrid' }, t.groups.map((list, gi) => h('div', { class: 'card drawpair' },
+          h('b', {}, t.format === 'rr' ? 'Teilnehmer' : groupName(gi)),
+          list.map((id, k) => slotBtn({ group: gi, index: k }, id)))));
+      }
+      body.replaceChildren(
+        topbar('Auslosung ändern', () => drawDetail(t, matches, live)),
+        h('p', { class: 'dim small', style: { margin: 0 } }, pick
+          ? '👉 Jetzt den Platz antippen, mit dem getauscht werden soll.'
+          : t.format === 'ko'
+            ? 'Zwei Spieler nacheinander antippen: Sie tauschen die Plätze. Spiele aus der oberen und der unteren Hälfte treffen sich erst im Finale.'
+            : 'Zwei Spieler nacheinander antippen: Sie tauschen die Gruppe. Die Gruppenspiele werden neu erstellt.'),
+        content,
+        h('button', {
+          class: 'btn',
+          onclick: async () => {
+            if (!(await confirmDialog('Neu auslosen?', (t.seeded || []).length ? 'Die Gesetzten bleiben gesetzt, alle anderen werden neu zugelost.' : 'Alle Plätze werden neu zugelost.', { ok: '🎲 Neu auslosen' }))) return;
+            t = redraw(t); saveTournament(t); pick = null; toast('🎲 Neu ausgelost'); draw();
+          },
+        }, '🎲 Neu auslosen'),
+        h('button', { class: 'btn primary', onclick: () => drawDetail(t, matches, live) }, 'Fertig'));
+    };
+    draw();
+  }
+
   // ---------- Ein Turnier ----------
   function drawDetail(t, matches, live) {
     let st;
@@ -223,9 +289,12 @@ export function render(root, params, nav) {
         h('button', { class: 'btn danger', onclick: () => { deleteTournament(t.id); nav.go('tournament'); } }, 'Turnierplan entfernen'));
       return;
     }
+    // Läuft dieses Turnier gerade live? Dann verteilt die Turnierleitung (Live-Ansicht) die Spiele, nicht diese Seite.
+    const isLive = !!live && (!!live.cloud || live.tid === t.id);
     const startGame = (g) => {
       unlock(); // iOS: Sprachausgabe durch diesen Tipp freischalten
       if (g.status === 'done' && g.match) { showMatchDetail(g.match); return; }
+      if (isLive) { toast('Läuft live: Die Spiele ruft die Turnierleitung auf.'); return; }
       if (g.status === 'running' && g.match) { nav.go('game', { match: g.match }); return; }
       const active = lsGet('activeMatch', null);
       if (active && active.status === 'running') { toast('Es läuft noch ein anderes Spiel – erst beenden.'); return; }
@@ -236,6 +305,11 @@ export function render(root, params, nav) {
     };
     const head = st.champion && st.done
       ? champCard(t, st)
+      : isLive ? h('div', { class: 'card stack' },
+        h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${t.legsBestOf === 1 ? '1 Leg' : `Best of ${t.legsBestOf} Legs`} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
+        h('b', {}, live.cloud ? `🌐 Läuft online · Code ${showCode(live.code)}` : '📶 Läuft live im WLAN'),
+        h('button', { class: 'btn primary big', onclick: () => nav.go('live') }, '🖥️ Zur Turnierleitung'),
+        h('div', { class: 'small dim' }, 'Die Turnierleitung ruft die Spiele automatisch an den Boards auf. Hier siehst du nur den Turnierplan.'))
       : h('div', { class: 'card stack' },
         h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${t.legsBestOf === 1 ? '1 Leg' : `Best of ${t.legsBestOf} Legs`} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
         live && !live.cloud ? h('button', {
@@ -253,6 +327,8 @@ export function render(root, params, nav) {
             try { await postTournament(t); nav.go('live'); } catch (e) { setCloudCode(null); toast(e.message); }
           },
         }, live && live.cloud ? `🌐 Online-Live öffnen (${showCode(live.code)})` : '🌐 Online live schalten (Beitreten per Code)') : null,
+        // Vor dem ersten Spiel: Paarungen bzw. Gruppen von Hand ändern
+        canEditDraw(t, matches) ? h('button', { class: 'btn ghost', onclick: () => drawEditDraw(t, matches, live) }, '✏️ Auslosung ändern (wer gegen wen)') : null,
         st.open.length
           ? [h('b', {}, st.open.length === 1 ? 'Nächstes Spiel' : `${st.open.length} Spiele bereit`),
             st.open.slice(0, 4).map((g, i) => h('button', { class: `btn ${i === 0 && !live ? 'primary' : ''}`, onclick: () => startGame(g) },
@@ -262,10 +338,11 @@ export function render(root, params, nav) {
     body.replaceChildren(
       topbar(t.name, () => nav.go('tournament')),
       head,
-      planView(t, st, { onTap: startGame }),
-      h('p', { class: 'dim small' }, live
-        ? 'Live: Die Board-Handys öffnen die App über den PC und wählen „Board-Handy“. Ergebnisse kommen sofort hierher.'
-        : 'Mehrere Boards gleichzeitig: Turnier-Server auf dem PC starten (werkzeuge › „Turnier-Server starten“), dann zählen die iPhones an den Boards und der PC zeigt alles live. Ohne Server geht es per Abgleich (Einstellungen).'),
+      // Live: aufgerufene Spiele zeigen ihr Board, „▶ Spielen“ gibt es nicht (das macht die Turnierleitung)
+      planView(t, st, { onTap: startGame, noPlay: isLive, boardOf: isLive ? (g) => (t.calls && t.calls[g.key] ? t.calls[g.key].board : null) : null }),
+      h('p', { class: 'dim small' }, isLive
+        ? 'Live-Turnier beenden: in der Turnierleitung ganz unten. Danach (oder ohne Live, z. B. mit nur einem Handy) startest du die Spiele hier selbst.'
+        : live ? 'Spielen ohne Live: Spiele hier antippen. Mit mehreren Boards: oben live schalten.' :'Mehrere Boards gleichzeitig: Turnier-Server auf dem PC starten (werkzeuge › „Turnier-Server starten“), dann zählen die iPhones an den Boards und der PC zeigt alles live. Ohne Server geht es per Abgleich (Einstellungen).'),
       h('div', { class: 'row' },
         h('button', {
           class: 'btn ghost',

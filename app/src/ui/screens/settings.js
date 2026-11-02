@@ -149,6 +149,7 @@ export function render(root, params, nav) {
       h('div', { class: 'card' },
         h('h3', {}, 'Turnier & Live'),
         h('p', { class: 'dim', style: { margin: '0 0 6px', fontSize: '13px' } }, 'Gilt für die Turnierleitung am PC (Live-Ansicht).'),
+        toggle('tourSound', 'Ansagen am PC', 'Aufrufe, Pausen und Sieger ansagen (auch in der Live-Ansicht oben mit 🔊 / 🔇)'),
         toggle('tourWriter', 'Schreiber ansagen', 'Beim Aufruf: „Schreiber: Nils“ – der Verlierer des letzten Spiels an diesem Board'),
         toggle('tourHighlights', 'Highlights auf dem Fernseher', '180 und Finishes ab 100 groß einblenden'),
         s.tourHighlights ? toggle('tourHighlightSpeech', 'Highlights ansagen', '„180! Kevin an Board 2“') : null,

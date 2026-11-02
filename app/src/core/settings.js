@@ -37,6 +37,9 @@ export const DEFAULT_SETTINGS = {
   tourOnlyConnected: true,   // nur Boards aufrufen, an denen ein Handy verbunden ist
   tourSchedule: true,        // geschätztes Turnierende anzeigen
   tourDelayWarn: true,       // warnen, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat
+  tourSound: true,           // Ansagen am PC (Aufrufe, Pausen, Highlights); Knopf 🔊 in der Live-Ansicht
+  tourPlan: 'auto',          // Live-Ansicht: Turnierbaum/Tabellen 'auto' (breit: daneben) | 'below' | 'off'
+  tourBig: false,            // Live-Ansicht: große Schrift
 };
 
 let settings = { ...DEFAULT_SETTINGS, ...lsGet('settings', {}) };

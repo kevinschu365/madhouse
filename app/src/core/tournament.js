@@ -108,39 +108,87 @@ function makeKo(seeds) {
  * format 'rr': jeder gegen jeden.
  * format 'gko': Gruppen (Größe groupSize), die besten 2 je Gruppe kommen ins K.-o.
  * boards: Zahl der Boards (für Aufrufe beim Live-Turnier), pauseMin: Pause vor jeder K.-o.-Runde.
+ * seeded: gesetzte Spieler, bester zuerst. K.-o.: Sie treffen sich erst spät (1 und 2 frühestens im Finale) und
+ * bekommen die Freilose. Gruppen: jeder Gesetzte in eine andere Gruppe. Alle anderen werden zugelost.
  */
-export function createTournament({ name, format, mode, options, legsBestOf, input, camera, players, playerNames, groupSize = 5, boards = 2, pauseMin = 0 }) {
+export function createTournament({ name, format, mode, options, legsBestOf, input, camera, players, playerNames, groupSize = 5, boards = 2, pauseMin = 0, seeded = [] }) {
   const n = players.length;
   const [min, max] = LIMITS[format] || [];
   if (!min || n < min || n > max) throw new Error(`${TOURNAMENT_FORMATS[format] || 'Dieses Format'} braucht ${min} bis ${max} Spieler.`);
-  const seeds = shuffled(players);
+  const top = seeded.filter((id, i) => players.includes(id) && seeded.indexOf(id) === i);
+  const seeds = [...top, ...shuffled(players.filter((id) => !top.includes(id)))];
   let groups = [];
   let ko = null;
   if (format === 'rr') groups = [seeds];
   if (format === 'gko') {
     const g = groupCount(n, groupSize);
     groups = Array.from({ length: g }, () => []);
-    seeds.forEach((id, i) => groups[i % g].push(id));
+    // Schlangenlinie: 1. Durchgang A, B, C …, 2. Durchgang … C, B, A (so landen Gesetzte nie zusammen)
+    seeds.forEach((id, i) => groups[Math.floor(i / g) % 2 ? g - 1 - (i % g) : i % g].push(id));
     // Setzliste fürs K.-o.: alle Gruppenersten, dann alle Zweiten (in anderer Reihenfolge)
     const order = shuffled(groups.map((_, i) => i));
     ko = makeKo([...order.map((g2) => ({ g: g2, place: 0 })), ...order.slice().reverse().map((g2) => ({ g: g2, place: 1 }))]);
   }
   if (format === 'ko') ko = makeKo(seeds.map((p) => ({ p })));
-  const groupGames = [];
-  groups.forEach((list, gi) => {
-    const perRound = {};
-    roundRobin(list).forEach((x, i) => {
-      const slot = perRound[x.round] = (perRound[x.round] ?? -1) + 1; // Nummer innerhalb der Runde (für die Reihenfolge)
-      groupGames.push({ key: `g${gi}-r${x.round}-${i}`, group: gi, round: x.round, slot, a: x.a, b: x.b });
-    });
-  });
   return {
     id: newId('t'), createdAt: Date.now(), name: name || 'Turnier', format, mode, options, legsBestOf,
     input: input || 'total', camera: !!camera,
     players: players.slice(), playerNames: Object.fromEntries(players.map((id, i) => [id, playerNames[i]])),
-    groups, groupGames, ko,
+    seeded: top, groupSize,
+    groups, groupGames: makeGroupGames(groups), ko,
     boards: Math.max(1, Math.min(8, boards || 2)), pauseMin: pauseMin || 0, calls: {},
   };
+}
+
+/** Spiele aller Gruppen (Jeder gegen Jeden je Gruppe). */
+function makeGroupGames(groups) {
+  const out = [];
+  groups.forEach((list, gi) => {
+    const perRound = {};
+    roundRobin(list).forEach((x, i) => {
+      const slot = perRound[x.round] = (perRound[x.round] ?? -1) + 1; // Nummer innerhalb der Runde (für die Reihenfolge)
+      out.push({ key: `g${gi}-r${x.round}-${i}`, group: gi, round: x.round, slot, a: x.a, b: x.b });
+    });
+  });
+  return out;
+}
+
+// ---------- Auslosung von Hand ändern (nur bevor das erste Spiel läuft) ----------
+
+/** Darf die Auslosung noch geändert werden? Kein Spiel begonnen, keins aufgerufen. */
+export function canEditDraw(t, matches) {
+  if (Object.keys(t.calls || {}).length) return false;
+  return !matches.some((m) => m.tournament && m.tournament.id === t.id && m.status !== 'aborted');
+}
+
+/**
+ * Zwei Plätze tauschen. K.-o.: x/y = { slot } (Platz in Runde 1, auch Freilose). Gruppen: x/y = { group, index }.
+ * Gibt das geänderte Turnier zurück oder wirft einen Fehler (z. B. zwei Freilose gegeneinander).
+ */
+export function swapDraw(t, x, y) {
+  const next = { ...t };
+  if (t.format === 'ko') {
+    const slots = t.ko.slots.slice();
+    [slots[x.slot], slots[y.slot]] = [slots[y.slot], slots[x.slot]];
+    for (let i = 0; i < slots.length; i += 2) if (!slots[i] && !slots[i + 1]) throw new Error('Zwei Freilose können nicht gegeneinander spielen.');
+    next.ko = { ...t.ko, slots };
+  } else {
+    const groups = t.groups.map((g) => g.slice());
+    [groups[x.group][x.index], groups[y.group][y.index]] = [groups[y.group][y.index], groups[x.group][x.index]];
+    next.groups = groups;
+    next.groupGames = makeGroupGames(groups);
+  }
+  return next;
+}
+
+/** Neu auslosen mit denselben Einstellungen und Gesetzten (Name, Kennung und Boards bleiben). */
+export function redraw(t) {
+  const fresh = createTournament({
+    name: t.name, format: t.format, mode: t.mode, options: t.options, legsBestOf: t.legsBestOf, input: t.input, camera: t.camera,
+    players: t.players, playerNames: t.players.map((id) => t.playerNames[id]), groupSize: t.groupSize || Math.round(t.players.length / Math.max(1, t.groups.length)),
+    boards: t.boards, pauseMin: t.pauseMin, seeded: t.seeded || [],
+  });
+  return { ...t, groups: fresh.groups, groupGames: fresh.groupGames, ko: fresh.ko, calls: {} };
 }
 
 // ---------- Stand berechnen ----------

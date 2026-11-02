@@ -598,7 +598,7 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .btn.big { min-height: 72px; font-size: 22px; }
 
 /* Live-Ansicht (PC / Fernseher) */
-.livescreen { max-width: 1400px; margin: 0 auto; }
+.livescreen { max-width: 1900px; margin: 0 auto; }
 .livehead { display: flex; align-items: center; gap: 12px; }
 .livetitle { flex: 1; min-width: 0; }
 .livetitle h1 { margin: 0; font-size: 26px; }
@@ -713,3 +713,55 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .joinrow .bigcode { text-align: left; }
 .qrimg.big svg { width: 190px; height: 190px; }
 @media (max-width: 560px) { .joinrow { flex-direction: column; text-align: center; } .joinrow .bigcode { text-align: center; } }
+
+/* Live-Ansicht ab 1.16.0: Leiste oben, Board-Kacheln mit zwei Hälften, Turnierplan daneben */
+.livehead { flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.toolbtn { min-width: 42px; height: 42px; padding: 0 10px; border-radius: 12px; background: var(--surface2); border: 1px solid #2a2a2a; font-size: 18px; font-weight: 800; color: var(--text); }
+.toolbtn.on { border-color: var(--accent); color: var(--accent); }
+.toolbar .boardctl { background: var(--surface); border: 1px solid #222; border-radius: 14px; padding: 3px 8px 3px 3px; gap: 8px; }
+.toolbar .boardctl .toolbtn { min-width: 36px; height: 36px; }
+.joincard { display: flex; flex-direction: column; align-items: flex-start; }
+.joincard > b.small { font-size: 15px; color: var(--text); }
+.codeline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; padding: 10px 16px; }
+.codeline b { font-size: 26px; letter-spacing: .1em; color: var(--accent); }
+.livegrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.livemain, .liveside { min-width: 0; }
+.liveside > .sechead:first-child { margin-top: 4px; }
+@media (min-width: 1300px) {
+  .livegrid.plan-auto { grid-template-columns: minmax(0, 2.2fr) minmax(340px, 1fr); }
+}
+.boardgrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; }
+.boardtile { gap: 10px; padding: 14px 16px 12px; }
+.bmeta { font-weight: 600; letter-spacing: .04em; text-transform: none; }
+.bsides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.bvs { align-self: center; font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.bside { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 14px; border: 2px solid transparent; background: rgba(255,255,255,.03); min-width: 0; }
+.bside.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.bname { font-size: 22px; font-weight: 900; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bside.on .bname { color: var(--accent); }
+.brest { font-size: 64px; font-weight: 900; line-height: 1; margin: 4px 0 2px; }
+.bline { font-size: 15px; font-weight: 700; color: var(--text-dim); }
+.bturn { font-size: 15px; margin-top: 6px; min-height: 1.3em; }
+.bturn b { font-size: 18px; letter-spacing: .04em; }
+.bway { font-size: 15px; font-weight: 800; color: var(--warn); margin-top: 2px; }
+.bfoot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; color: var(--text-dim); }
+.boardtile.called .bside .bname { font-size: 28px; white-space: normal; }
+/* Große Schrift (⚙️) und Fernseher */
+.livescreen.big .bname, .livescreen.tv .bname { font-size: 30px; }
+.livescreen.big .brest, .livescreen.tv .brest { font-size: 96px; }
+.livescreen.big .bline, .livescreen.big .bturn, .livescreen.tv .bline, .livescreen.tv .bturn { font-size: 19px; }
+.livescreen.big .bturn b, .livescreen.tv .bturn b { font-size: 24px; }
+.livescreen.big .bway, .livescreen.tv .bway { font-size: 20px; }
+.livescreen.big .bfoot, .livescreen.tv .bfoot { font-size: 17px; }
+.livescreen.tv.big .brest { font-size: 120px; }
+
+/* Turnier: Gesetzte und Auslosung von Hand ändern (ab 1.17.0) */
+.chip.seed { border-color: #f5c542; }
+.chip.seed .pick { background: #f5c542; color: #000; }
+.drawgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.drawpair { display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.drawpair .vs { text-align: center; }
+.drawslot { width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; background: var(--surface2); border: 2px solid transparent; font-size: 17px; font-weight: 700; color: var(--text); }
+.drawslot.bye { color: var(--text-dim); font-style: italic; font-weight: 600; }
+.drawslot.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }

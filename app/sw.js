@@ -4,7 +4,7 @@
 // Eine neue Version wird beim Installieren vollständig und frisch vom Server geholt (am Browser-Cache vorbei);
 // sobald sie aktiv ist, lädt die App einmal neu (src/app.js).
 // Bei jeder Veröffentlichung VERSION erhöhen und neue Dateien in FILES eintragen.
-const VERSION = 'madhouse-v1.15.2';
+const VERSION = 'madhouse-v1.17.0';
 const FILES = [
   './', './index.html', './styles.css', './manifest.webmanifest', './anleitung.html', './anleitung.pdf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg',

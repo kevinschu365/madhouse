@@ -5,9 +5,12 @@
 // Zeitplan, Warnung bei Verzögerung, Boards hinzufügen/entfernen, Ergebnis am PC eintragen.
 // Einstellungen: Einstellungen › Turnier & Live. Verbindung: WLAN-Server oder online (core/live.js).
 import { h, toast, confirmDialog, sheet } from '../dom.js';
-import { getPlayers, getSettings } from '../../core/settings.js';
+import { getPlayers, getSettings, updateSettings } from '../../core/settings.js';
 import { saveMatchWithThrows } from '../../core/storage.js';
-import { throwRows, createMatch, winsNeeded } from '../../game/match.js';
+import { throwRows, createMatch, winsNeeded, derive } from '../../game/match.js';
+import { playerStats } from '../../stats/stats.js';
+import { checkoutPaths } from '../../rules/checkout.js';
+import { hitLabel } from '../../core/board.js';
 import { say, unlock } from '../../audio/speech.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
@@ -33,6 +36,7 @@ export function render(root, params, nav) {
   let timer = null;
   let disposed = false;
   let tv = false;
+  let qrOpen = null;          // QR-Codes: null = automatisch, sonst von Hand ein/aus
   let info = null;
   let last = null;            // letzter Stand { t, st, matches, plan, presence }
   const saved = new Map();    // Match-Id -> updatedAt, schon in die eigene Statistik übernommen
@@ -43,7 +47,7 @@ export function render(root, params, nav) {
   let flashing = false;
   const fmtClock = (ts) => new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   const sec = (text, right = null) => h('div', { class: 'sechead' }, h('span', {}, text), right);
-  const announce = (key, text) => { if (said.has(key)) return; said.add(key); say(text); };
+  const announce = (key, text) => { if (said.has(key)) return; said.add(key); if (getSettings().tourSound) say(text); };
 
   function pickTournament() {
     const list = getTournaments();
@@ -79,7 +83,7 @@ export function render(root, params, nav) {
       flashing = true;
       flash.replaceChildren(h('div', { class: `hilitebox k${it.kind}` }, h('div', { class: 'hilitetext' }, it.text), it.board ? h('div', { class: 'hilitesub' }, `Board ${it.board}`) : null));
       flash.classList.remove('hidden');
-      if (getSettings().tourHighlightSpeech) say(it.speech + (it.board ? ` An Board ${it.board}.` : ''));
+      if (getSettings().tourSound && getSettings().tourHighlightSpeech) say(it.speech + (it.board ? ` An Board ${it.board}.` : ''));
       if (it.kind === '180' || it.kind === 'finish') confetti(1800, 80);
       setTimeout(next, 5500);
     };
@@ -218,6 +222,75 @@ export function render(root, params, nav) {
       h('button', { class: 'btn ghost', onclick: () => s.close() }, 'Abbrechen')));
   }
 
+  /** Einstellungen der Live-Ansicht (⚙️ in der Leiste oben): Ton, Anzeige, Ablauf. Wirkt sofort. */
+  function liveSettings() {
+    const box = h('div', { class: 'stack' });
+    const toggle = (key, label, note) => {
+      const s = getSettings();
+      return h('div', { class: 'list-item' },
+        h('span', { class: 'name' }, label, note ? h('div', { class: 'dim', style: { fontSize: '13px' } }, note) : null),
+        h('button', { class: `chip ${s[key] ? 'on' : ''}`, onclick: () => { updateSettings({ [key]: !s[key] }); fill(); draw(); } }, s[key] ? 'An' : 'Aus'));
+    };
+    const seg = (key, opts) => h('div', { class: `seg ${opts.length === 2 ? 'two' : ''}` }, opts.map(([v, label]) => h('button', {
+      class: getSettings()[key] === v ? 'on' : '', onclick: () => { updateSettings({ [key]: v }); fill(); draw(); },
+    }, label)));
+    const fill = () => {
+      const s = getSettings();
+      box.replaceChildren(
+        h('h2', {}, '⚙️ Live-Ansicht'),
+        sec('🔊 Ton'),
+        toggle('tourSound', 'Ansagen am PC', 'Aufrufe, Pausen, Sieger. Aus = alles nur auf dem Bildschirm'),
+        s.tourSound ? toggle('tourHighlightSpeech', 'Highlights ansagen', '„180! Kevin an Board 2“') : null,
+        s.tourSound ? h('button', { class: 'btn ghost', onclick: () => { unlock(); say('Test. Board 1: Ansage funktioniert.', { interrupt: true }); } }, '🔊 Ton testen') : null,
+        sec('🖥️ Anzeige'),
+        h('div', { class: 'small dim' }, 'Turnierbaum und Tabellen'),
+        seg('tourPlan', [['auto', 'Daneben'], ['below', 'Darunter'], ['off', 'Aus']]),
+        h('div', { class: 'small dim' }, 'Schriftgröße'),
+        seg('tourBig', [[false, 'Normal'], [true, 'Groß']]),
+        toggle('tourHighlights', 'Highlights einblenden', '180 und Finishes ab 100 groß auf dem Bildschirm'),
+        toggle('tourSchedule', 'Zeitplan anzeigen', 'Geschätztes Turnierende'),
+        sec('🎯 Ablauf'),
+        toggle('tourWriter', 'Schreiber ansagen', 'Verlierer des letzten Spiels an diesem Board'),
+        toggle('tourOnlyConnected', 'Nur Boards mit Handy aufrufen', 'Spiele gehen nur an Boards, an denen ein Handy angemeldet ist'),
+        toggle('tourDelayWarn', 'Warnung bei Verzögerung', 'Nach 5 Minuten nicht begonnen: gelb markieren und nochmal ansagen'),
+        h('button', { class: 'btn primary', onclick: () => sh.close() }, 'Fertig'));
+    };
+    fill();
+    const sh = sheet(box);
+  }
+
+  /** Spielstand je Spieler für die Board-Kachel: Rest, Legs, Average, laufende und letzte Aufnahme. */
+  function detail(m) {
+    try {
+      const d = derive(m);
+      const rows = throwRows(m);
+      const leg = d.legs[d.legs.length - 1];
+      const x01 = m.mode === 'x01';
+      return m.players.map((id, i) => {
+        const active = !d.finished && i === d.current;
+        const rest = active && x01 && d.turnEval && d.turnEval.remaining != null ? d.turnEval.remaining : d.scores[i];
+        const stats = x01 ? playerStats(rows.filter((r) => r.playerId === id)) : null;
+        const lastTurn = leg ? [...leg.turns].reverse().find((x) => x.player === i) : null;
+        return {
+          rest, active, legs: d.legsWon[i], sets: d.setsWon[i], showSets: d.setsNeeded > 1,
+          avg: stats && stats.average ? stats.average : null,
+          now: active ? d.turnDarts.map(hitLabel) : null,
+          dartsLeft: active ? d.dartsLeft : 0,
+          way: active && x01 && rest <= 170 ? (checkoutPaths(rest, d.dartsLeft || 3, 1)[0] || null) : null,
+          last: lastTurn,
+        };
+      });
+    } catch { return null; }
+  }
+
+  const turnText = (x) => {
+    if (!x) return '';
+    if (x.ev && x.ev.bust) return 'Überworfen';
+    const darts = (x.darts || []).filter((dt) => dt.source !== 'filled');
+    return darts.length ? `${darts.map(hitLabel).join(' ')} = ${x.ev.points}` : `${x.ev ? x.ev.points : ''}`;
+  };
+  const avgText = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
   // ---------- Anzeige ----------
   function draw() {
     if (!last) return;
@@ -233,6 +306,10 @@ export function render(root, params, nav) {
     const called = new Set(Object.keys(t.calls || {}));
     const next = queueOrder(st.games.filter((g) => g.status === 'ready' && !called.has(g.key))).slice(0, 6);
     const eta = s.tourSchedule && !st.done ? scheduleEstimate(t, st) : null;
+    const canJoin = (url || info?.cloud) && !st.done;
+    // QR-Codes: von Hand ein/aus, sonst offen, solange noch Handys fehlen und nichts gespielt ist
+    const qr = canJoin && (qrOpen ?? (connected.size < t.boards && !played));
+    body.classList.toggle('big', !!s.tourBig);
 
     const phonePill = (b) => {
       const p = raw[b.board];
@@ -240,48 +317,63 @@ export function render(root, params, nav) {
         ? h('span', { class: 'phone ok' }, `📱 ${p && p.device ? p.device : 'verbunden'}`)
         : h('span', { class: 'phone off' }, '⚠️ kein Handy');
     };
+    const head = (b, g) => h('div', { class: 'bnum' },
+      h('span', {}, `Board ${b.board}`, g ? h('span', { class: 'bmeta' }, ` · ${g.roundName} · Best of ${t.legsBestOf}`) : null),
+      phonePill(b));
+
+    // Eine Hälfte der Kachel: Name, großer Rest, Legs/Average, darunter laufende bzw. letzte Aufnahme
+    const half = (id, p) => h('div', { class: `bside ${p && p.active ? 'on' : ''}` },
+      h('div', { class: 'bname' }, p && p.active ? '▶ ' : '', nameOf(t, id)),
+      p ? [
+        h('div', { class: 'brest num' }, String(p.rest)),
+        h('div', { class: 'bline num' }, p.showSets ? `Sets ${p.sets} · ` : '', `Legs ${p.legs}`, p.avg ? ` · Ø ${avgText(p.avg)}` : ''),
+        p.active
+          ? h('div', { class: 'bturn' },
+            h('span', { class: 'dim' }, 'Wirft: '),
+            h('b', { class: 'num' }, [...p.now, ...Array(Math.max(0, p.dartsLeft)).fill('–')].join(' ') || '–'),
+            p.way ? h('div', { class: 'bway num' }, `Weg: ${p.way.join(' ')}`) : null)
+          : h('div', { class: 'bturn dim' }, p.last ? ['Zuletzt: ', h('span', { class: 'num' }, turnText(p.last))] : ' '),
+      ] : null);
+
     const tile = (b) => {
       const g = b.game;
       if (!g) {
         return h('div', { class: 'boardtile free' },
-          h('div', { class: 'bnum' }, `Board ${b.board}`, phonePill(b)),
+          head(b, null),
           h('div', { class: 'bfree' }, plan.pauseUntil ? `☕ Pause bis ${fmtClock(plan.pauseUntil)}` : st.done ? '—' : s.tourOnlyConnected && !connected.has(b.board) ? 'wartet auf ein Handy' : 'frei'));
       }
       const running = g.status === 'running' && g.match;
       const late = !running && s.tourDelayWarn && Date.now() - b.since > LATE_MS;
+      const ps = running ? detail(g.match) : null;
+      const mins = running && g.match.createdAt ? Math.max(0, Math.floor((Date.now() - g.match.createdAt) / 60000)) : null;
       return h('div', {
         class: `boardtile ${running ? 'running' : 'called'} ${late ? 'late' : ''}`,
         onclick: () => { if (!tv) boardMenu(t, b); },
       },
-      h('div', { class: 'bnum' }, `Board ${b.board}`, phonePill(b)),
-      h('div', { class: 'bstate' }, running ? '⏵ läuft' : late ? `⏰ seit ${Math.floor((Date.now() - b.since) / 60000)} Min. nicht begonnen` : `📣 aufgerufen ${fmtClock(b.since)}`),
-      h('div', { class: 'bnames' }, h('span', {}, nameOf(t, g.a)), h('span', { class: 'vs' }, 'vs.'), h('span', {}, nameOf(t, g.b))),
-      running ? h('div', { class: 'bscore num' }, liveScore(g.match)) : null,
-      h('div', { class: 'bround dim' }, g.roundName, b.writer ? ` · ✍️ Schreiber: ${nameOf(t, b.writer)}` : ''));
+      head(b, g),
+      h('div', { class: 'bsides' }, half(g.a, ps && ps[0]), h('div', { class: 'bvs' }, 'vs.'), half(g.b, ps && ps[1])),
+      h('div', { class: 'bfoot' },
+        h('span', { class: 'bstate' }, running ? `⏵ läuft${mins != null ? ` seit ${mins} Min.` : ''}` : late ? `⏰ seit ${Math.floor((Date.now() - b.since) / 60000)} Min. nicht begonnen` : `📣 aufgerufen ${fmtClock(b.since)}`),
+        b.writer ? h('span', {}, `✍️ Schreiber: ${nameOf(t, b.writer)}`) : null));
     };
 
-    body.replaceChildren(
-      h('div', { class: 'livehead' },
-        tv ? null : h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'),
-        h('div', { class: 'livetitle' }, h('h1', {}, t.name),
-          h('div', { class: 'dim' }, `${phase} · ${played} / ${total} Spiele`, eta ? ` · ⏱️ Ende ca. ${fmtClock(eta.at)} (noch ~${eta.minutes >= 60 ? `${Math.floor(eta.minutes / 60)} Std. ${eta.minutes % 60} Min.` : `${eta.minutes} Min.`})` : '')),
-        tv ? null : h('div', { class: 'boardctl' },
-          h('button', { class: 'iconbtn', title: 'Board entfernen', onclick: () => changeBoards(t, st, -1) }, '−'),
-          h('span', { class: 'num' }, `${t.boards} 🎯`),
-          h('button', { class: 'iconbtn', title: 'Board hinzufügen', onclick: () => changeBoards(t, st, +1) }, '＋')),
-        h('button', { class: 'iconbtn', title: 'Fernseher-Ansicht', onclick: () => { tv = !tv; body.classList.toggle('tv', tv); if (tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); draw(); } }, tv ? '✕' : '📺')),
-      // Online: Code groß – in der eigenen App unter Turnier › Beitreten eingeben
-      // Ein QR-Code für alle: in der App „QR scannen“ – jedes Handy bekommt das nächste freie Board
-      info && info.cloud && !st.done ? h('div', { class: 'card codecard joinrow' },
-        h('div', { class: 'qrimg big', html: qrFor(`${location.origin}${location.pathname}?live=${info.code}`) }),
-        h('div', { class: 'stack', style: { gap: '4px' } },
-          h('div', { class: 'small dim' }, '🌐 Online-Turnier beitreten'),
-          h('div', { class: 'bigcode num' }, showCode(info.code)),
-          h('div', { class: 'small dim' }, 'In der Madhouse-App: Turnier › „📷 Beitreten: QR scannen“ (oder Code eintippen). Das erste Handy wird Board 1, das nächste Board 2 …'),
-          h('div', { class: 'small dim' }, `${connected.size} von ${t.boards} Handys verbunden`))) : null,
+    const tool = (label, title, onclick, on = false) => h('button', { class: `toolbtn ${on ? 'on' : ''}`, title, onclick }, label);
+    const main = h('div', { class: 'livemain stack' },
+      // Online: Code groß – in der eigenen App unter Turnier › Beitreten eingeben (oder den QR-Code scannen)
+      info && info.cloud && !st.done
+        ? (qr
+          ? h('div', { class: 'card codecard joinrow' },
+            h('div', { class: 'qrimg big', html: qrFor(`${location.origin}${location.pathname}?live=${info.code}`) }),
+            h('div', { class: 'stack', style: { gap: '4px' } },
+              h('div', { class: 'small dim' }, '🌐 Online-Turnier beitreten'),
+              h('div', { class: 'bigcode num' }, showCode(info.code)),
+              h('div', { class: 'small dim' }, 'In der Madhouse-App: Turnier › „📷 Beitreten: QR scannen“ (oder Code eintippen). Das erste Handy wird Board 1, das nächste Board 2 …'),
+              h('div', { class: 'small dim' }, `${connected.size} von ${t.boards} Handys verbunden`)))
+          : h('div', { class: 'card codeline' }, h('span', { class: 'dim' }, '🌐 Beitreten mit Code'), h('b', { class: 'num' }, showCode(info.code)), h('span', { class: 'dim' }, `· ${connected.size} / ${t.boards} Handys`)))
+        : null,
       // QR-Code je Board: mit der iPhone-Kamera scannen, dann öffnet sich direkt das Board-Handy für dieses Board
-      (url || info?.cloud) && !st.done ? h('details', { class: 'card joincard', open: !played && connected.size < t.boards },
-        h('summary', {}, `${info.cloud ? '📱 Ohne installierte App: QR-Code mit der iPhone-Kamera scannen' : '📱 Board-Handys verbinden: QR-Code mit der iPhone-Kamera scannen'} · ${connected.size} / ${t.boards} verbunden`),
+      qr ? h('div', { class: 'card joincard' },
+        h('b', { class: 'small' }, `${info.cloud ? '📱 Ohne installierte App: QR-Code mit der iPhone-Kamera scannen' : '📱 Board-Handys verbinden: QR-Code mit der iPhone-Kamera scannen'} · ${connected.size} / ${t.boards} verbunden`),
         h('div', { class: 'qrrow' }, boards.map((b) => h('div', { class: 'qrbox' },
           h('div', { class: 'qrimg', html: qrFor(boardUrl(info, b.board)) }),
           h('b', {}, `Board ${b.board}`, connected.has(b.board) ? ' ✅' : '')))),
@@ -291,11 +383,38 @@ export function render(root, params, nav) {
       st.done && st.champion ? champCard(t, st) : null,
       h('div', { class: 'boardgrid' }, boards.map(tile)),
       plan.pauseUntil && !st.done ? h('div', { class: 'card pausecard' }, `☕ Pause – weiter um ${fmtClock(plan.pauseUntil)} Uhr (noch ${Math.max(1, Math.ceil((plan.pauseUntil - Date.now()) / 60000))} min)`) : null,
-      next.length ? [sec('⏭️ Als Nächstes'), h('div', { class: 'nextgames' }, next.map((g) => h('div', { class: 'nextgame' }, h('b', {}, `${nameOf(t, g.a)} – ${nameOf(t, g.b)}`), h('span', { class: 'small dim' }, g.roundName))))] : null,
-      planView(t, st, { boardOf, compact: true }),
-      tv ? null : h('div', { class: 'row', style: { marginTop: '12px' } },
-        h('button', { class: 'btn', onclick: () => exportFile(t, matches) }, '📤 Abgleich-Datei für alle'),
-        h('button', { class: 'btn ghost', onclick: () => nav.go('tournament', { id: t.id }) }, 'Turnierplan')),
+      next.length ? [sec('⏭️ Als Nächstes'), h('div', { class: 'nextgames' }, next.map((g) => h('div', { class: 'nextgame' }, h('b', {}, `${nameOf(t, g.a)} – ${nameOf(t, g.b)}`), h('span', { class: 'small dim' }, g.roundName))))] : null);
+
+    body.replaceChildren(
+      h('div', { class: 'livehead' },
+        tv ? null : h('button', { class: 'iconbtn', title: 'Zur Turnier-Seite', onclick: () => nav.go('tournament', { id: t.id }) }, '‹'),
+        h('div', { class: 'livetitle' }, h('h1', {}, t.name),
+          h('div', { class: 'dim' }, `${phase} · ${played} / ${total} Spiele`, eta ? ` · ⏱️ Ende ca. ${fmtClock(eta.at)} (noch ~${eta.minutes >= 60 ? `${Math.floor(eta.minutes / 60)} Std. ${eta.minutes % 60} Min.` : `${eta.minutes} Min.`})` : '')),
+        // Leiste: Boards −/＋, Ton, QR-Codes, Einstellungen, Fernseher
+        h('div', { class: 'toolbar' },
+          tv ? null : h('div', { class: 'boardctl' },
+            h('button', { class: 'toolbtn', title: 'Board entfernen', onclick: () => changeBoards(t, st, -1) }, '−'),
+            h('span', { class: 'num' }, `${t.boards} 🎯`),
+            h('button', { class: 'toolbtn', title: 'Board hinzufügen', onclick: () => changeBoards(t, st, +1) }, '＋')),
+          tool(s.tourSound ? '🔊' : '🔇', s.tourSound ? 'Ansagen ausschalten' : 'Ansagen einschalten', () => {
+            updateSettings({ tourSound: !s.tourSound });
+            if (!getSettings().tourSound && window.speechSynthesis) window.speechSynthesis.cancel(); else unlock();
+            toast(getSettings().tourSound ? '🔊 Ansagen an' : '🔇 Ansagen aus');
+            draw();
+          }, !s.tourSound),
+          canJoin ? tool('QR', qr ? 'QR-Codes ausblenden' : 'QR-Codes einblenden', () => { qrOpen = !qr; draw(); }, qr) : null,
+          tool('⚙️', 'Einstellungen der Live-Ansicht', liveSettings),
+          tool(tv ? '✕' : '📺', tv ? 'Fernseher-Ansicht beenden' : 'Fernseher-Ansicht', () => {
+            tv = !tv; body.classList.toggle('tv', tv);
+            if (tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+            if (!tv && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+            draw();
+          }))),
+      // Boards groß oben; Turnierbaum/Tabellen auf breiten Bildschirmen rechts daneben, sonst darunter
+      h('div', { class: `livegrid plan-${s.tourPlan || 'auto'}` },
+        main,
+        s.tourPlan === 'off' ? null : h('div', { class: 'liveside' }, planView(t, st, { boardOf, compact: true }))),
+      tv ? null : h('button', { class: 'btn', style: { marginTop: '12px' }, onclick: () => exportFile(t, matches) }, '📤 Abgleich-Datei für alle'),
       // Live-Turnier beenden: online löschen bzw. den Turnier-Server leeren (die Spiele bleiben auf diesem PC)
       tv ? null : h('button', {
         class: 'btn danger',
@@ -310,7 +429,7 @@ export function render(root, params, nav) {
           nav.go('tournament', { id: t.id });
         },
       }, info && info.cloud ? '🌐 Online-Turnier beenden' : '⏹️ Live-Turnier beenden'),
-      tv ? null : h('p', { class: 'small dim' }, 'Freie Boards bekommen automatisch das nächste Spiel, mit Ansage (Lautsprecher am PC an). Tipp auf ein belegtes Board: Aufruf zurücknehmen oder Ergebnis eintragen, falls ein Handy ausfällt. − / ＋ ändert die Zahl der Boards. Schreiber, Highlights, Zeitplan usw.: Einstellungen › Turnier & Live.'),
+      tv ? null : h('p', { class: 'small dim' }, 'Freie Boards bekommen automatisch das nächste Spiel, mit Ansage (Lautsprecher am PC an). Tipp auf ein belegtes Board: Aufruf zurücknehmen oder Ergebnis eintragen, falls ein Handy ausfällt. Oben: − / ＋ Boards, 🔊 Ansagen, QR-Codes, ⚙️ Einstellungen, 📺 Fernseher.'),
     );
   }
 

@@ -10,7 +10,7 @@ const sec = (text, right = null) => h('div', { class: 'sechead' }, h('span', {},
 export const nameOf = (t, id, label) => (id ? t.playerNames[id] || '?' : label || '–');
 
 /** Eine Spielkarte (zwei Zeilen, Sieger fett). onTap(g) bei spielbaren/laufenden/beendeten Spielen. board: Board-Nummer, falls aufgerufen. */
-export function gameCard(t, g, { onTap = null, board = null } = {}) {
+export function gameCard(t, g, { onTap = null, board = null, noPlay = false } = {}) {
   const side = (id, label) => h('div', { class: `tside ${g.winnerId && g.winnerId === id ? 'win' : g.winnerId ? 'lose' : ''}` },
     h('span', {}, nameOf(t, id, label)),
     g.result ? h('b', { class: 'num' }, g.result.legs[id] ?? '') : null);
@@ -21,7 +21,7 @@ export function gameCard(t, g, { onTap = null, board = null } = {}) {
   },
   side(g.a, g.aLabel), side(g.b, g.bLabel),
   board && g.status !== 'done' ? h('div', { class: 'tplay' }, `🎯 Board ${board}${live ? ` · ${live}` : ''}`)
-    : g.status === 'ready' && onTap ? h('div', { class: 'tplay' }, '▶ Spielen')
+    : g.status === 'ready' && onTap && !noPlay ? h('div', { class: 'tplay' }, '▶ Spielen')
       : g.status === 'running' ? h('div', { class: 'tplay' }, `⏵ läuft${live ? ` · ${live}` : ''}`) : null);
 }
 
