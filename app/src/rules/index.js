@@ -29,8 +29,9 @@ import { CRICKET } from './cricket.js';
 import { ATC, BOBS27, SHANGHAI, DOUBLES, SCORE, JDC } from './training.js';
 import { C121, CATCH40, RANDOM_CHECKOUT, CHECKOUT_STREAK } from './checkoutDrills.js';
 import { HALVEIT, KILLER } from './partyGames.js';
+import { COUNTUP, BASEBALL, GOTCHA, SCRAM } from './moreGames.js';
 
-const ALL = [X01, CRICKET, HALVEIT, KILLER, ATC, SHANGHAI, BOBS27, DOUBLES, SCORE, C121, CATCH40, RANDOM_CHECKOUT, CHECKOUT_STREAK, JDC];
+const ALL = [X01, CRICKET, HALVEIT, KILLER, COUNTUP, BASEBALL, GOTCHA, SCRAM, ATC, SHANGHAI, BOBS27, DOUBLES, SCORE, C121, CATCH40, RANDOM_CHECKOUT, CHECKOUT_STREAK, JDC];
 
 export const MODES = Object.fromEntries(ALL.map((m) => [m.id, m]));
 

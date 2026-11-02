@@ -4,7 +4,8 @@ import { getPlayers, addPlayer, getSettings, updateSettings, displayName, ownerI
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
-import { trainingRecords, trainingKey, playerStats, cricketStats, doubleStats } from '../../stats/stats.js';
+import { trainingRecords, trainingKey, playerStats, cricketStats } from '../../stats/stats.js';
+import { trainingTips } from '../../stats/coach.js';
 import { throwRows } from '../../game/match.js';
 import { BOT_LEVELS, BOT_LEVEL_NAMES, botName, isBotId } from '../../game/bot.js';
 import { JDC_GRADES } from '../../rules/training.js';
@@ -117,36 +118,24 @@ export function render(root, params, nav) {
     else nav.go('game', gameParams);
   };
 
-  // ---------- Übungs-Vorschlag: schwächstes Doppel aus der Doppel-Quote (echte X01-Matches) ----------
-  const MIN_ATTEMPTS = 8; // darunter ist die Quote zu zufällig
-  const weakestDouble = () => {
-    if (!player) return null;
-    const real = new Set(allMatches.filter((m) => m.status === 'finished' && !m.players.some(isBotId)).map((m) => m.id));
-    const list = doubleStats(allThrows.filter((r) => r.playerId === player && real.has(r.matchId)))
-      .filter((d) => d.attempts >= MIN_ATTEMPTS);
-    if (list.length < 2) return null; // ein Vergleich braucht mindestens zwei Doppel
-    return list.reduce((a, b) => (b.rate < a.rate ? b : a));
-  };
-
+  // ---------- Vorschläge für heute: aus den eigenen Daten (stats/coach.js) ----------
   const tipCard = () => {
-    const d = weakestDouble();
-    if (!d) return null;
-    const segment = d.target === 'BULL' ? 25 : parseInt(d.target.slice(1), 10);
-    return h('div', { class: 'card tip-card' },
-      h('div', { class: 'drillhead' },
-        h('h3', {}, '💡 Übungs-Vorschlag'),
+    if (!player || !allMatches.length) return null;
+    const tips = trainingTips(allThrows, allMatches, player);
+    if (!tips.length) return null;
+    return h('div', { class: 'card tip-card stack' },
+      h('div', { class: 'sechead', style: { margin: 0 } }, h('span', {}, '💡 Vorschlag für heute')),
+      tips.map((t) => h('div', { class: 'tiprow' },
+        h('span', { class: 'tipicon' }, t.icon),
+        h('div', { class: 'tipmain' }, h('b', {}, t.title), h('div', { class: 'small dim' }, t.text)),
         h('button', {
           class: 'btn primary small',
           onclick: () => {
-            chosen.doubles = { ...(chosen.doubles || {}), target: segment };
+            chosen[t.mode] = { ...(chosen[t.mode] || {}), ...t.options };
             updateSettings({ trainingOptions: chosen });
-            start('doubles');
+            start(t.mode);
           },
-        }, 'Üben')),
-      h('p', { style: { margin: 0, fontSize: '15px' } },
-        'Dein schwächstes Doppel ist ', h('b', {}, d.target === 'BULL' ? 'Bullseye' : d.target),
-        `: ${Math.round(d.rate * 100)} % (${d.hits} von ${d.attempts} Versuchen).`),
-      h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '13px' } }, `„Üben“ startet das Doubles-Training auf ${d.target === 'BULL' ? 'Bullseye' : d.target}.`),
+        }, 'Üben'))),
     );
   };
 

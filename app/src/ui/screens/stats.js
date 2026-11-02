@@ -1,5 +1,5 @@
-import { h, confirmDialog, toast } from '../dom.js';
-import { dbGetAll, deleteMatch } from '../../core/storage.js';
+import { h, toast } from '../dom.js';
+import { dbGetAll } from '../../core/storage.js';
 import { getPlayers, displayName, ownerId } from '../../core/settings.js';
 import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
@@ -9,6 +9,7 @@ import { lineChart } from '../chart.js';
 import { crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, seasonOf, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, dayStatus, missionCounts, rivalries } from '../../stats/progress.js';
 import { showMonthRecap, MONTHS } from '../recapSheet.js';
 import { getMode, isTraining } from '../../rules/index.js';
+import { trainingTips } from '../../stats/coach.js';
 
 const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['records', 'Rekorde']];
 
@@ -39,19 +40,15 @@ export function render(root, params, nav) {
     // Ohne Vorgabe: der Spieler, dem dieses Handy gehört, sonst der erste
     if (!selectedPlayer && ids.length) selectedPlayer = ids.includes(ownerId()) ? ownerId() : ids[0];
 
-    const stat = (v, k) => h('div', { class: 'stat' }, h('div', { class: 'v num' }, v), h('div', { class: 'k' }, k));
     const date = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    const delBtn = (m) => h('button', {
-      class: 'iconbtn', 'aria-label': 'Löschen',
-      onclick: async (e) => {
-        e.stopPropagation(); // nicht zusätzlich die Details öffnen
-        if (await confirmDialog('Eintrag löschen?', 'Alle Würfe davon werden aus der Statistik entfernt.', { ok: 'Löschen', danger: true })) {
-          await deleteMatch(m.id); toast('Gelöscht'); nav.go('stats', { player: selectedPlayer, tab });
-        }
-      },
-    }, '🗑');
+    // Bausteine im Stil der Rekorde-Seite: Abschnitts-Kopf, Kennzahl-Kachel, Erklärung zum Aufklappen
+    const sec = (text, right = null) => h('div', { class: 'sechead' }, h('span', {}, text), right);
+    const kpi = (v, k, cls = '') => h('div', { class: `kpi ${cls}` }, h('b', { class: 'num' }, v), h('span', {}, k));
+    const info = (...texts) => h('details', { class: 'infofold' }, h('summary', {}, 'ⓘ Wie wird gezählt?'), texts.map((t) => h('p', {}, t)));
+    const pct = (v) => `${(v * 100).toFixed(v >= 0.9995 ? 0 : 1).replace('.', ',')} %`;
+    const dec = (v, n = 2) => v.toFixed(n).replace('.', ',');
 
-    /** Verlauf der Matches eines Modus (gegen andere Spieler). */
+    /** Verlauf der Matches eines Modus (gegen andere Spieler). Beendete Matches bleiben immer drin. */
     const matchHistory = (list, pr, metric) => {
       const table = h('table', { class: 'hist' });
       for (const m of list) {
@@ -66,48 +63,45 @@ export function render(root, params, nav) {
         } catch { res = '?'; }
         table.appendChild(h('tr', { class: 'tap', onclick: () => showMatchDetail(m) },
           h('td', {}, date(m.createdAt)),
-          h('td', {}, `vs. ${opps.map((i) => m.playerNames[i]).join(', ')}`),
+          h('td', {}, `${m.tournament ? '🏆 ' : ''}vs. ${opps.map((i) => m.playerNames[i]).join(', ')}`),
           h('td', { class: m.winner === me ? 'accent' : '' }, res),
           h('td', { class: 'num' }, metric(pr.filter((r) => r.matchId === m.id))),
-          h('td', {}, delBtn(m)),
+          h('td', { class: 'dim' }, '›'),
         ));
       }
       return list.length ? table : h('p', { class: 'dim' }, 'Noch keine beendeten Matches.');
     };
 
+    /** Kopfkarte: drei große Kennzahlen und eine Zeile Bilanz. */
+    const hero = (kpis, line) => h('div', { class: 'card mshero statshero', style: '--rc: var(--accent)' },
+      h('div', { class: 'kpis big' }, kpis), h('div', { class: 'small dim' }, line));
+
     const drawX01 = (pr, myMatches) => {
       const s = playerStats(pr);
       const won = myMatches.filter((m) => m.players[m.winner] === selectedPlayer).length;
-      body.appendChild(h('div', { class: 'statgrid' },
-        stat(s.average.toFixed(2), 'Average (3 Darts)'),
-        stat(s.first9.toFixed(2), 'First-9-Average'),
-        stat(s.highest, 'Höchste Aufnahme'),
-        stat(s.c180, '180er'),
-        stat(s.c140, '140+'),
-        stat(s.c100, '100+'),
-        stat(s.checkoutAttempts ? `${(s.checkoutRate * 100).toFixed(1)} %` : '–', `Checkout-Quote (${s.checkouts}/${s.checkoutAttempts})`),
-        stat(s.highestCheckout || '–', 'Höchstes Finish'),
-        stat(s.bestLeg ? `${s.bestLeg}` : '–', 'Bestes Leg (Darts)'),
-        stat(`${won} / ${myMatches.length}`, 'Matches gewonnen'),
-        stat(s.legsWon, 'Legs gewonnen'),
-        stat(s.darts, 'Darts geworfen'),
-      ));
+      body.appendChild(hero([
+        kpi(dec(s.average), 'Average'),
+        kpi(dec(s.first9), 'First 9'),
+        kpi(s.checkoutAttempts ? pct(s.checkoutRate) : '–', 'Checkout-Quote'),
+      ], `${won} von ${myMatches.length} Matches gewonnen · ${s.legsWon} Legs · ${s.darts.toLocaleString('de-DE')} Darts`));
+      body.appendChild(sec('💥 Scoring'));
+      body.appendChild(h('div', { class: 'kpis four' }, kpi(s.highest || '–', 'Höchste'), kpi(s.c180, '180er'), kpi(s.c140, '140+'), kpi(s.c100, '100+')));
+      body.appendChild(sec('🏁 Finish'));
+      body.appendChild(h('div', { class: 'kpis' }, kpi(s.highestCheckout || '–', 'Höchstes Finish'), kpi(s.bestLeg || '–', 'Bestes Leg (Darts)'), kpi(`${s.checkouts} / ${s.checkoutAttempts}`, 'Checkouts')));
       const det = detectionStats(pr);
-      if (det.total) body.appendChild(h('p', { class: 'dim' }, `Kamera-Erkennung bei diesem Spieler: ${det.total - det.corrected} von ${det.total} Darts ohne Korrektur (${(det.rate * 100).toFixed(0)} %).`));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe fragt die App, wie viele Darts aufs Doppel gingen, sobald ein Doppel möglich war (ab Version 1.6.1; ältere Summen-Spiele zählen nur den Checkout-Dart).'));
+      if (det.total) body.appendChild(h('div', { class: 'small dim' }, `📷 Kamera: ${det.total - det.corrected} von ${det.total} Darts ohne Korrektur (${(det.rate * 100).toFixed(0)} %)`));
       // Trefferquote je Doppel: zeigt, welches Doppel gut sitzt und welches man üben sollte
       const dbl = doubleStats(pr);
       if (dbl.length) {
-        body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Doppel-Quote'));
-        body.appendChild(h('table', { class: 'hist' }, dbl.map((d) => h('tr', {},
-          h('td', {}, h('b', {}, d.target)),
-          h('td', { class: 'num' }, `${d.hits} / ${d.attempts}`),
-          h('td', { class: 'num' }, h('div', { class: 'ratebar' }, h('div', { style: { width: `${Math.round(d.rate * 100)}%` } }))),
-          h('td', { class: `num ${d.rate >= 0.35 ? 'accent' : ''}` }, `${Math.round(d.rate * 100)} %`),
+        body.appendChild(sec('🎯 Doppel-Quote'));
+        body.appendChild(h('div', { class: 'card dbllist' }, dbl.map((d) => h('div', { class: 'dblrow' },
+          h('b', {}, d.target),
+          h('div', { class: 'ratebar' }, h('div', { style: { width: `${Math.round(d.rate * 100)}%` } })),
+          h('span', { class: `num ${d.rate >= 0.35 ? 'accent' : ''}` }, `${Math.round(d.rate * 100)} %`),
+          h('span', { class: 'num dim small' }, `${d.hits}/${d.attempts}`),
         ))));
-        body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Jeder Dart bei einem Ein-Dart-Finish (z. B. Rest 32 = D16) zählt als Versuch auf dieses Doppel. Summen-Aufnahmen zählen nur, wenn das Doppel eindeutig ist (z. B. Rest 40, kein Punkt).'));
       }
-      body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
+      body.appendChild(sec('📈 Verlauf'));
       // Diagramme: die letzten 30 Matches, älteste links
       const recent = myMatches.slice(0, 30).reverse().map((m) => ({ m, s: playerStats(pr.filter((r) => r.matchId === m.id)) }));
       const opp = (m) => `vs. ${m.playerNames.filter((_, i) => m.players[i] !== selectedPlayer).join(', ')}`;
@@ -117,28 +111,33 @@ export function render(root, params, nav) {
         lineChart(recent.filter((e) => e.s.checkoutAttempts).map((e) => ({ y: e.s.checkoutRate * 100, at: e.m.createdAt, label: opp(e.m), m: e.m })),
           { title: 'Checkout-Quote je Match (%)', format: (v) => `${v.toFixed(0)} %`, onOpen: (p) => showMatchDetail(p.m), min: 0, max: 100 }),
       ));
+      body.appendChild(sec('🗂️ Matches', h('span', { class: 'num dim' }, myMatches.length)));
       body.appendChild(matchHistory(myMatches, pr, (r) => `Ø ${playerStats(r).average.toFixed(1)}`));
+      body.appendChild(info(
+        'Checkout-Quote = Treffer ins Finish geteilt durch alle Darts, die auf ein mögliches Ein-Dart-Finish (Doppel oder Bull) geworfen wurden. Bei Summen-Eingabe fragt die App, wie viele Darts aufs Doppel gingen, sobald ein Doppel möglich war (ab Version 1.6.1; ältere Summen-Spiele zählen nur den Checkout-Dart).',
+        'Doppel-Quote: Jeder Dart bei einem Ein-Dart-Finish (z. B. Rest 32 = D16) zählt als Versuch auf dieses Doppel. Summen-Aufnahmen zählen nur, wenn das Doppel eindeutig ist (z. B. Rest 40, kein Punkt).',
+        'Gezählt werden alle beendeten Matches gegen echte Spieler. Abgebrochene Spiele und Spiele gegen den Computer zählen nicht. Beendete Matches lassen sich nicht löschen, damit die Statistik ehrlich bleibt.'));
     };
 
     const drawCricket = (pr, myMatches) => {
       const c = cricketStats(pr);
       const won = myMatches.filter((m) => m.players[m.winner] === selectedPlayer).length;
-      body.appendChild(h('div', { class: 'statgrid' },
-        stat(c.mpr.toFixed(2), 'MPR (Marks pro Runde)'),
-        stat(c.bestRound, 'Beste Runde (Marks)'),
-        stat(c.rounds5, 'Runden mit 5+ Marks'),
-        stat(`${won} / ${myMatches.length}`, 'Matches gewonnen'),
-        stat(c.turns, 'Runden'),
-        stat(c.darts, 'Darts geworfen'),
-      ));
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'MPR zählt Marks, die eine Zahl schließen oder Punkte bringen. MPR = Marks pro 3 Darts. Faustregel: ab 2,0 MPR spielst du sehr ordentlich, ab 3,0 auf hohem Niveau.'));
-      body.appendChild(h('h3', { style: { marginTop: '10px' } }, 'Verlauf'));
+      body.appendChild(hero([
+        kpi(dec(c.mpr), 'MPR'),
+        kpi(c.bestRound || '–', 'Beste Runde'),
+        kpi(c.rounds5, 'Runden 5+'),
+      ], `${won} von ${myMatches.length} Matches gewonnen · ${c.turns} Runden · ${c.darts.toLocaleString('de-DE')} Darts`));
+      body.appendChild(sec('📈 Verlauf'));
       const recent = myMatches.slice(0, 30).reverse().map((m) => ({ m, c: cricketStats(pr.filter((r) => r.matchId === m.id)) }));
       body.appendChild(h('div', { class: 'charts' },
         lineChart(recent.filter((e) => e.c.turns).map((e) => ({ y: e.c.mpr, at: e.m.createdAt, label: `vs. ${e.m.playerNames.filter((_, i) => e.m.players[i] !== selectedPlayer).join(', ')}`, m: e.m })),
           { title: 'MPR je Match', format: (v) => v.toFixed(2), onOpen: (p) => showMatchDetail(p.m) }),
       ));
+      body.appendChild(sec('🗂️ Matches', h('span', { class: 'num dim' }, myMatches.length)));
       body.appendChild(matchHistory(myMatches, pr, (r) => `MPR ${cricketStats(r).mpr.toFixed(2)}`));
+      body.appendChild(info(
+        'MPR zählt Marks, die eine Zahl schließen oder Punkte bringen. MPR = Marks pro 3 Darts. Faustregel: ab 2,0 MPR spielst du sehr ordentlich, ab 3,0 auf hohem Niveau.',
+        'Gezählt werden alle beendeten Matches gegen echte Spieler. Abgebrochene Spiele zählen nicht; beendete lassen sich nicht löschen.'));
     };
 
     // Rekorde (Bestwerte je Match) und Meilensteine – nur Spiele gegen echte Spieler
@@ -151,7 +150,6 @@ export function render(root, params, nav) {
       const streak = weekStreak(realMatches, selectedPlayer);
       const days = dayStreak(finished, selectedPlayer); // Tages-Serie: auch Trainings und Spiele gegen den Computer
 
-      const sec = (text, right = null) => h('div', { class: 'sechead' }, h('span', {}, text), right);
       const pctOf = (r) => (r.next ? Math.round(((r.points - r.rank.min) / (r.next.min - r.rank.min)) * 100) : 100);
       // Zeitstrahl der Ränge; wird erst beim Aufklappen zum aktuellen Rang geschoben (vorher hat er keine Breite)
       const timelineFold = (label, r, timeline) => {
@@ -171,7 +169,6 @@ export function render(root, params, nav) {
       // 1) Kopf: Rang, Fortschritt zum nächsten Rang, Kennzahlen, Serien und Vitrine in einer Karte
       const vitrine = getShowcase(selectedPlayer).map((id) => ms.find((m) => m.id === id)).filter((m) => m && m.at);
       const hasCrown = crown && crown.playerId === selectedPlayer;
-      const kpi = (v, k) => h('div', { class: 'kpi' }, h('b', { class: 'num' }, v), h('span', {}, k));
       body.appendChild(h('div', { class: 'card mshero', style: `--rc: ${rk.rank.color}` },
         h('div', { class: 'rankhead' },
           h('div', { class: 'badge', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
@@ -394,7 +391,7 @@ export function render(root, params, nav) {
         const key = `${m.mode}|${m.players[1]}`;
         (groups.get(key) || groups.set(key, []).get(key)).push(m);
       }
-      body.appendChild(h('h3', { style: { marginTop: '10px' } }, '🤖 Gegen den Computer'));
+      body.appendChild(sec('🤖 Gegen den Computer'));
       const table = h('table', { class: 'hist' });
       for (const [key, list] of groups) {
         const [mode] = key.split('|');
@@ -411,35 +408,51 @@ export function render(root, params, nav) {
     };
 
     const drawTraining = () => {
-      const hadBot = drawVsBot();
       const recs = trainingRecords(finished, selectedPlayer, getMode);
       const keys = Object.keys(recs);
+      const mine = finished.filter((m) => m.players.length === 1 && m.players[0] === selectedPlayer && isTraining(m.mode));
+      const weekAgo = Date.now() - 7 * 86400000;
+      // Vorschlag aus den eigenen Daten (wie auf der Trainingsseite)
+      const tip = trainingTips(rows, finished, selectedPlayer)[0];
+      if (tip) {
+        body.appendChild(h('div', { class: 'card tipline tap', onclick: () => nav.go('training', { player: selectedPlayer }) },
+          h('span', { class: 'tipicon' }, tip.icon),
+          h('div', {}, h('b', {}, tip.title), h('div', { class: 'small dim' }, tip.text)),
+          h('span', { class: 'dim' }, '›')));
+      }
+      if (keys.length) {
+        body.appendChild(hero([
+          kpi(mine.length, 'Trainings'),
+          kpi(mine.filter((m) => m.createdAt >= weekAgo).length, 'letzte 7 Tage'),
+          kpi(keys.length, 'Varianten'),
+        ], 'Tipp auf eine Übung zeigt die letzten Ergebnisse.'));
+      }
+      drawVsBot();
       if (!keys.length) {
-        if (hadBot) return;
         body.appendChild(h('p', { class: 'dim' }, 'Noch keine Trainings beendet.'));
         body.appendChild(h('button', { class: 'btn primary', onclick: () => nav.go('training', { player: selectedPlayer }) }, 'Zum Training'));
         return;
       }
+      body.appendChild(sec('🏋️ Übungen'));
       for (const k of keys) {
         const r = recs[k];
         const mode = getMode(r.last.mode);
         const values = r.recent.map((e) => e.value);
         const avg = values.reduce((a, b) => a + b, 0) / values.length;
-        const table = h('table', { class: 'hist' }, r.recent.map((e) => h('tr', {},
-          h('td', {}, date(e.at)),
-          h('td', { class: e.matchId === r.best.matchId ? 'accent' : '' }, e.text),
-          h('td', {}, delBtn(finished.find((m) => m.id === e.matchId))),
-        )));
-        body.appendChild(h('div', { class: 'card stack' },
-          h('h3', { style: { margin: 0 } }, mode.describe(r.last.options)),
-          h('div', { class: 'statgrid' },
-            stat(r.best.text, 'Rekord'),
-            stat(Number.isInteger(avg) ? avg : avg.toFixed(1), `Schnitt letzte ${values.length}`),
-          ),
-          h('div', { class: 'dim', style: { fontSize: '14px' } }, `${r.count}× gespielt`),
-          table,
+        body.appendChild(h('details', { class: 'card drillstat' },
+          h('summary', {},
+            h('div', { class: 'drilltop' }, h('b', {}, mode.describe(r.last.options)), h('span', { class: 'dim small' }, `${r.count}×`)),
+            h('div', { class: 'kpis' },
+              kpi(r.best.text, '🏆 Rekord'),
+              kpi(Number.isInteger(avg) ? avg : avg.toFixed(1).replace('.', ','), `Schnitt letzte ${values.length}`),
+              kpi(r.last.text, `Zuletzt ${date(r.last.at)}`))),
+          h('table', { class: 'hist' }, r.recent.map((e) => h('tr', {},
+            h('td', {}, date(e.at)),
+            h('td', { class: e.matchId === r.best.matchId ? 'accent' : '' }, e.text),
+          ))),
         ));
       }
+      body.appendChild(info('Jede beendete Übung zählt und bleibt in der Liste; abgebrochene zählen nicht. Spiele gegen den Computer stehen getrennt und zählen nicht in die Statistik gegen echte Spieler.'));
     };
 
     const draw = () => {

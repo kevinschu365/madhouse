@@ -118,7 +118,7 @@ export async function requestPersistence() {
 }
 
 // ---------- Export / Import ----------
-const LS_KEYS = ['settings', 'players', 'calibration', 'activeMatch'];
+const LS_KEYS = ['settings', 'players', 'calibration', 'activeMatch', 'tournaments', 'showcase'];
 
 export async function exportAll({ includeImages = false } = {}) {
   const data = {

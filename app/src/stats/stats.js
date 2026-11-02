@@ -3,6 +3,7 @@
 
 import { derive } from '../game/match.js';
 import { missionCounts } from './progress.js'; // gegenseitiger Import, wird erst beim Aufruf gebraucht
+import { tournamentChampions } from '../core/tournament.js';
 
 /** Kennzahlen eines Spielers aus seinen Wurfzeilen (nur X01). */
 export function playerStats(rows) {
@@ -315,6 +316,7 @@ export const MILESTONE_CATEGORIES = [
   { id: 'wins', icon: '🥇', title: 'Siege & Matches', note: 'Siege, Serien, Gegner' },
   { id: 'cricket', icon: '🏏', title: 'Cricket', note: 'MPR, Mark-Runden, Siege' },
   { id: 'grind', icon: '🎳', title: 'Fleiß & Kurioses', note: 'Darts, Spieltage, Wochen-Serien, Trainings und Kuriositäten' },
+  { id: 'tourney', icon: '🏆', title: 'Turniere', note: 'Turniere spielen, Finals erreichen und gewinnen' },
   { id: 'missions', icon: '📋', title: 'Aufgaben', note: 'Erledigte Tages- und Wochenaufgaben, perfekte Tage, Wochen-Medaillen und Serien' },
   { id: 'secret', icon: '🕵️', title: 'Geheim', note: 'Was hier steckt, verrät sich erst, wenn es passiert.' },
 ];
@@ -428,6 +430,13 @@ export const MILESTONES = [
   ...[2, 4, 8, 12, 26, 52].map((n) => count('grind', `wstreak-${n}`, '🔥', `${n} Wochen in Folge gespielt`, (s) => s.bestWeekStreak, n)),
   ...[3, 7, 14, 30, 60, 100].map((n) => count('grind', `dstreak-${n}`, '📆', `${n} Tage in Folge gespielt (auch Training)`, (s) => s.bestDayStreak, n)),
 
+  // Turniere (core/tournament.js): gespielt, Turnier-Matches gewonnen, Finals, Turniersiege
+  ...tiers('tourney', 'tour-play', '🎪', (s) => s.tourneys, [1, 5, 10, 25], (g) => (g === 1 ? 'Erstes Turnier gespielt' : `${g} Turniere gespielt`)),
+  ...tiers('tourney', 'tour-mw', '⚔️', (s) => s.tourneyMatchWins, [1, 10, 25, 100], (g) => (g === 1 ? 'Erstes Turnier-Match gewonnen' : `${g} Turnier-Matches gewonnen`)),
+  ...tiers('tourney', 'tour-final', '🎟️', (s) => s.finals, [1, 5, 10], (g) => (g === 1 ? 'Erstes K.-o.-Finale' : `${g} K.-o.-Finals gespielt`)),
+  ...tiers('tourney', 'tour-win', '🏆', (s) => s.tourneyWins, [1, 3, 10, 25], (g) => (g === 1 ? 'Erster Turniersieg' : `${g} Turniersiege`)),
+  one('tourney', 'tour-big', '👑', 'Turnier mit 8 Spielern gewonnen', (s) => s.bigTourneyWin),
+
   // Aufgaben: Zähler kommen aus missionCounts() (progress.js), nicht aus collect()
   ...tiers('missions', 'mis-d', '☀️', (s) => s.daily, [1, 10, 50, 100, 250, 500], (g) => (g === 1 ? 'Erste Tagesaufgabe' : `${fmt(g)} Tagesaufgaben erledigt`)),
   ...tiers('missions', 'mis-dp', '🌟', (s) => s.perfectDays, [1, 10, 25, 50, 100], (g) => (g === 1 ? 'Erster perfekter Tag (alle 3 Tagesaufgaben)' : `${fmt(g)} perfekte Tage`)),
@@ -464,9 +473,10 @@ const PTS = {
   'legavg-120': 70, 'legavg-100': 40, 'legavg-80': 20, 'legavg-60': 8,
   'dbl-all': 60, 'mpr-4': 60, 'mpr-3': 30, 'mpr-25': 18, 'mpr-2': 10, 'mpr-15': 5, 'round-9': 50, 'round-8': 30, 'round-7': 18, 'round-6': 10, 'round-5': 6,
   'tonrow-5': 50, 'tonrow-3': 20, 'tonrow-2': 8, '180match-3': 50, '180match-2': 25, 'tonmatch-10': 30, 'tonmatch-5': 12,
+  'tour-big': 45,
   'co-rate-100': 25, 'co-rate-50': 12, ww: 15, sets: 10, big: 10, night: 5, bed: 10, 'bust-1': 1, 'zero-1': 1,
 };
-const WEIGHT = { 180: 4, 'mis-d': 0.6, 'mis-dp': 1.2, 'mis-dps': 3, 'mis-w': 1, 'mis-wm': 2, 'mis-wms': 4, 140: 2, 100: 1.5, 't40': 2, ton: 1.2, 'co-n': 1.5, win: 1.5, cwin: 1.5, played: 0.8, darts: 0.4, marks: 0.5, bust: 0.5, zero: 0.5, wstreak: 3, dstreak: 2.5 };
+const WEIGHT = { 180: 4, 'tour-play': 1.5, 'tour-mw': 1.2, 'tour-final': 2.5, 'tour-win': 4, 'mis-d': 0.6, 'mis-dp': 1.2, 'mis-dps': 3, 'mis-w': 1, 'mis-wm': 2, 'mis-wms': 4, 140: 2, 100: 1.5, 't40': 2, ton: 1.2, 'co-n': 1.5, win: 1.5, cwin: 1.5, played: 0.8, darts: 0.4, marks: 0.5, bust: 0.5, zero: 0.5, wstreak: 3, dstreak: 2.5 };
 function pointsOf(m) {
   if (m.secret) return 20;
   if (PTS[m.id] != null) return PTS[m.id];
@@ -519,6 +529,7 @@ function emptyState() {
     legsWon: 0, bestLeg: Infinity, bestAvg: 0, bestFirst9: 0, bestLegAvg: 0, x01Points: 0, x01Darts: 0, lifeAvg: 0,
     wins: 0, played: 0, streak: 0, bestStreak: 0, whitewash: false, setsWin: false, bigWin: false, opponents: new Set(),
     cricketWins: 0, bestMpr: 0, bestRound: 0, marks: 0, rounds5: 0,
+    tourneys: 0, tourneyMatchWins: 0, finals: 0, tourneyWins: 0, bigTourneyWin: false,
     days: new Set(), maxPerDay: 0, trainings: 0, night: false, bed: 0, busts: 0, zeros: 0,
     weeks: new Set(), weekStreak: 0, bestWeekStreak: 0, pdays: new Set(), dayStreak: 0, bestDayStreak: 0,
     // geheime
@@ -537,6 +548,8 @@ export function collect(rows, matches, playerId, onMatch = null) {
   const s = emptyState();
   const perDay = new Map();
   const winsVsDay = new Map(); // Tag|Gegner -> Siege
+  const champs = matches.some((m) => m.tournament) ? tournamentChampions(matches) : null; // Turniersieger
+  const tourSeen = new Set();
   const mine = byMatch(rows.filter((r) => r.playerId === playerId));
   for (const m of matches.slice().sort((a, b) => a.createdAt - b.createdAt)) {
     const rs = mine.get(m.id);
@@ -587,6 +600,18 @@ export function collect(rows, matches, playerId, onMatch = null) {
             if (st.legsWon[me] >= 2 && st.legsWon.every((n, i) => i === me || n === 0) && (m.format?.setsBestOf || 1) === 1) s.whitewash = true;
           } catch { /* unbekannter Modus */ }
         } else s.streak = 0;
+        // Turnier-Match: Turnier gespielt, Siege, Finale, Turniersieg (wenn dieses Match es entschieden hat)
+        const tag = m.tournament;
+        if (tag) {
+          if (!tourSeen.has(tag.id)) { tourSeen.add(tag.id); s.tourneys++; }
+          if (cur.won) s.tourneyMatchWins++;
+          if (tag.final) s.finals++;
+          const ch = champs && champs.get(tag.id);
+          if (ch && ch.matchId === m.id && ch.winnerId === playerId) {
+            s.tourneyWins++;
+            if ((tag.players || []).length >= 8) s.bigTourneyWin = true;
+          }
+        }
         s.bestStreak = Math.max(s.bestStreak, s.streak);
       }
     }

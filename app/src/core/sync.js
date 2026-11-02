@@ -23,6 +23,7 @@ export async function exportSync() {
     players: getPlayers(),
     matches,
     showcase: lsGet('showcase', {}),
+    tournaments: lsGet('tournaments', []) || [],
   };
 }
 
@@ -79,6 +80,7 @@ export function planMerge(localPlayers, localMatches, data) {
   for (const raw of data.matches || []) {
     if (raw.status === 'running') continue;
     const m = { ...raw, players: raw.players.map((id, i) => mapId(id, raw.playerNames[i])) };
+    if (raw.tournament) m.tournament = { ...raw.tournament, players: (raw.tournament.players || []).map((id) => mapId(id, null)) };
     const old = existing.get(m.id);
     if (old && (old.updatedAt || 0) >= (m.updatedAt || 0)) { unchanged++; continue; }
     save.push(m);
@@ -109,6 +111,20 @@ export async function importSync(data) {
     if (!show[id] || !show[id].length) show[id] = list;
   }
   lsSet('showcase', show);
+  // Turniere: fehlende Turnierpläne übernehmen (Spieler-Kennungen wie bei den Matches umschreiben).
+  // Die Ergebnisse stecken in den Matches und kommen damit von selbst mit.
+  const tours = lsGet('tournaments', []) || [];
+  for (const t of data.tournaments || []) {
+    if (tours.some((x) => x.id === t.id)) continue;
+    const map = (id) => (id ? plan.mapId(id, t.playerNames[id]) : id);
+    tours.push({
+      ...t,
+      players: t.players.map(map),
+      playerNames: Object.fromEntries(Object.entries(t.playerNames).map(([id, n]) => [map(id), n])),
+      games: t.games.map((g) => ({ ...g, a: map(g.a), b: map(g.b) })),
+    });
+  }
+  lsSet('tournaments', tours);
   return { added: plan.added - skipped, updated: plan.updated, unchanged: plan.unchanged, newPlayers: plan.newPlayers };
 }
 

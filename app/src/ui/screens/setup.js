@@ -4,7 +4,7 @@ import { lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
 
-const MODES = [['x01', 'X01'], ['cricket', 'Cricket'], ['halveit', 'Halve-It'], ['killer', 'Killer']];
+const MODES = [['x01', 'X01'], ['cricket', 'Cricket'], ['halveit', 'Halve-It'], ['killer', 'Killer'], ['countup', 'Count-Up'], ['baseball', 'Baseball'], ['gotcha', 'Gotcha'], ['scram', 'Scram']];
 
 const MODE_TEXT = {
   x01: 'Double-Out.',
@@ -12,6 +12,10 @@ const MODE_TEXT = {
   cricketCut: 'Cricket 15–20 und Bull. Cut Throat: Deine Punkte bekommt der Gegner, wenig Punkte gewinnen.',
   halveit: 'Halve-It: 9 Runden mit festem Ziel (15, 16, Double, 17, 18, Triple, 19, 20, Bull), Start mit 40 Punkten. Treffer aufs Ziel zählen; kein Treffer in der Runde halbiert deinen Stand. Höchste Punktzahl gewinnt.',
   killer: 'Killer: Jeder bekommt eine Zahl. Triff dein Double, dann bist du Killer. Als Killer kostet jeder Treffer auf das Double eines Gegners ihm ein Leben (dein eigenes kostet dich eins). Der Letzte gewinnt.',
+  countup: 'Count-Up: Jeder wirft eine feste Zahl Runden, alle Punkte zählen. Die höchste Summe gewinnt. Gut zum Aufwärmen.',
+  baseball: 'Baseball: 9 Innings, im Inning 1 zählt nur die 1, im Inning 2 nur die 2 usw. Single = 1 Run, Double = 2, Triple = 3. Die meisten Runs gewinnen.',
+  gotcha: 'Gotcha: Alle zählen von 0 genau auf das Ziel. Landest du genau auf dem Stand eines Gegners, fällt er auf 0 zurück. Drüber = überworfen, die Aufnahme zählt nicht.',
+  scram: 'Scram (zu zweit): In Hälfte 1 schließt Spieler 1 die Zahlen 15–20 und Bull mit je einem Treffer, Spieler 2 punktet auf allem, was noch offen ist. Dann Rollentausch. Die meisten Punkte gewinnen (Gleichstand: Spieler 1).',
 };
 
 export function render(root, params, nav) {
@@ -24,6 +28,9 @@ export function render(root, params, nav) {
     cutThroat: !!s.lastSetup.cutThroat,
     startScore: s.lastSetup.startScore || 501,
     lives: s.lastSetup.lives || 3,
+    rounds: s.lastSetup.rounds || 8,
+    innings: s.lastSetup.innings || 9,
+    target: s.lastSetup.target || 301,
     setsBestOf: s.lastSetup.setsBestOf || 1,
     legsBestOf: s.lastSetup.legsBestOf || 3,
     selected: (s.lastSetup.players || []).filter(validId).slice(0, 6),
@@ -82,6 +89,10 @@ export function render(root, params, nav) {
       cricket: () => dropdown('Variante', [['0', 'Standard'], ['1', 'Cut Throat']], cfg.cutThroat ? '1' : '0', (v) => { cfg.cutThroat = v === '1'; draw(); }),
       halveit: () => null,
       killer: () => dropdown('Leben', [3, 5].map((v) => [v, String(v)]), cfg.lives, (v) => { cfg.lives = +v; }),
+      countup: () => dropdown('Runden', [5, 8, 10].map((v) => [v, String(v)]), cfg.rounds, (v) => { cfg.rounds = +v; }),
+      baseball: () => dropdown('Innings', [5, 9].map((v) => [v, String(v)]), cfg.innings, (v) => { cfg.innings = +v; }),
+      gotcha: () => dropdown('Ziel', [201, 301, 501].map((v) => [v, String(v)]), cfg.target, (v) => { cfg.target = +v; }),
+      scram: () => null,
     }[cfg.mode]();
 
     body.append(
@@ -113,7 +124,7 @@ export function render(root, params, nav) {
         onclick: () => {
           unlock(); // iOS: Sprachausgabe durch diesen Tipp freischalten
           updateSettings({
-            lastSetup: { ...s.lastSetup, mode: cfg.mode, cutThroat: cfg.cutThroat, startScore: cfg.startScore, lives: cfg.lives, setsBestOf: cfg.setsBestOf, legsBestOf: cfg.legsBestOf, players: sel.slice() },
+            lastSetup: { ...s.lastSetup, mode: cfg.mode, cutThroat: cfg.cutThroat, startScore: cfg.startScore, lives: cfg.lives, rounds: cfg.rounds, innings: cfg.innings, target: cfg.target, setsBestOf: cfg.setsBestOf, legsBestOf: cfg.legsBestOf, players: sel.slice() },
             cameraEnabled: cfg.camera, inputMode: cfg.input,
           });
           const options = {
@@ -121,6 +132,10 @@ export function render(root, params, nav) {
             cricket: { cutThroat: cfg.cutThroat },
             halveit: {},
             killer: { lives: cfg.lives },
+            countup: { rounds: cfg.rounds },
+            baseball: { innings: cfg.innings },
+            gotcha: { target: cfg.target },
+            scram: {},
           }[cfg.mode];
           const gameParams = {
             setup: {

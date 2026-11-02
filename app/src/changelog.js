@@ -8,6 +8,20 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.9.0',
+    date: '02.11.2026',
+    items: [
+      'Neu: Turnier-Modus (Startseite › Turnier) – K.-o. mit 4–8 Spielern (Freilose werden ausgelost) oder Jeder gegen Jeden mit 3–8, mit Turnierbaum bzw. Tabelle',
+      'Neue Meilenstein-Kategorie „Turniere“: Turniere gespielt, Turnier-Matches gewonnen, Finals, Turniersiege, Sieg mit 8 Spielern',
+      'Turniere kommen über den Abgleich auf das zweite Handy; Spiele dort zählen fürs selbe Turnier',
+      'Neue Spiele: Count-Up, Baseball, Gotcha und Scram (unter Neues Spiel)',
+      'Training: „Vorschlag für heute“ aus deinen Daten (schwächstes Doppel, Checkout-Quote, Start, Cricket-Marks) – mit einem Tipp direkt starten',
+      'Statistik X01, Cricket und Training im neuen Stil: große Kennzahlen oben, Abschnitte, Erklärungen zum Aufklappen',
+      'Beendete Spiele lassen sich in der Statistik nicht mehr löschen (abgebrochene zählen weiterhin nicht)',
+      'Sicherung enthält jetzt auch Turniere und die Abzeichen-Vitrine',
+    ],
+  },
+  {
     version: '1.8.6',
     date: '02.11.2026',
     items: [

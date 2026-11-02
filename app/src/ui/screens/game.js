@@ -26,6 +26,7 @@ export function render(root, params, nav) {
   const session = new GameSession(match);
   let useCamera = params.camera ?? (match.camera || false);
   session.match.camera = useCamera;
+  if (params.tournament) session.match.tournament = params.tournament; // Turnier-Match (core/tournament.js)
   const mode = session.state.mode;
   const training = mode.kind === 'training';
   const cricket = mode.id === 'cricket';
@@ -636,7 +637,12 @@ export function render(root, params, nav) {
       m.players.length > 2 ? h('p', { class: 'dim', style: { margin: '-8px 0 0', textAlign: 'center' } }, m.playerNames.join(' · ')) : null,
       recordsEl,
       h('button', { class: 'btn', onclick: () => showMatchDetail(session.match) }, 'Details: Legs & Aufnahmen'),
-      h('button', {
+      // Turnier: zurück zum Turnierbaum statt Revanche
+      m.tournament ? h('button', {
+        class: 'btn primary',
+        onclick: () => { s.close(); nav.go('tournament', { id: m.tournament.id, celebrate: true }); },
+      }, `🏆 Zurück zum Turnier`) : null,
+      m.tournament ? null : h('button', {
         class: 'btn primary',
         onclick: () => {
           s.close();
