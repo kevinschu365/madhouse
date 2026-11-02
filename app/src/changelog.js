@@ -8,6 +8,21 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.8.6',
+    date: '02.11.2026',
+    items: [
+      'Rekorde-Seite aufgeräumt: Rang, Punkte, Meilensteine, Serien und Vitrine oben in einer Karte',
+      'Neu: „Als Nächstes“ zeigt die 3 Meilensteine, denen am wenigsten fehlt, mit Fortschrittsbalken',
+      'Neu: „Zuletzt erreicht“ als Leiste zum Wischen',
+      'Meilensteine filtern: Alle, Erreicht oder Offen; offene zeigen ihren Fortschritt als Balken',
+      'Rang- und Saison-Zeitstrahl zum Aufklappen, Saison als kleinere Karte',
+      'Im Spiel: unter jedem Spieler steht, was er zuletzt geworfen hat (z. B. „Zuletzt: T20 T20 5 = 125“)',
+      'Neu: Tagesaufgaben – jeden Spieltag ab 5 Uhr drei leichtere Aufgaben (für alle gleich), auf der Startseite und unter Rekorde',
+      'Neue Meilenstein-Kategorie „Aufgaben“: für erledigte Tages- und Wochenaufgaben, perfekte Tage, Wochen-Medaillen und Serien am Stück',
+      'Leg-Average zählt erst, wenn das Leg fertig ist; Match-Average, First 9, Checkout-Quote und Cricket-MPR erst nach dem Match – keine falschen „Leg-Average“-Meldungen mehr mitten im Spiel',
+    ],
+  },
+  {
     version: '1.8.5',
     date: '27.10.2026',
     items: [

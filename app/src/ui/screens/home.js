@@ -9,7 +9,7 @@ import { GameSession } from '../../game/session.js';
 import { showWhatsNewOnce } from '../../changelog.js';
 import { getPlayers, getSettings, updateSettings, ownerId, displayName } from '../../core/settings.js';
 import { milestones, playerRank } from '../../stats/stats.js';
-import { weeklyChallenges, weekStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
+import { weeklyChallenges, weekStatus, dayStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
 
 export function render(root, params, nav) {
@@ -143,7 +143,7 @@ async function progressCard(nav) {
   const others = people.length - visible.length;
   const data = visible.map((p) => {
     const ms = milestones(usable, real, p.id);
-    return { p, ms, rk: playerRank(ms), wk: weekStatus(usable, real, p.id), weeks: weekStreak(real, p.id), days: dayStreak(finishedAll, p.id), goal: nearGoals(ms, 1)[0] };
+    return { p, ms, rk: playerRank(ms), wk: weekStatus(usable, real, p.id), dy: dayStatus(usable, real, p.id), weeks: weekStreak(real, p.id), days: dayStreak(finishedAll, p.id), goal: nearGoals(ms, 1)[0] };
   });
   const redraw = () => nav.go('home');
   const collapsed = s.homeCollapsed || {};
@@ -169,10 +169,16 @@ async function progressCard(nav) {
     const daysLeft = Math.max(1, Math.ceil((data[0].wk.end - Date.now()) / 86400000));
     const dots = (wk) => h('span', { class: 'dots' }, wk.items.map((i) => h('i', { class: i.done ? 'on' : '' })));
     const mine = data.find((d) => d.p.id === owner) || data[0];
-    const summary = `${mine.wk.done} von 3 erledigt`;
+    const summary = `Heute ${mine.dy.done}/3 · Woche ${mine.wk.done}/3`;
     cards.push(h('div', { class: `card homecard ${collapsed.week ? 'folded' : ''}` },
-      head('week', 'Wochenaufgaben', h('span', { class: 'dim small' }, `noch ${daysLeft} ${daysLeft === 1 ? 'Tag' : 'Tage'}`), summary),
+      head('week', 'Aufgaben', h('span', { class: 'dim small' }, `Woche: noch ${daysLeft} ${daysLeft === 1 ? 'Tag' : 'Tage'}`), summary),
       collapsed.week ? null : [
+        // Tagesaufgaben: leichter, jeden Spieltag neu (Stand: dein Spieler bzw. der erste)
+        h('div', { class: 'tasksub' }, h('span', {}, '☀️ Heute'), h('span', { class: mine.dy.perfect ? 'accent' : '' }, mine.dy.perfect ? '🌟 perfekter Tag' : `${mine.dy.done} / 3`)),
+        h('ol', { class: 'tasklist' }, mine.dy.items.map((it) => h('li', { class: it.done ? 'done' : '' },
+          h('span', { class: 'tasktext' }, it.text),
+          h('span', { class: 'taskstate' }, it.done ? 'geschafft' : `${it.cur} / ${it.goal}`)))),
+        h('div', { class: 'tasksub' }, h('span', {}, '🗓️ Diese Woche'), h('span', { class: mine.wk.medal ? 'accent' : '' }, mine.wk.medal ? '🏅 Medaille' : `${mine.wk.done} / 3`)),
         // Jede Aufgabe mit eigenem Stand (dein Spieler bzw. der erste): „1 / 2“ oder „geschafft“
         h('ol', { class: 'tasklist' }, tasks.map((t, i) => {
           const it = mine.wk.items[i];
@@ -184,7 +190,7 @@ async function progressCard(nav) {
         data.length > 1
           ? h('div', { class: 'weekplayers' }, data.map(({ p, wk }) => h('span', { class: `wchip ${wk.medal ? 'medal' : ''}` }, p.name, dots(wk))))
           : h('div', { class: 'weekplayers' }, h('span', { class: `wchip ${mine.wk.medal ? 'medal' : ''}` }, mine.wk.medal ? 'Wochen-Medaille geholt' : `${mine.wk.done} von 3 erledigt`, dots(mine.wk))),
-        h('div', { class: 'dim small' }, 'Alle drei geschafft = Wochen-Medaille. Neue Aufgaben jeden Montag.'),
+        h('div', { class: 'dim small' }, 'Alle drei der Woche = Wochen-Medaille, alle drei des Tages = perfekter Tag. Beides bringt Meilensteine. Neue Tagesaufgaben ab 5 Uhr, neue Wochenaufgaben jeden Montag.'),
       ]));
   }
 

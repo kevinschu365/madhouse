@@ -35,7 +35,7 @@ export function render(root, params, nav) {
             h('option', { value: '' }, '– niemand bestimmtes –'),
             getPlayers().map((p) => h('option', { value: p.id, selected: p.id === s.ownerId }, displayName(p))))),
         h('p', { class: 'dim', style: { margin: 0, fontSize: '14px' } }, 'Die Startseite zeigt dann nur deinen Fortschritt, Statistik und Training starten mit dir. Jedes Handy stellt das für sich ein.'),
-        toggle('homeShowWeek', 'Startseite: Wochenaufgaben zeigen'),
+        toggle('homeShowWeek', 'Startseite: Aufgaben (Tag und Woche) zeigen'),
         toggle('homeShowProgress', 'Startseite: Fortschritt zeigen'),
         toggle('homeAllPlayers', 'Startseite: alle Spieler zeigen', 'Sonst nur du'),
       ),

@@ -66,8 +66,9 @@ export function render(root, params, nav) {
     const legs = h('span');
     const avg = h('div', { class: 'avg num' });
     const meta = h('div', { class: 'meta num' }); // Runden und Darts im aktuellen Leg
-    const el = h('div', { class: training ? 'pp solo' : 'pp' }, name, score, h('div', { class: 'sl num' }, sets, legs), meta, avg);
-    return { el, name, score, sets, legs, avg, meta };
+    const last = h('div', { class: 'lastturn num' }); // letzte eigene Aufnahme im Leg
+    const el = h('div', { class: training ? 'pp solo' : 'pp' }, name, score, h('div', { class: 'sl num' }, sets, legs), last, meta, avg);
+    return { el, name, score, sets, legs, avg, meta, last };
   });
   // Cricket: Tabelle der Marks. Zu zweit: Spieler 1 | Zahl | Spieler 2.
   // Ab 3 Spielern: Zahl | Spieler 1 | Spieler 2 | … (mit Namenskopf, Reihenfolge wie die Spielerfelder).
@@ -337,6 +338,7 @@ export function render(root, params, nav) {
       p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
       p.avg.replaceChildren(avgParts(m.players[i], 'Ø', 1));
       p.meta.replaceChildren(legCountParts(st, i));
+      p.last.replaceChildren(lastTurnParts(st, i));
     });
     const darts = st.turnDarts;
     slots.forEach((el, i) => {
@@ -416,6 +418,21 @@ export function render(root, params, nav) {
     return [h('span', {}, 'Runde ', h('b', {}, rounds)), h('span', {}, h('b', {}, darts), ' Darts')];
   }
 
+  /**
+   * „Zuletzt: T20 T20 5 = 125“ – die letzte abgeschlossene Aufnahme des Spielers im laufenden Leg.
+   * So sieht man, wenn man wieder dran ist, was man zuletzt geworfen hat. Bei Summen-Eingabe nur die Punkte.
+   */
+  function lastTurnParts(st, i) {
+    if (st.finished) return [];
+    const leg = st.legs[st.legs.length - 1];
+    const turns = leg ? leg.turns.filter((t) => t.player === i) : [];
+    const t = turns[turns.length - 1];
+    if (!t) return [];
+    const darts = (t.darts || []).slice(0, t.ev.usedDarts || t.darts.length);
+    const result = turnText(t.ev, true);
+    return [`Zuletzt: `, darts.length ? `${darts.map(hitLabel).join(' ')} = ` : '', h('b', {}, result)];
+  }
+
   /** „Ø Leg 52.3  Spiel 48.1“ (X01) bzw. „MPR Leg 2.40  Spiel 2.10“ (Cricket), bricht bei Platzmangel um. */
   function avgParts(pid, label, digits) {
     const s = statsCache[pid];
@@ -456,6 +473,7 @@ export function render(root, params, nav) {
       p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
       p.avg.replaceChildren(avgParts(m.players[i], 'MPR', 2));
       p.meta.replaceChildren(legCountParts(st, i));
+      p.last.replaceChildren(lastTurnParts(st, i));
     });
     for (const r of cricketRows) {
       const counts = live.marks.map((mk) => mk[r.n]);
@@ -481,6 +499,7 @@ export function render(root, params, nav) {
       p.legs.innerHTML = `Legs <b>${st.legsWon[i]}</b>`;
       p.meta.replaceChildren(h('span', {}, v.sub));
       p.avg.replaceChildren();
+      p.last.replaceChildren(lastTurnParts(st, i));
     });
   }
 

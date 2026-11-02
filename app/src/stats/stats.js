@@ -2,6 +2,7 @@
 // Funktioniert für alle gespeicherten Würfe, auch rückwirkend.
 
 import { derive } from '../game/match.js';
+import { missionCounts } from './progress.js'; // gegenseitiger Import, wird erst beim Aufruf gebraucht
 
 /** Kennzahlen eines Spielers aus seinen Wurfzeilen (nur X01). */
 export function playerStats(rows) {
@@ -314,6 +315,7 @@ export const MILESTONE_CATEGORIES = [
   { id: 'wins', icon: '🥇', title: 'Siege & Matches', note: 'Siege, Serien, Gegner' },
   { id: 'cricket', icon: '🏏', title: 'Cricket', note: 'MPR, Mark-Runden, Siege' },
   { id: 'grind', icon: '🎳', title: 'Fleiß & Kurioses', note: 'Darts, Spieltage, Wochen-Serien, Trainings und Kuriositäten' },
+  { id: 'missions', icon: '📋', title: 'Aufgaben', note: 'Erledigte Tages- und Wochenaufgaben, perfekte Tage, Wochen-Medaillen und Serien' },
   { id: 'secret', icon: '🕵️', title: 'Geheim', note: 'Was hier steckt, verrät sich erst, wenn es passiert.' },
 ];
 
@@ -426,6 +428,14 @@ export const MILESTONES = [
   ...[2, 4, 8, 12, 26, 52].map((n) => count('grind', `wstreak-${n}`, '🔥', `${n} Wochen in Folge gespielt`, (s) => s.bestWeekStreak, n)),
   ...[3, 7, 14, 30, 60, 100].map((n) => count('grind', `dstreak-${n}`, '📆', `${n} Tage in Folge gespielt (auch Training)`, (s) => s.bestDayStreak, n)),
 
+  // Aufgaben: Zähler kommen aus missionCounts() (progress.js), nicht aus collect()
+  ...tiers('missions', 'mis-d', '☀️', (s) => s.daily, [1, 10, 50, 100, 250, 500], (g) => (g === 1 ? 'Erste Tagesaufgabe' : `${fmt(g)} Tagesaufgaben erledigt`)),
+  ...tiers('missions', 'mis-dp', '🌟', (s) => s.perfectDays, [1, 10, 25, 50, 100], (g) => (g === 1 ? 'Erster perfekter Tag (alle 3 Tagesaufgaben)' : `${fmt(g)} perfekte Tage`)),
+  ...[3, 7, 14, 30].map((g) => count('missions', `mis-dps-${g}`, '🔗', `${g} perfekte Spieltage in Folge`, (s) => s.bestPerfectRow, g)),
+  ...tiers('missions', 'mis-w', '🗓️', (s) => s.weekly, [1, 10, 25, 50, 100], (g) => (g === 1 ? 'Erste Wochenaufgabe' : `${fmt(g)} Wochenaufgaben erledigt`)),
+  ...tiers('missions', 'mis-wm', '🏅', (s) => s.medals, [1, 5, 10, 25, 52], (g) => (g === 1 ? 'Erste Wochen-Medaille' : `${fmt(g)} Wochen-Medaillen`)),
+  ...[2, 4, 8, 12].map((g) => count('missions', `mis-wms-${g}`, '⛓️', `${g} Medaillen-Wochen in Folge`, (s) => s.bestMedalRow, g)),
+
   // Bester Leg-Average (ein einzelnes Leg, ab 9 Darts)
   ...[60, 80, 100, 120].map((n) => one('avg', `legavg-${n}`, '⚡', `Leg-Average ${n}+`, (s) => s.bestLegAvg >= n)),
 
@@ -456,7 +466,7 @@ const PTS = {
   'tonrow-5': 50, 'tonrow-3': 20, 'tonrow-2': 8, '180match-3': 50, '180match-2': 25, 'tonmatch-10': 30, 'tonmatch-5': 12,
   'co-rate-100': 25, 'co-rate-50': 12, ww: 15, sets: 10, big: 10, night: 5, bed: 10, 'bust-1': 1, 'zero-1': 1,
 };
-const WEIGHT = { 180: 4, 140: 2, 100: 1.5, 't40': 2, ton: 1.2, 'co-n': 1.5, win: 1.5, cwin: 1.5, played: 0.8, darts: 0.4, marks: 0.5, bust: 0.5, zero: 0.5, wstreak: 3, dstreak: 2.5 };
+const WEIGHT = { 180: 4, 'mis-d': 0.6, 'mis-dp': 1.2, 'mis-dps': 3, 'mis-w': 1, 'mis-wm': 2, 'mis-wms': 4, 140: 2, 100: 1.5, 't40': 2, ton: 1.2, 'co-n': 1.5, win: 1.5, cwin: 1.5, played: 0.8, darts: 0.4, marks: 0.5, bust: 0.5, zero: 0.5, wstreak: 3, dstreak: 2.5 };
 function pointsOf(m) {
   if (m.secret) return 20;
   if (PTS[m.id] != null) return PTS[m.id];
@@ -465,7 +475,7 @@ function pointsOf(m) {
   const kind = m.group || m.id.replace(/-[^-]+$/, '');
   return Math.max(1, Math.round((WEIGHT[kind] || 1) * 2 * goal ** 0.35));
 }
-for (const m of MILESTONES) m.pts = pointsOf(m);
+for (const m of MILESTONES) { m.pts = pointsOf(m); if (m.cat === 'missions') m.mission = true; }
 /** Summe aller möglichen Punkte. */
 export const TOTAL_POINTS = MILESTONES.reduce((a, m) => a + m.pts, 0);
 
@@ -532,6 +542,7 @@ export function collect(rows, matches, playerId, onMatch = null) {
     const rs = mine.get(m.id);
     if (!rs) continue;
     const me = m.players.indexOf(playerId);
+    const done = m.status === 'finished';
     const cur = { won: false, legsWon: 0, tons: 0, t40: 0, c180: 0, exact: {}, checkouts: 0, bestCheckout: 0, bestLeg: null, avg: 0, darts: 0, doubles: [], cricketBest: 0, mpr: 0 };
     s.last = cur;
     if (m.status === 'finished') {
@@ -580,6 +591,10 @@ export function collect(rows, matches, playerId, onMatch = null) {
       }
     }
     if (m.mode === 'x01') {
+      // Werte, die im laufenden Spiel noch schwanken (Match-Average, First 9, Checkout-Quote), erst nach dem Match;
+      // den Leg-Average nur für fertige Legs. Sonst gäbe es mitten im Leg Meldungen, die am Ende nicht stimmen.
+      let openLeg = null;
+      if (!done) { try { openLeg = derive(m).legOverall; } catch { /* unbekannter Modus */ } }
       const p = playerStats(rs);
       s.darts += p.darts;
       s.x01Points += (p.average * p.darts) / 3;
@@ -588,12 +603,12 @@ export function collect(rows, matches, playerId, onMatch = null) {
       s.bestCheckout = Math.max(s.bestCheckout, p.highestCheckout);
       s.legsWon += p.legsWon;
       if (p.bestLeg) s.bestLeg = Math.min(s.bestLeg, p.bestLeg);
-      if (p.darts >= 9) { s.bestAvg = Math.max(s.bestAvg, p.average); s.bestFirst9 = Math.max(s.bestFirst9, p.first9); }
-      if (p.checkoutAttempts >= 3) s.bestCoRate3 = Math.max(s.bestCoRate3, p.checkoutRate);
-      if (p.checkoutAttempts >= 4) s.bestCoRate4 = Math.max(s.bestCoRate4, p.checkoutRate);
+      if (done && p.darts >= 9) { s.bestAvg = Math.max(s.bestAvg, p.average); s.bestFirst9 = Math.max(s.bestFirst9, p.first9); }
+      if (done && p.checkoutAttempts >= 3) s.bestCoRate3 = Math.max(s.bestCoRate3, p.checkoutRate);
+      if (done && p.checkoutAttempts >= 4) s.bestCoRate4 = Math.max(s.bestCoRate4, p.checkoutRate);
       s.best180Match = Math.max(s.best180Match, p.c180);
       Object.assign(cur, { legsWon: p.legsWon, c180: p.c180, bestCheckout: p.highestCheckout, bestLeg: p.bestLeg, avg: p.average, darts: p.darts });
-      s.bestLegAvg = Math.max(s.bestLegAvg, bestLegAverage(rs));
+      s.bestLegAvg = Math.max(s.bestLegAvg, bestLegAverage(rs, openLeg));
       let tonRow = 0;
       let zerosHere = 0;
       let prev = null;
@@ -642,7 +657,7 @@ export function collect(rows, matches, playerId, onMatch = null) {
       s.darts += c.darts;
       s.marks += c.marks;
       s.rounds5 += c.rounds5;
-      if (c.turns >= 3) s.bestMpr = Math.max(s.bestMpr, c.mpr);
+      if (done && c.turns >= 3) s.bestMpr = Math.max(s.bestMpr, c.mpr);
       s.bestRound = Math.max(s.bestRound, c.bestRound);
       Object.assign(cur, { cricketBest: c.bestRound, mpr: c.mpr, darts: c.darts });
     } else {
@@ -653,11 +668,11 @@ export function collect(rows, matches, playerId, onMatch = null) {
   return s;
 }
 
-/** Bester Average in einem einzelnen Leg (ab 9 Darts) aus den Wurfzeilen eines Matches. */
-function bestLegAverage(rs) {
+/** Bester Average in einem einzelnen fertigen Leg (ab 9 Darts). openLeg: Nummer des laufenden Legs (wird übersprungen). */
+function bestLegAverage(rs, openLeg = null) {
   const legs = new Map();
   for (const r of rs) {
-    if (!r.counted) continue;
+    if (!r.counted || r.legOverall === openLeg) continue; // laufendes Leg zählt noch nicht
     const l = legs.get(r.legOverall) || legs.set(r.legOverall, { darts: 0, turns: new Map() }).get(r.legOverall);
     l.darts++;
     l.turns.set(r.turn, r.turnPoints || 0);
@@ -697,9 +712,13 @@ function hadComeback(m, me) {
 export function milestones(rows, matches, playerId) {
   const reached = {};
   const s = collect(rows, matches, playerId, (m, st) => {
-    for (const d of MILESTONES) if (!reached[d.id] && d.test(st)) reached[d.id] = m.createdAt;
+    for (const d of MILESTONES) if (!d.mission && !reached[d.id] && d.test(st)) reached[d.id] = m.createdAt;
   });
-  return MILESTONES.map((d) => ({ ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(s) : null }));
+  // Aufgaben-Meilensteine: Zeitpunkt ist das Match, mit dem die Aufgabe erledigt war
+  const mc = missionCounts(rows, matches, playerId, (ts, c) => {
+    for (const d of MILESTONES) if (d.mission && !reached[d.id] && d.test(c)) reached[d.id] = ts;
+  });
+  return MILESTONES.map((d) => ({ ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(d.mission ? mc : s) : null }));
 }
 
 // ---------- Ränge ----------

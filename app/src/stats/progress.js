@@ -3,7 +3,7 @@
 // Alles wird aus den gespeicherten Spielen berechnet (auch rückwirkend) – nichts Neues zu speichern
 // außer der Vitrine (welche Abzeichen jemand zeigen will).
 
-import { collect, weekStart, milestones, pointsOfList, playerStats, MILESTONES, playDayStart, playDayNo } from './stats.js';
+import { collect, weekStart, milestones, pointsOfList, playerStats, MILESTONES, playDayStart, playDayNo } from './stats.js'; // gegenseitiger Import: stats.js nutzt missionCounts erst beim Aufruf
 import { lsGet, lsSet } from '../core/storage.js';
 
 const DAY = 86400000;
@@ -82,6 +82,122 @@ export function weekHistory(rows, matches, playerId) {
   const mine = matches.filter((m) => m.players.includes(playerId));
   const weeks = [...new Set(mine.map((m) => weekStart(m.createdAt)))].sort((a, b) => a - b);
   return weeks.map((w) => { const st = weekStatus(rows, matches, playerId, w); return { start: w, done: st.done, medal: st.medal }; });
+}
+
+// ---------- Tagesaufgaben ----------
+
+// Leichter als die Wochenaufgaben: an einem Abend gut zu schaffen. Drei Töpfe, je Spieltag (ab 5 Uhr) eine Aufgabe aus jedem.
+const atLeast = (s, min) => Object.entries(s.exact).reduce((a, [p, c]) => a + (Number(p) >= min ? c : 0), 0);
+const DAILY_POOLS = [
+  [ // Scoring
+    { id: 'd-ton1', icon: '💯', text: 'Eine Aufnahme 100+', get: (s) => s.ton, goal: 1 },
+    { id: 'd-60x5', icon: '🎯', text: '5× 60 oder mehr', get: (s) => atLeast(s, 60), goal: 5 },
+    { id: 'd-s60', icon: '🎯', text: 'Einmal genau 60', get: (s) => n(s.exact[60]), goal: 1 },
+    { id: 'd-s26', icon: '🛏️', text: 'Einmal Bed & Breakfast (26)', get: (s) => n(s.exact[26]), goal: 1 },
+    { id: 'd-80x3', icon: '🔸', text: '3× 80 oder mehr', get: (s) => atLeast(s, 80), goal: 3 },
+  ],
+  [ // Finish
+    { id: 'd-co1', icon: '✅', text: 'Ein Checkout', get: (s) => s.checkouts, goal: 1 },
+    { id: 'd-co2', icon: '✅', text: '2 Checkouts', get: (s) => s.checkouts, goal: 2 },
+    { id: 'd-co40', icon: '🏁', text: 'Ein Finish 40+', get: (s) => (s.bestCheckout >= 40 ? 1 : 0), goal: 1 },
+    { id: 'd-leg30', icon: '⚡', text: 'Ein Leg in 30 Darts oder weniger', get: (s) => (s.bestLeg <= 30 ? 1 : 0), goal: 1 },
+    { id: 'd-dbl2', icon: '🎨', text: 'Auf 2 verschiedenen Doppeln auschecken', get: (s) => s.doubles.size, goal: 2 },
+  ],
+  [ // Spielen
+    { id: 'd-play1', icon: '🎟️', text: 'Ein Match spielen', get: (s) => s.played, goal: 1 },
+    { id: 'd-play2', icon: '🎟️', text: '2 Matches spielen', get: (s) => s.played, goal: 2 },
+    { id: 'd-win1', icon: '🥇', text: 'Ein Match gewinnen', get: (s) => s.wins, goal: 1 },
+    { id: 'd-legs2', icon: '🏳️', text: '2 Legs gewinnen', get: (s) => s.legsWon, goal: 2 },
+    { id: 'd-train1', icon: '🏋️', text: 'Ein Training beenden', get: (s) => s.trainings, goal: 1 },
+  ],
+];
+
+/** Die drei Aufgaben des Spieltags, in dem ts liegt (für alle Spieler und Handys dieselben). */
+export function dailyChallenges(ts = Date.now()) {
+  const r = rng(playDayNo(ts) * 104729 + 7);
+  return DAILY_POOLS.map((pool) => pool[Math.floor(r() * pool.length)]);
+}
+
+/** Stand der Tagesaufgaben: { start, end, items: [{ ...Aufgabe, cur, done }], done, perfect (alle drei) }. */
+export function dayStatus(rows, matches, playerId, ts = Date.now()) {
+  const start = playDayStart(ts);
+  const end = playDayStart(start + 30 * 3600000); // nächster Spieltag (so stimmt es auch bei Sommerzeit-Wechsel)
+  const s = collect(rows, inRange(matches, start, end), playerId);
+  const items = dailyChallenges(ts).map((c) => { const cur = Math.min(c.get(s), c.goal); return { ...c, cur, done: cur >= c.goal }; });
+  const done = items.filter((i) => i.done).length;
+  return { start, end, items, done, perfect: done === items.length };
+}
+
+// ---------- Aufgaben-Zähler (für die Meilensteine der Kategorie „Aufgaben“) ----------
+
+const missionCache = new Map(); // gleiche Daten -> gleiche Ereignisse (milestones() wird oft aufgerufen)
+
+/**
+ * Zählt erledigte Tages- und Wochenaufgaben des Spielers der Zeit nach und meldet nach jedem
+ * Ereignis den Zählerstand: onEvent(zeitpunkt, zähler).
+ * Zähler: { daily, perfectDays, perfectRow, bestPerfectRow, weekly, medals, medalRow, bestMedalRow }.
+ */
+export function missionCounts(rows, matches, playerId, onEvent = null) {
+  const key = `${playerId}|${rows.length}|${matches.length}|${matches.reduce((a, m) => Math.max(a, m.updatedAt || m.createdAt || 0), 0)}`;
+  let events = missionCache.get(key);
+  if (!events) {
+    events = missionEvents(rows, matches, playerId);
+    if (missionCache.size > 50) missionCache.clear();
+    missionCache.set(key, events);
+  }
+  const c = { daily: 0, perfectDays: 0, perfectRow: 0, bestPerfectRow: 0, weekly: 0, medals: 0, medalRow: 0, bestMedalRow: 0 };
+  let lastPerfectDay = null;
+  let lastMedalWeek = null;
+  for (const [ts, kind, tag] of events) {
+    if (kind === 'd') c.daily++;
+    else if (kind === 'w') c.weekly++;
+    else if (kind === 'dp') {
+      c.perfectDays++;
+      c.perfectRow = lastPerfectDay === tag - 1 ? c.perfectRow + 1 : 1;
+      lastPerfectDay = tag;
+      c.bestPerfectRow = Math.max(c.bestPerfectRow, c.perfectRow);
+    } else if (kind === 'wp') {
+      c.medals++;
+      c.medalRow = lastMedalWeek === tag - 1 ? c.medalRow + 1 : 1;
+      lastMedalWeek = tag;
+      c.bestMedalRow = Math.max(c.bestMedalRow, c.medalRow);
+    }
+    if (onEvent) onEvent(ts, c);
+  }
+  return c;
+}
+
+/**
+ * Erledigte Aufgaben als Ereignisse, ältestes zuerst: [zeitpunkt, art, spieltag/woche].
+ * art: 'd' (Tagesaufgabe), 'dp' (perfekter Tag), 'w' (Wochenaufgabe), 'wp' (Wochen-Medaille).
+ * Zeitpunkt = das Match, nach dem die Aufgabe erledigt war.
+ */
+function missionEvents(rows, matches, playerId) {
+  const mine = rows.filter((r) => r.playerId === playerId);
+  const played = matches.filter((m) => m.status === 'finished' && m.players.includes(playerId)).sort((a, b) => a.createdAt - b.createdAt);
+  const events = [];
+  const scan = (list, tasks, kind, tag) => {
+    const doneIds = new Set();
+    collect(mine, list, playerId, (m, st) => {
+      for (const t of tasks) {
+        if (doneIds.has(t.id) || t.get(st) < t.goal) continue;
+        doneIds.add(t.id);
+        events.push([m.createdAt, kind, tag]);
+        if (doneIds.size === tasks.length) events.push([m.createdAt, `${kind}p`, tag]);
+      }
+    });
+  };
+  const byDay = new Map();
+  const byWeek = new Map();
+  for (const m of played) {
+    const d = playDayNo(m.createdAt);
+    (byDay.get(d) || byDay.set(d, []).get(d)).push(m);
+    const w = Math.round(weekStart(m.createdAt) / (7 * DAY));
+    (byWeek.get(w) || byWeek.set(w, []).get(w)).push(m);
+  }
+  for (const [d, list] of byDay) scan(list, dailyChallenges(list[0].createdAt), 'd', d);
+  for (const [w, list] of byWeek) scan(list, weeklyChallenges(list[0].createdAt), 'w', w);
+  return events.sort((a, b) => a[0] - b[0]);
 }
 
 // ---------- Saison (Quartal) ----------
