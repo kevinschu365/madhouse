@@ -11,7 +11,7 @@ import { getPlayers, getSettings, updateSettings, ownerId, displayName } from '.
 import { milestones, playerRank } from '../../stats/stats.js';
 import { weeklyChallenges, weekStatus, dayStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
-import { liveServer, takeEndedNotice, setCloudCode, setMyBoard } from '../../core/live.js';
+import { liveServer, takeEndedNotice, setCloudCode, setMyBoard, liveActive } from '../../core/live.js';
 import { showCode } from '../../core/cloud.js';
 
 export function render(root, params, nav) {
@@ -57,7 +57,7 @@ export function render(root, params, nav) {
   liveServer().then((i) => {
     const ended = takeEndedNotice();
     if (ended) toast(`Das Online-Turnier ${showCode(ended)} wurde beendet.`);
-    if (!i) return;
+    if (!liveActive(i)) return; // nur wenn wirklich ein Turnier live ist
     liveCard.classList.remove('hidden');
     if (i.cloud) {
       liveCard.querySelector('.livenote').textContent = 'Du bist mit einem Online-Turnier verbunden (Code ' + showCode(i.code) + ').';

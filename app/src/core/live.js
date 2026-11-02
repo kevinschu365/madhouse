@@ -7,7 +7,7 @@
 // Fällt das Netz kurz aus, werden Spielstände gepuffert und beim nächsten Mal nachgeschickt.
 
 import { lsGet, lsSet } from './storage.js';
-import { putTournament, putMatch, putPresence, watch, showCode, fetchState } from './cloud.js';
+import { putTournament, putMatch, putPresence, watch, showCode, fetchState, deleteOnline } from './cloud.js';
 
 const TIMEOUT = 8000;
 let pingCache = null;
@@ -78,6 +78,16 @@ export function liveServer() {
   return pingCache;
 }
 
+/** Läuft gerade wirklich ein Turnier live? (Online immer; im WLAN nur, wenn der Server einen Turnierplan hat) */
+export const liveActive = (info) => !!info && (!!info.cloud || !!info.tid);
+
+/** Live-Turnier beenden: online löschen bzw. den Turnier-Server auf dem PC leeren. */
+export async function endLive() {
+  const code = cloudCode();
+  if (code) { await deleteOnline(code); setCloudCode(null); } else await call('/api/reset', {});
+  pingCache = null;
+}
+
 /** Wurde ein Online-Turnier beendet, seit es zuletzt benutzt wurde? Liefert den Code einmal, dann null. */
 export function takeEndedNotice() {
   const c = endedCode;
@@ -121,6 +131,7 @@ export async function liveState() {
 /** Turnierplan senden (nur die Turnierleitung); bei einem Netzfehler ein zweiter Versuch. */
 export async function postTournament(t) {
   const send = () => (cloudCode() ? putTournament(cloudCode(), t) : call('/api/tournament', t));
+  pingCache = null; // danach neu prüfen (WLAN: Turnier-Kennung des Servers)
   try { return await send(); } catch {
     await new Promise((r) => setTimeout(r, 800));
     try { return await send(); } catch (e) {

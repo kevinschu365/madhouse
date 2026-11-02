@@ -6,7 +6,7 @@ import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGue
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
-import { liveServer, postTournament, setCloudCode, setMyBoard } from '../../core/live.js';
+import { liveServer, postTournament, setCloudCode, setMyBoard, liveActive, endLive } from '../../core/live.js';
 import { cloudEnabled, newCode, normCode, showCode, fetchState } from '../../core/cloud.js';
 import { confetti } from '../celebrate.js';
 import { scanQR } from '../qrScan.js';
@@ -75,9 +75,9 @@ export function render(root, params, nav) {
             if (input != null) { unlock(); join(input); }
           },
         }, '⌨️ Code eintippen')) : null,
-      live ? h('div', { class: 'card stack' },
-        h('b', {}, live.cloud ? `🌐 Online-Turnier · Code ${showCode(live.code)}` : '🏟️ Turnier-Server erkannt'),
-        h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Diese App läuft über den PC. Turnier anlegen, dann „Live schalten“: Der PC ruft die Spiele an die Boards auf, die iPhones zählen.'),
+      liveActive(live) ? h('div', { class: 'card stack' },
+        h('b', {}, live.cloud ? `🌐 Online-Turnier · Code ${showCode(live.code)}` : '🏟️ Live-Turnier im WLAN läuft'),
+        h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Der Turnier-Server auf dem PC hat ein laufendes Turnier. Beenden: in der Live-Ansicht unten „Live-Turnier beenden“.'),
         h('div', { class: 'grid2' },
           h('button', { class: 'btn', onclick: () => nav.go('live') }, '📺 Live-Ansicht'),
           h('button', { class: 'btn', onclick: () => nav.go('board') }, '🎯 Board-Handy')),
@@ -278,6 +278,7 @@ export function render(root, params, nav) {
           class: 'btn danger',
           onclick: async () => {
             if (await confirmDialog('Turnier entfernen?', 'Nur der Turnierplan verschwindet. Gespielte Matches bleiben in der Statistik.', { ok: 'Entfernen', danger: true })) {
+              if (live && !live.cloud && live.tid === t.id) await endLive().catch(() => {}); // läuft gerade live im WLAN: Server mit leeren
               deleteTournament(t.id); nav.go('tournament');
             }
           },

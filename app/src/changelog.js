@@ -8,6 +8,15 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.15.2',
+    date: '02.11.2026',
+    items: [
+      'Behoben: Der Turnier-Server auf dem PC hielt ein altes Turnier fest – jetzt gibt es „⏹️ Live-Turnier beenden“ auch im WLAN',
+      'Turnierplan entfernen leert den Turnier-Server mit, wenn genau dieses Turnier dort live ist',
+      'Live-Karten auf Startseite und im Turnier-Bereich erscheinen nur noch, wenn wirklich ein Turnier live ist',
+    ],
+  },
+  {
     version: '1.15.1',
     date: '02.11.2026',
     items: [

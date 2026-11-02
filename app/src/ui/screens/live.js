@@ -12,8 +12,8 @@ import { say, unlock } from '../../audio/speech.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
 import { getTournaments, saveTournament, tournamentState, boardStatus, planCalls, queueOrder, matchTag, pickWriter, highlightsOf, scheduleEstimate, TOURNAMENT_FORMATS } from '../../core/tournament.js';
-import { liveServer, liveState, postTournament, postMatch, boardUrl, baseUrl, setCloudCode, presenceTracker } from '../../core/live.js';
-import { showCode, deleteOnline } from '../../core/cloud.js';
+import { liveServer, liveState, postTournament, postMatch, boardUrl, baseUrl, presenceTracker, endLive } from '../../core/live.js';
+import { showCode } from '../../core/cloud.js';
 import { planView, champCard, nameOf, liveScore } from '../tournamentView.js';
 import { confetti } from '../celebrate.js';
 import { offerSync } from '../syncUi.js';
@@ -296,15 +296,20 @@ export function render(root, params, nav) {
       tv ? null : h('div', { class: 'row', style: { marginTop: '12px' } },
         h('button', { class: 'btn', onclick: () => exportFile(t, matches) }, '📤 Abgleich-Datei für alle'),
         h('button', { class: 'btn ghost', onclick: () => nav.go('tournament', { id: t.id }) }, 'Turnierplan')),
-      tv || !(info && info.cloud) ? null : h('button', {
+      // Live-Turnier beenden: online löschen bzw. den Turnier-Server leeren (die Spiele bleiben auf diesem PC)
+      tv ? null : h('button', {
         class: 'btn danger',
         onclick: async () => {
-          if (!(await confirmDialog('Online-Turnier beenden?', 'Turnier und Spielstände werden online gelöscht. Vorher „Abgleich-Datei für alle“ erstellen oder die Board-Handys „Turnier-Spiele übernehmen“ lassen – auf diesem PC bleiben die Spiele erhalten.', { ok: 'Beenden und löschen', danger: true }))) return;
-          try { await deleteOnline(info.code); } catch (e) { toast(e.message); }
-          setCloudCode(null);
+          const online = info && info.cloud;
+          if (!(await confirmDialog(online ? 'Online-Turnier beenden?' : 'Live-Turnier beenden?',
+            online
+              ? 'Turnier und Spielstände werden online gelöscht. Vorher „Abgleich-Datei für alle“ erstellen oder die Board-Handys „Turnier-Spiele übernehmen“ lassen – auf diesem PC bleiben die Spiele erhalten.'
+              : 'Der Turnier-Server vergisst das Turnier, die Board-Handys werden abgemeldet. Die Spiele bleiben auf diesem PC (Turnierplan und Statistik).',
+            { ok: 'Beenden', danger: true }))) return;
+          try { await endLive(); } catch (e) { toast(e.message); }
           nav.go('tournament', { id: t.id });
         },
-      }, '🌐 Online-Turnier beenden'),
+      }, info && info.cloud ? '🌐 Online-Turnier beenden' : '⏹️ Live-Turnier beenden'),
       tv ? null : h('p', { class: 'small dim' }, 'Freie Boards bekommen automatisch das nächste Spiel, mit Ansage (Lautsprecher am PC an). Tipp auf ein belegtes Board: Aufruf zurücknehmen oder Ergebnis eintragen, falls ein Handy ausfällt. − / ＋ ändert die Zahl der Boards. Schreiber, Highlights, Zeitplan usw.: Einstellungen › Turnier & Live.'),
     );
   }
