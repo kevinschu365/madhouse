@@ -8,6 +8,14 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.15.1',
+    date: '02.11.2026',
+    items: [
+      'Behoben: Nach dem Beenden eines Online-Turniers am PC blieb das Handy mit dem alten Code verbunden und kam nicht mehr heraus – jetzt verlässt es das Turnier von selbst',
+      '„🌐 Turnier verlassen“ jetzt auch auf der Startseite und im Turnier-Bereich',
+    ],
+  },
+  {
     version: '1.15.0',
     date: '02.11.2026',
     items: [

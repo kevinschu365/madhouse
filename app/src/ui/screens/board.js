@@ -39,6 +39,13 @@ export function render(root, params, nav) {
     }
     const t = state.tournament;
     if (!t || !t.players) {
+      // Online-Turnier wurde am PC beendet: automatisch verlassen
+      if (cloudInfo) {
+        setCloudCode(null); setMyBoard(null);
+        toast('Das Online-Turnier wurde beendet.');
+        nav.go('home');
+        return;
+      }
       body.replaceChildren(topbar('Board-Handy'), h('div', { class: 'card' }, h('b', {}, 'Noch kein Turnier live.'), h('div', { class: 'small dim' }, 'Am PC ein Turnier anlegen und „Live schalten“ tippen.')));
       return;
     }

@@ -1,4 +1,4 @@
-import { h, confirmDialog, sheet } from '../dom.js';
+import { h, confirmDialog, sheet, toast } from '../dom.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
 import { derive, throwRows } from '../../game/match.js';
@@ -11,7 +11,7 @@ import { getPlayers, getSettings, updateSettings, ownerId, displayName } from '.
 import { milestones, playerRank } from '../../stats/stats.js';
 import { weeklyChallenges, weekStatus, dayStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
-import { liveServer } from '../../core/live.js';
+import { liveServer, takeEndedNotice, setCloudCode, setMyBoard } from '../../core/live.js';
 import { showCode } from '../../core/cloud.js';
 
 export function render(root, params, nav) {
@@ -55,9 +55,14 @@ export function render(root, params, nav) {
       h('button', { class: 'btn primary', onclick: () => nav.go('board') }, '🎯 Board-Handy'),
       h('button', { class: 'btn', onclick: () => nav.go('live') }, '📺 Turnierleitung')));
   liveServer().then((i) => {
+    const ended = takeEndedNotice();
+    if (ended) toast(`Das Online-Turnier ${showCode(ended)} wurde beendet.`);
     if (!i) return;
     liveCard.classList.remove('hidden');
-    if (i.cloud) liveCard.querySelector('.livenote').textContent = 'Du bist mit einem Online-Turnier verbunden (Code ' + showCode(i.code) + ').';
+    if (i.cloud) {
+      liveCard.querySelector('.livenote').textContent = 'Du bist mit einem Online-Turnier verbunden (Code ' + showCode(i.code) + ').';
+      liveCard.appendChild(h('button', { class: 'btn ghost', onclick: () => { setCloudCode(null); setMyBoard(null); nav.go('home'); } }, '🌐 Turnier verlassen'));
+    }
   });
   const tonight = h('div', { class: 'card tonight hidden', onclick: () => showEveningRecap() });
   // Fortschritt: Wochenaufgaben, Ränge, Serien, „Fast geschafft“ (wird nachgeladen)

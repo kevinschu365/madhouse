@@ -7,7 +7,7 @@
 // Fällt das Netz kurz aus, werden Spielstände gepuffert und beim nächsten Mal nachgeschickt.
 
 import { lsGet, lsSet } from './storage.js';
-import { putTournament, putMatch, putPresence, watch, showCode } from './cloud.js';
+import { putTournament, putMatch, putPresence, watch, showCode, fetchState } from './cloud.js';
 
 const TIMEOUT = 8000;
 let pingCache = null;
@@ -54,15 +54,35 @@ function ensureWatch(code) {
  * Ist ein Live-Turnier erreichbar? Online: { cloud: true, code }. WLAN: { ok, ips, port } vom PC. Sonst null.
  * Der WLAN-Server wird einmal je Start geprüft (nur wenn die App über http vom PC kommt).
  */
+let endedCode = null; // Code eines Online-Turniers, das inzwischen beendet (gelöscht) wurde – für einen Hinweis
+
+function lanPing() {
+  return (location.protocol === 'http:' ? call('/api/ping') : Promise.resolve(null))
+    .then((r) => (r && r.server === 'madhouse-turnier' ? r : null))
+    .catch(() => null);
+}
+
 export function liveServer() {
-  const code = cloudCode();
-  if (code) return Promise.resolve({ cloud: true, code });
   if (!pingCache) {
-    pingCache = (location.protocol === 'http:' ? call('/api/ping') : Promise.resolve(null))
-      .then((r) => (r && r.server === 'madhouse-turnier' ? r : null))
-      .catch(() => null);
+    const code = cloudCode();
+    // Online: einmal prüfen, ob es das Turnier noch gibt. Wurde es am PC beendet, Code vergessen.
+    // Ohne Netz bleibt der Code erhalten (das Turnier läuft vielleicht noch).
+    pingCache = code
+      ? fetchState(code).then((s) => {
+        if (s.tournament) return { cloud: true, code };
+        lsSet('liveCloud', null); lsSet('liveBoard', null); stopWatch(); endedCode = code;
+        return lanPing();
+      }).catch(() => ({ cloud: true, code }))
+      : lanPing();
   }
   return pingCache;
+}
+
+/** Wurde ein Online-Turnier beendet, seit es zuletzt benutzt wurde? Liefert den Code einmal, dann null. */
+export function takeEndedNotice() {
+  const c = endedCode;
+  endedCode = null;
+  return c;
 }
 
 /** Kurzer Text für die Anzeige: „WLAN“ oder „Online · K7P2-QX9M“. */

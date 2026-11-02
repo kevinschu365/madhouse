@@ -80,7 +80,8 @@ export function render(root, params, nav) {
         h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Diese App läuft über den PC. Turnier anlegen, dann „Live schalten“: Der PC ruft die Spiele an die Boards auf, die iPhones zählen.'),
         h('div', { class: 'grid2' },
           h('button', { class: 'btn', onclick: () => nav.go('live') }, '📺 Live-Ansicht'),
-          h('button', { class: 'btn', onclick: () => nav.go('board') }, '🎯 Board-Handy'))) : null,
+          h('button', { class: 'btn', onclick: () => nav.go('board') }, '🎯 Board-Handy')),
+        live.cloud ? h('button', { class: 'btn ghost', onclick: () => { setCloudCode(null); setMyBoard(null); nav.go('tournament'); } }, '🌐 Turnier verlassen') : null) : null,
       h('p', { class: 'dim small', style: { margin: 0 } }, `K.-o. mit ${LIMITS.ko.join('–')} Spielern, Jeder gegen Jeden mit ${LIMITS.rr.join('–')}, Gruppen + K.-o. mit ${LIMITS.gko.join('–')}. Die Auslosung macht die App. Jedes Turnier-Match zählt normal in die Statistik, dazu gibt es Turnier-Meilensteine.`),
       list.length ? sec('🏆 Deine Turniere') : null,
       list.map((t) => {
