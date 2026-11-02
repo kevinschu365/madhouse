@@ -2,7 +2,7 @@
 // Spiele direkt starten oder fortsetzen. Logik in core/tournament.js, Anzeige in ui/tournamentView.js.
 // Läuft die App über den Turnier-Server (PC), kann das Turnier live geschaltet werden (ui/screens/live.js).
 import { h, toast, promptDialog, confirmDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGuest, isGuestId } from '../../core/settings.js';
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
@@ -70,6 +70,7 @@ export function render(root, params, nav) {
       legsBestOf: last.legsBestOf || 3, input: last.input || 'total', groupSize: last.groupSize || 5,
       boards: last.boards || 2, pauseMin: last.pauseMin ?? 0,
       selected: (last.players || []).filter((id) => getPlayers().some((p) => p.id === id)),
+      guests: [], // Gäste dieses Turniers (ohne Statistik)
     };
     const draw = () => {
       const players = getPlayers();
@@ -126,7 +127,27 @@ export function render(root, params, nav) {
               draw();
             },
           }, '＋ Neu'),
-          players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
+          // Gäste: spielen mit, bekommen aber keine Statistik und keine Meilensteine
+          cfg.guests.map((g) => h('button', { class: 'chip on guest', onclick: () => { cfg.guests = cfg.guests.filter((x) => x !== g); cfg.selected = cfg.selected.filter((id) => id !== g.id); draw(); } },
+            h('span', { class: 'pick num' }, cfg.selected.indexOf(g.id) + 1), `👤 ${g.name} ✕`)),
+          h('button', {
+            class: 'chip',
+            onclick: async () => {
+              const txt = await promptDialog('Gäste (ohne Statistik)', '2', { ok: 'Hinzufügen', placeholder: 'Anzahl (z. B. 5) oder Namen mit Komma' });
+              if (txt == null || !txt.trim()) return;
+              const count = /^\s*\d+\s*$/.test(txt) ? Math.min(parseInt(txt, 10), MAX_PLAYERS) : 0;
+              const wanted = count ? Array(count).fill('') : txt.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+              for (const nm of wanted) {
+                if (cfg.selected.length >= MAX_PLAYERS) { toast(`Höchstens ${MAX_PLAYERS} Spieler.`); break; }
+                const g = newGuest(nm, cfg.guests.map((x) => x.name));
+                cfg.guests.push(g);
+                cfg.selected.push(g.id);
+              }
+              draw();
+            },
+          }, '＋ Gäste'),
+          players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); cfg.guests = []; draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
+        cfg.guests.length ? h('p', { class: 'dim small', style: { margin: 0 } }, '👤 Gäste spielen mit, bekommen aber keine Statistik und keine Meilensteine. Für ihre Gegner zählt das Match normal.') : null,
         h('p', { class: 'dim small', style: { margin: 0 } }, info),
         h('button', {
           class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, disabled: !ready,
@@ -137,7 +158,7 @@ export function render(root, params, nav) {
                 name: cfg.name.trim() || 'Turnier', format: cfg.format, mode: cfg.mode,
                 options: cfg.mode === 'x01' ? { startScore: cfg.startScore, doubleOut: true } : { cutThroat: cfg.cutThroat },
                 legsBestOf: cfg.legsBestOf, input: cfg.input, camera: false, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin,
-                players: cfg.selected, playerNames: cfg.selected.map((id) => displayName(players.find((p) => p.id === id), players)),
+                players: cfg.selected, playerNames: cfg.selected.map((id) => (isGuestId(id) ? cfg.guests.find((g) => g.id === id).name : displayName(players.find((p) => p.id === id), players))),
               });
             } catch (e) { toast(e.message); return; }
             saveTournament(t);

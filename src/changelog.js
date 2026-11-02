@@ -8,6 +8,29 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.11.0',
+    date: '02.11.2026',
+    items: [
+      'Rekorde und Meilensteine haben eigene große Knöpfe auf der Startseite (nicht mehr in der Statistik)',
+      'Meilensteine: Suche, Filter (erreicht/offen, Punkte, nur Elite) und Sortierung (Kategorie, Punkte, neueste)',
+      'Tipp auf einen Meilenstein zeigt Details: Fortschritt, alle Stufen der Reihe, Vitrine – beim Doppel-Sammler alle 21 Doppel, getroffene grün',
+      'Rekorde: oben umschalten zwischen „Meine Rekorde“ und „Bestenliste“, dazu Abend-Krone, Duelle und Monatsrückblick',
+      'Gäste: „+ Gast“ bei Neues Spiel und „＋ Gäste“ im Turnier (Zahl eingeben, z. B. 5) – spielen mit, bekommen aber keine Statistik und keine Meilensteine',
+      'Neues Spiel: das Spiel wird jetzt per Auswahlfeld gewählt, im selben Stil wie die Felder darunter',
+      'Startseite aufgeräumt: Spieler, Kamera kalibrieren und Anleitung liegen jetzt als Menü in den Einstellungen',
+      'Einstellungen in Unterseiten aufgeteilt: Dieses Handy & Startseite, Ansagen & Töne, Kamera & Geräte-Check, Abgleich & Sicherung',
+    ],
+  },
+  {
+    version: '1.10.1',
+    date: '02.11.2026',
+    items: [
+      'Behoben (vermutlich): schwarzer Bildschirm nach dem Update – eine neue Version wird jetzt immer komplett geladen, nie mehr alte und neue Dateien gemischt',
+      'Start-Hilfe: Startet die App nicht, erscheint nach 6 Sekunden „Reparieren“ (leert nur den Zwischenspeicher, Spiele und Statistik bleiben)',
+      'Nach einem Update lädt die App einmal neu (mitten im Spiel erst beim Zurück zur Startseite)',
+    ],
+  },
+  {
     version: '1.10.0',
     date: '02.11.2026',
     items: [

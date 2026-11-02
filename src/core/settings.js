@@ -109,6 +109,20 @@ export function ownerId() {
   const id = getSettings().ownerId;
   return id && getPlayers().some((p) => p.id === id) ? id : null;
 }
+// ---------- Gäste ----------
+// Gäste spielen nur mit: Sie stehen nicht in der Spielerliste und bekommen keine Statistik, keine Meilensteine
+// und keinen Rang. Kennung „guest:…“. Das Match zählt für die echten Mitspieler ganz normal.
+
+/** Ist das ein Gast? */
+export const isGuestId = (id) => String(id || '').startsWith('guest:');
+
+/** Neuer Gast; ohne Namen „Gast 1“, „Gast 2“ … (taken = Namen, die schon vergeben sind). */
+export function newGuest(name = '', taken = []) {
+  let clean = String(name || '').trim().slice(0, 24);
+  if (!clean) { let k = 1; while (taken.includes(`Gast ${k}`)) k++; clean = `Gast ${k}`; }
+  return { id: newId('guest:g'), name: clean, guest: true };
+}
+
 export function playerName(id, fallback = '?') {
   const p = getPlayers().find((x) => x.id === id);
   return p ? p.name : fallback;

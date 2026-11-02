@@ -67,13 +67,16 @@ export function render(root, params, nav) {
     h('div', { class: 'grid2', style: { gap: '10px' } },
       h('button', { class: 'btn', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('training') }, '🎯 Training'),
       h('button', { class: 'btn', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('tournament') }, '🏆 Turnier')),
+    // Rekorde und Meilensteine: eigene große Knöpfe (nicht mehr in der Statistik)
+    h('div', { class: 'grid2', style: { gap: '10px' } },
+      h('button', { class: 'btn bigtile', onclick: () => nav.go('records') }, h('span', { class: 'tileicon' }, '🏅'), 'Rekorde'),
+      h('button', { class: 'btn bigtile', onclick: () => nav.go('milestones') }, h('span', { class: 'tileicon' }, '🎖️'), 'Meilensteine')),
     tonight,
     progress,
-    h('button', { class: 'btn', onclick: () => nav.go('players') }, 'Spieler'),
-    h('button', { class: 'btn', onclick: () => nav.go('stats') }, 'Statistik'),
-    h('button', { class: 'btn', onclick: () => nav.go('calibrate', { back: 'home' }) }, 'Kamera kalibrieren'),
-    h('button', { class: 'btn', onclick: () => nav.go('settings') }, 'Einstellungen'),
-    h('button', { class: 'btn', onclick: () => nav.go('help') }, '📖 Anleitung'),
+    // Spieler, Kamera kalibrieren und Anleitung liegen jetzt im Menü der Einstellungen
+    h('div', { class: 'grid2', style: { gap: '10px' } },
+      h('button', { class: 'btn', onclick: () => nav.go('stats') }, '📊 Statistik'),
+      h('button', { class: 'btn', onclick: () => nav.go('settings') }, '⚙️ Einstellungen')),
     h('p', { class: 'dim', style: { textAlign: 'center', fontSize: '13px', marginTop: '20px' } }, `${BRAND.name} ${APP_VERSION} · Daten bleiben auf diesem Gerät`),
   ));
   showWhatsNewOnce(); // nach einem Update: Checkliste „Neu in dieser Version“
@@ -217,7 +220,7 @@ async function progressCard(nav) {
         : 'Höchster Rang erreicht';
       const atRisk = days.current && !days.playedToday;
       const serie = days.current ? `${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}` : weeks.current ? `${weeks.current} ${weeks.current === 1 ? 'Woche' : 'Wochen'}` : null;
-      return h('div', { class: 'prow', onclick: () => nav.go('stats', { player: p.id, tab: 'records' }) },
+      return h('div', { class: 'prow', onclick: () => nav.go('milestones', { player: p.id }) },
         h('div', { class: 'badge sm', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
         h('div', { class: 'prowmain' },
           h('div', { class: 'prowtop' },

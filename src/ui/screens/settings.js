@@ -9,9 +9,18 @@ import { offerSync, syncImportButton } from '../syncUi.js';
 import { importSync, SYNC_FORMAT } from '../../core/sync.js';
 import { listCameras } from '../../vision/camera.js';
 
+// Menüpunkte der Einstellungen; cards = Überschriften der Karten, die auf der Unterseite erscheinen
+const SECTIONS = [
+  { id: 'phone', icon: '📱', title: 'Dieses Handy & Startseite', note: 'Wer bin ich, was zeigt die Startseite', cards: ['Dieses Handy'] },
+  { id: 'voice', icon: '🔊', title: 'Ansagen & Töne', note: 'Stimme, Dialekt, Sprüche, Warntöne', cards: ['Ansage'] },
+  { id: 'camera', icon: '📷', title: 'Kamera & Geräte-Check', note: 'Erkennung, Diagnose, Kalibrierung, Gerät', cards: ['Kamera', 'Geräte-Check'] },
+  { id: 'data', icon: '💾', title: 'Abgleich & Sicherung', note: 'Zweites Handy, Sicherung, Daten löschen', cards: ['Handys abgleichen', 'Daten'] },
+];
+
 export function render(root, params, nav) {
   const body = h('div', { class: 'stack', style: { maxWidth: '560px', margin: '0 auto' } });
   root.appendChild(body);
+  let page = params.page || null; // offene Unterseite (SECTIONS.id) oder null = Menü
 
   const toggle = (key, label, note) => {
     const s = getSettings();
@@ -26,7 +35,12 @@ export function render(root, params, nav) {
     const imgCount = (await dbGetAll('images').catch(() => [])).length;
     body.replaceChildren(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Einstellungen')),
-      h('button', { class: 'btn', onclick: () => showChangelog() }, `🆕 Was ist neu? (Version ${APP_VERSION})`),
+      // Menü: was früher als einzelne Knöpfe auf der Startseite lag
+      h('div', { class: 'setmenu' },
+        h('button', { class: 'btn bigtile', onclick: () => nav.go('players', { back: 'settings' }) }, h('span', { class: 'tileicon' }, '👥'), 'Spieler'),
+        h('button', { class: 'btn bigtile', onclick: () => nav.go('calibrate', { back: 'settings' }) }, h('span', { class: 'tileicon' }, '📷'), 'Kamera kalibrieren'),
+        h('button', { class: 'btn bigtile', onclick: () => nav.go('help', { back: 'settings' }) }, h('span', { class: 'tileicon' }, '📖'), 'Anleitung'),
+        h('button', { class: 'btn bigtile', onclick: () => showChangelog() }, h('span', { class: 'tileicon' }, '🆕'), `Was ist neu?`)),
 
       h('div', { class: 'card stack' },
         h('h3', { style: { margin: 0 } }, 'Dieses Handy'),
@@ -152,6 +166,24 @@ export function render(root, params, nav) {
         ...deviceChecks().map(([k, v]) => h('div', { class: 'list-item' }, h('span', { class: 'name', style: { fontSize: '15px' } }, k), h('span', { class: 'dim', style: { fontSize: '14px', textAlign: 'right' } }, v))),
       ),
     );
+
+    // Unterseiten: Die Hauptseite zeigt nur das Menü; ein Menüpunkt zeigt seine Karten auf einer eigenen Seite.
+    const cards = [...body.children].filter((el) => el.classList.contains('card'));
+    const sectionOf = (card) => SECTIONS.find((x) => x.cards.some((t) => (card.querySelector('h3')?.textContent || '').includes(t)));
+    const top = body.firstElementChild;
+    if (!page) {
+      for (const c of cards) c.remove();
+      body.appendChild(h('div', { class: 'setlist' }, SECTIONS.map((x) => h('button', { class: 'setrow', onclick: () => { page = x.id; window.scrollTo(0, 0); draw(); } },
+        h('span', { class: 'seticon' }, x.icon),
+        h('span', { class: 'settext' }, h('b', {}, x.title), h('span', { class: 'dim small' }, x.note)),
+        h('span', { class: 'dim' }, '›')))));
+      body.appendChild(h('p', { class: 'dim small', style: { textAlign: 'center' } }, `${BRAND.name} ${APP_VERSION}`));
+    } else {
+      const sec = SECTIONS.find((x) => x.id === page);
+      body.querySelector('.setmenu')?.remove();
+      for (const c of cards) if (sectionOf(c) !== sec) c.remove();
+      top.replaceChildren(h('button', { class: 'iconbtn', onclick: () => { page = null; draw(); } }, '‹'), h('h1', {}, `${sec.icon} ${sec.title}`));
+    }
   };
 
   async function doExport(includeImages) {

@@ -6,7 +6,7 @@ import { hitLabel, allHits, dartScore } from '../../core/board.js';
 import { checkoutPath, checkoutPaths, turnPlan } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
-import { getSettings, updateSettings } from '../../core/settings.js';
+import { getSettings, updateSettings, isGuestId } from '../../core/settings.js';
 import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
 import { lsGet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS, RANKS } from '../../stats/stats.js';
@@ -696,6 +696,7 @@ export function render(root, params, nav) {
       }
       const rankUps = [];
       m.players.forEach((pid, i) => {
+        if (isGuestId(pid)) return; // Gäste: keine Treppchen, keine Meilensteine
         const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
         for (const p of matchPlaces(usable, real, pid, m.id)) {
           const ref = p.best && p.best.value > 0 ? ` (${p.place ? 'Rekord' : 'bisher'} ${p.best.text})` : '';
@@ -736,6 +737,7 @@ export function render(root, params, nav) {
       const crown = crownHolder(live.rows, real);
       crownId = crown ? crown.playerId : null;
       for (const pid of session.match.players) {
+        if (isGuestId(pid)) continue;
         const ms = milestones(live.rows, real, pid);
         live.reached[pid] = new Set(ms.filter((x) => x.at).map((x) => x.id));
         live.rank[pid] = playerRank(ms).index;
@@ -752,6 +754,7 @@ export function render(root, params, nav) {
       const rows = [...live.rows, ...throwRows(m)];
       const all = [...live.matches, m];
       m.players.forEach((pid, i) => {
+        if (isGuestId(pid) || !live.reached[pid]) return; // Gäste: keine Meilensteine
         const ms = milestones(rows, all, pid);
         const got = live.reached[pid];
         const fresh = ms.filter((x) => x.at && !got.has(x.id));

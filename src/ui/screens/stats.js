@@ -1,42 +1,38 @@
 import { h, toast } from '../dom.js';
 import { dbGetAll } from '../../core/storage.js';
-import { getPlayers, displayName, ownerId } from '../../core/settings.js';
-import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats, personalPodiums, allPlayersPodiums, milestones, playerRank, RANKS, RECORD_DEFS, MEDALS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed } from '../../stats/stats.js';
+import { getPlayers, displayName, ownerId, isGuestId } from '../../core/settings.js';
+import { playerStats, detectionStats, cricketStats, trainingRecords, doubleStats } from '../../stats/stats.js';
 import { isBotId } from '../../game/bot.js';
 import { derive } from '../../game/match.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { lineChart } from '../chart.js';
-import { crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, seasonOf, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, dayStatus, missionCounts, rivalries } from '../../stats/progress.js';
-import { showMonthRecap, MONTHS } from '../recapSheet.js';
 import { getMode, isTraining } from '../../rules/index.js';
 import { trainingTips } from '../../stats/coach.js';
 
-const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['records', 'Rekorde']];
+const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training']]; // Rekorde und Meilensteine haben eigene Bereiche (records.js, milestones.js)
 
 export function render(root, params, nav) {
+  // Früher war „Rekorde“ ein Reiter hier – jetzt eigener Bereich
+  if (params.tab === 'records') { nav.go('milestones', { player: params.player }); return; }
   const body = h('div', { class: 'stack', style: { maxWidth: '640px', margin: '0 auto' } },
     h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Statistik')),
     h('p', { class: 'dim' }, 'Lade …'));
   root.appendChild(body);
   let selectedPlayer = params.player || null;
   let tab = params.tab || 'x01';
-  const openCats = new Set(); // aufgeklappte Meilenstein-Kategorien
-  let podPeriod = 'all';       // Zeitraum der Bestwerte: 'all' | 'season' | 'month'
-  let podView = 'mine';        // Bestwerte: 'mine' (eigene) oder 'all' (Bestenliste aller Spieler)
-  let msFilter = 'all';        // Meilensteine: 'all' | 'done' (erreicht) | 'open' (offen)
 
   Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
     const finished = matches.filter((m) => m.status === 'finished');
     // Statistik nur aus beendeten Matches gegen echte Spieler (abgebrochene und Spiele gegen den Computer zählen nicht)
     const vsBot = (m) => m.players.some(isBotId);
     const realIds = new Set(finished.filter((m) => !vsBot(m)).map((m) => m.id));
-    const usable = rows.filter((r) => realIds.has(r.matchId));
+    const usable = rows.filter((r) => realIds.has(r.matchId) && !isGuestId(r.playerId)); // Gäste bekommen keine Statistik
     const known = getPlayers();
     const names = new Map();
     for (const m of matches) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
     for (const p of known) names.set(p.id, displayName(p, known));
     // Der Computer-Gegner bekommt keine eigene Statistik
-    const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])].filter((id) => !isBotId(id));
+    const ids = [...new Set([...known.map((p) => p.id), ...usable.map((r) => r.playerId)])].filter((id) => !isBotId(id) && !isGuestId(id));
     // Ohne Vorgabe: der Spieler, dem dieses Handy gehört, sonst der erste
     if (!selectedPlayer && ids.length) selectedPlayer = ids.includes(ownerId()) ? ownerId() : ids[0];
 
@@ -140,248 +136,6 @@ export function render(root, params, nav) {
         'Gezählt werden alle beendeten Matches gegen echte Spieler. Abgebrochene Spiele zählen nicht; beendete lassen sich nicht löschen.'));
     };
 
-    // Rekorde (Bestwerte je Match) und Meilensteine – nur Spiele gegen echte Spieler
-    const drawRecords = () => {
-      const realMatches = finished.filter((m) => !vsBot(m));
-      const ms = milestones(usable, realMatches, selectedPlayer);
-      const rk = playerRank(ms);
-      const me = names.get(selectedPlayer) || '?';
-      const crown = crownHolder(usable, realMatches);
-      const streak = weekStreak(realMatches, selectedPlayer);
-      const days = dayStreak(finished, selectedPlayer); // Tages-Serie: auch Trainings und Spiele gegen den Computer
-
-      const pctOf = (r) => (r.next ? Math.round(((r.points - r.rank.min) / (r.next.min - r.rank.min)) * 100) : 100);
-      // Zeitstrahl der Ränge; wird erst beim Aufklappen zum aktuellen Rang geschoben (vorher hat er keine Breite)
-      const timelineFold = (label, r, timeline) => {
-        const tl = h('div', { class: 'ranktl' }, timeline.map((x, i) => h('div', { class: `tlstep ${i <= r.index ? 'on' : ''} ${i === r.index ? 'cur' : ''}`, style: `--rc: ${x.color}` },
-          h('div', { class: 'tldot' }, i <= r.index ? x.icon : '🔒'),
-          h('div', { class: 'tlname' }, x.title),
-          h('div', { class: 'tldate' }, i <= r.index ? (x.at ? date(x.at) : '') : rankNeed(x)),
-        )));
-        const det = h('details', { class: 'tlfold' }, h('summary', {}, label), tl);
-        det.addEventListener('toggle', () => {
-          const cur = tl.querySelector('.cur');
-          if (det.open && cur) tl.scrollLeft = cur.offsetLeft - tl.clientWidth / 2 + cur.offsetWidth / 2;
-        });
-        return det;
-      };
-
-      // 1) Kopf: Rang, Fortschritt zum nächsten Rang, Kennzahlen, Serien und Vitrine in einer Karte
-      const vitrine = getShowcase(selectedPlayer).map((id) => ms.find((m) => m.id === id)).filter((m) => m && m.at);
-      const hasCrown = crown && crown.playerId === selectedPlayer;
-      body.appendChild(h('div', { class: 'card mshero', style: `--rc: ${rk.rank.color}` },
-        h('div', { class: 'rankhead' },
-          h('div', { class: 'badge', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
-          h('div', { class: 'rankinfo' },
-            h('div', { class: 'heroname' }, `${hasCrown ? '👑 ' : ''}${me}`),
-            h('div', { class: 'rankname' }, rk.rank.title),
-            h('div', { class: 'dim small' }, `Rang ${rk.index + 1} von ${RANKS.length}`),
-          ),
-        ),
-        h('div', { class: 'stack', style: { gap: '6px' } },
-          h('div', { class: 'ratebar big' }, h('div', { style: { width: `${pctOf(rk)}%` } })),
-          h('div', { class: 'small dim' }, nextRankText(rk))),
-        h('div', { class: 'kpis' },
-          kpi(rk.points.toLocaleString('de-DE'), 'Punkte'),
-          kpi(`${rk.done} / ${ms.length}`, 'Meilensteine'),
-          kpi(`${rk.elite}★`, 'Elite')),
-        h('div', { class: 'heropills' },
-          h('span', { class: `pill ${days.current && !days.playedToday ? 'warn' : ''}` }, `📆 ${days.current} ${days.current === 1 ? 'Tag' : 'Tage'}${days.current && !days.playedToday ? ' · heute noch!' : ''}`),
-          h('span', { class: 'pill' }, `🔥 ${streak.current} ${streak.current === 1 ? 'Woche' : 'Wochen'}`),
-          h('span', { class: 'pill' }, `Beste: ${days.best} T. · ${streak.best} W.`),
-          hasCrown ? h('span', { class: 'pill gold' }, `👑 Abend-Krone · Ø ${crown.average.toFixed(1)}`) : null),
-        h('div', { class: 'vitrinebox' },
-          [0, 1, 2].map((i) => {
-            const m = vitrine[i];
-            return h('div', { class: `vslot ${m ? 'on' : ''}` }, h('div', { class: 'vicon' }, m ? m.icon : '＋'), h('div', { class: 'vtitle' }, m ? m.title : 'Vitrine frei'));
-          })),
-        vitrine.length < 3 ? h('div', { class: 'dim small' }, 'Vitrine: Tipp unten auf einen erreichten Meilenstein legt ihn hinein. Sie erscheint neben deinem Namen.') : null,
-        timelineFold('Alle Ränge ansehen', rk, rk.timeline),
-      ));
-
-      // 2) Saison: kompakt, Einzelheiten zum Aufklappen
-      const ss = seasonStatus(usable, realMatches, selectedPlayer, ms);
-      const past = pastSeasons(usable, realMatches, selectedPlayer, ms);
-      body.appendChild(h('div', { class: 'card seasoncard' },
-        h('div', { class: 'rankhead' },
-          h('div', { class: 'badge sm', style: `--rc: ${ss.rank.color}` }, ss.rank.icon),
-          h('div', { class: 'rankinfo' },
-            h('div', { class: 'dim small' }, `Saison ${ss.season.name}`),
-            h('div', { class: 'seasonname' }, ss.rank.title, h('span', { class: 'num dim' }, ` · ${ss.points} P.`)),
-            h('div', { class: 'ratebar' }, h('div', { style: { width: `${pctOf(ss)}%` } })),
-            h('div', { class: 'dim small' }, ss.next ? `noch ${ss.next.min - ss.points} bis ${ss.next.icon} ${ss.next.title}` : 'Champion!'),
-          ),
-        ),
-        timelineFold('Saison-Ränge und Punkte', ss, SEASON_RANKS.map((x) => ({ ...x, at: null }))),
-      ));
-      body.querySelector('.seasoncard .tlfold').appendChild(h('div', { class: 'dim small', style: { marginTop: '6px' } },
-        `${SEASON_POINTS_NOTE} Diese Saison: ${ss.parts.msPts} aus Meilensteinen, ${ss.parts.tasks} Aufgaben, ${ss.parts.medals} Medaillen, ${ss.parts.wins} Siege, ${ss.parts.legs} Legs, ${ss.parts.played} Matches.`,
-        past.length ? ` Frühere Saisons: ${past.map((p) => `${p.season.name} ${p.rank.icon} ${p.rank.title}`).join(' · ')}` : ''));
-
-      // 3) Als Nächstes: die offenen Meilensteine, denen am wenigsten fehlt
-      const near = ms.filter((m) => !m.at && !m.secret && m.progress && m.progress[0] > 0)
-        .map((m) => ({ m, r: m.progress[0] / m.progress[1] }))
-        .sort((a, b) => b.r - a.r || b.m.pts - a.m.pts).slice(0, 3);
-      if (near.length) {
-        body.appendChild(sec('🎯 Als Nächstes'));
-        body.appendChild(h('div', { class: 'card nextlist' }, near.map(({ m, r }) => h('div', { class: 'nextrow' },
-          h('div', { class: 'nexticon' }, m.icon),
-          h('div', { class: 'nextmain' },
-            h('div', { class: 'nexttop' }, h('b', {}, `${m.elite ? '★ ' : ''}${m.title}`), h('span', { class: 'num dim' }, `+${m.pts} P.`)),
-            h('div', { class: 'ratebar' }, h('div', { style: { width: `${Math.round(r * 100)}%` } })),
-            h('div', { class: 'num dim small' }, `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')} · noch ${(m.progress[1] - m.progress[0]).toLocaleString('de-DE')}`)),
-        ))));
-      }
-
-      // 4) Zuletzt erreicht: Leiste zum Wischen
-      const latest = ms.filter((m) => m.at).sort((a, b) => b.at - a.at).slice(0, 8);
-      if (latest.length) {
-        body.appendChild(sec('✨ Zuletzt erreicht'));
-        body.appendChild(h('div', { class: 'recentstrip' }, latest.map((m) => h('div', { class: 'recentms' },
-          h('div', { class: 'ricon' }, m.icon),
-          h('div', { class: 'rtitle' }, m.title),
-          h('div', { class: 'rdate num' }, date(m.at))))));
-      }
-
-      // 5) Aufgaben: heute (leicht) und diese Woche (gleicher Stil wie auf der Startseite)
-      const wk = weekStatus(usable, realMatches, selectedPlayer);
-      const dy = dayStatus(usable, realMatches, selectedPlayer);
-      const mc = missionCounts(usable, realMatches, selectedPlayer);
-      const taskList = (items) => h('ol', { class: 'tasklist' }, items.map((i) => h('li', { class: i.done ? 'done' : '' },
-        h('span', { class: 'tasktext' }, i.text),
-        h('span', { class: 'taskstate' }, i.done ? 'geschafft' : `${i.cur} / ${i.goal}`))));
-      body.appendChild(sec('📋 Aufgaben'));
-      body.appendChild(h('div', { class: 'card stack taskcard' },
-        h('div', { class: 'taskhead' }, h('b', {}, '☀️ Heute'), h('span', { class: `num ${dy.perfect ? 'accent' : 'dim'}` }, dy.perfect ? '🌟 perfekter Tag' : `${dy.done} / 3`)),
-        taskList(dy.items),
-        h('div', { class: 'taskhead' }, h('b', {}, '🗓️ Diese Woche'), h('span', { class: `num ${wk.medal ? 'accent' : 'dim'}` }, wk.medal ? '🏅 Medaille' : `${wk.done} / 3`)),
-        taskList(wk.items),
-        h('div', { class: 'dim small' }, `Bisher: ${mc.daily} Tagesaufgaben · ${mc.perfectDays} perfekte Tage · ${mc.weekly} Wochenaufgaben · ${mc.medals} Medaillen. Dafür gibt es eigene Meilensteine (Kategorie „Aufgaben“). Neue Tagesaufgaben jeden Spieltag ab 5 Uhr, neue Wochenaufgaben jeden Montag.`),
-      ));
-
-      // 6) Meilensteine (siehe unten), danach Bestwerte, Duelle und Monatsrückblick
-      const msAnchor = h('div');
-      body.appendChild(msAnchor);
-
-      // Treppchen: die drei besten Matches je Bestwert – eigene oder über alle Spieler (Bestenliste)
-      const global = podView === 'all';
-      // Zeitraum: für immer, diese Saison oder dieser Monat (so haben auch Neue eine Chance auf Gold)
-      const nowD = new Date();
-      const periodFrom = podPeriod === 'month' ? new Date(nowD.getFullYear(), nowD.getMonth(), 1).getTime()
-        : podPeriod === 'season' ? seasonOf().start : 0;
-      const podMatches = realMatches.filter((m) => m.createdAt >= periodFrom);
-      const pods = global ? allPlayersPodiums(usable, podMatches) : personalPodiums(usable, podMatches, selectedPlayer);
-      body.appendChild(sec('🏆 Bestwerte'));
-      body.appendChild(h('div', { class: 'chips' },
-        h('button', { class: `chip ${global ? '' : 'on'}`, onclick: () => { podView = 'mine'; draw(); } }, `Meine (${names.get(selectedPlayer) || '?'})`),
-        h('button', { class: `chip ${global ? 'on' : ''}`, onclick: () => { podView = 'all'; draw(); } }, '🏆 Alle Spieler'),
-      ));
-      body.appendChild(h('label', { class: 'field' }, h('span', {}, 'Zeitraum'),
-        h('select', { onchange: (e) => { podPeriod = e.target.value; draw(); } },
-          [['all', 'Für immer'], ['season', `Diese Saison (${seasonOf().name})`], ['month', `Dieser Monat (${MONTHS[nowD.getMonth()]})`]]
-            .map(([v, l]) => h('option', { value: v, selected: v === podPeriod }, l)))));
-      const step = (e, place) => h('button', {
-        class: `step p${place + 1} ${e ? '' : 'empty'} ${e && global && e.playerId === selectedPlayer ? 'me' : ''}`,
-        onclick: () => { const m = e && finished.find((x) => x.id === e.matchId); if (m) showMatchDetail(m); },
-      },
-      h('div', { class: 'medal' }, MEDALS[place]),
-      global && e ? h('div', { class: 'who' }, e.name) : null,
-      h('div', { class: 'v num' }, e ? e.text : '–'),
-      // Eigene Bestwerte: darunter der Gegner („vs. Kevin“), nicht der eigene Name
-      h('div', { class: 'd' }, e ? (global ? date(e.at) : `${date(e.at)}${e.opponents.length ? ` · vs. ${e.opponents.join(', ')}` : ''}`) : ''));
-      const shown = RECORD_DEFS.filter((d) => pods[d.key]);
-      if (!shown.length) body.appendChild(h('p', { class: 'dim' }, 'Noch keine Bestwerte – erst ein Match gegen echte Gegner beenden.'));
-      body.appendChild(h('div', { class: 'podiums' }, shown.map((d) => h('div', { class: 'podcard' },
-        h('div', { class: 'podtitle' }, d.label),
-        h('div', { class: 'podium' }, [0, 1, 2].map((i) => step(pods[d.key][i], i))),
-      ))));
-      // Meilensteine in Kategorien: Tipp auf eine Kategorie klappt sie auf. Filter: alle, erreicht, offen.
-      const msPart = [];
-      msPart.push(sec('🎖️ Meilensteine', h('span', { class: 'num dim' }, `${rk.done} / ${ms.length}`)));
-      msPart.push(h('div', { class: 'seg' }, [['all', 'Alle'], ['done', 'Erreicht'], ['open', 'Offen']].map(([k, l]) =>
-        h('button', { class: msFilter === k ? 'on' : '', onclick: () => { msFilter = k; draw(); } }, l))));
-      const keep = (m) => (msFilter === 'done' ? !!m.at : msFilter === 'open' ? !m.at : true);
-      // Tipp auf einen erreichten Meilenstein: in die Vitrine legen bzw. herausnehmen
-      const inShowcase = new Set(getShowcase(selectedPlayer));
-      const tile = (m) => {
-        const showBar = !m.at && !m.secret && m.progress && m.progress[0] > 0;
-        return h('div', {
-          class: `ms ${m.at ? 'on tap' : ''} ${inShowcase.has(m.id) ? 'shown' : ''}`,
-          onclick: () => {
-            if (!m.at) return;
-            const list = toggleShowcase(selectedPlayer, m.id);
-            toast(list.includes(m.id) ? `${m.icon} in der Vitrine` : 'Aus der Vitrine genommen');
-            draw();
-          },
-        },
-        h('div', { class: 'msicon' }, m.at ? m.icon : m.secret ? '❓' : m.icon),
-        h('div', { class: 'mstext' },
-          h('b', {}, m.secret && !m.at ? '???' : `${m.elite ? '★ ' : ''}${m.title}`),
-          h('span', { class: 'num' }, `${m.at ? date(m.at) : m.progress && !m.secret ? `${m.progress[0].toLocaleString('de-DE')} / ${m.progress[1].toLocaleString('de-DE')}` : 'noch offen'} · ${m.pts} P.${inShowcase.has(m.id) ? ' · ⭐' : ''}`),
-          showBar ? h('div', { class: 'ratebar thin' }, h('div', { style: { width: `${Math.round((m.progress[0] / m.progress[1]) * 100)}%` } })) : null,
-        ),
-        );
-      };
-      // Eine aufklappbare Gruppe (Kategorie oder Unterteilung). key merkt sich, was offen ist.
-      const fold = (key, icon, title, list, inner, cls = 'mscat') => {
-        const n = list.filter((m) => m.at).length;
-        const det = h('details', { class: cls },
-          h('summary', {},
-            h('span', { class: 'mscicon' }, icon),
-            h('span', { class: 'msctext' },
-              h('b', {}, title),
-              h('span', { class: 'ratebar' }, h('span', { style: { width: `${Math.round((n / list.length) * 100)}%` } })),
-            ),
-            h('span', { class: `msccount num ${n === list.length ? 'accent' : ''}` }, `${n} / ${list.length}`),
-          ),
-          inner,
-        );
-        // Aufgeklappte Gruppen bleiben beim Spielerwechsel offen
-        if (openCats.has(key)) det.open = true;
-        det.addEventListener('toggle', () => { if (det.open) openCats.add(key); else openCats.delete(key); });
-        return det;
-      };
-      for (const c of MILESTONE_CATEGORIES) {
-        const list = ms.filter((m) => m.cat === c.id);
-        if (!list.some(keep)) continue; // im Filter leere Kategorie ausblenden
-        const groups = MILESTONE_GROUPS[c.id];
-        msPart.push(fold(c.id, c.icon, c.title, list, [
-          h('p', { class: 'dim', style: { fontSize: '13px', margin: '0 0 8px' } }, c.note),
-          // Schnelltasten: je Zahl eine eigene Gruppe, sonst wird es zu lang
-          groups
-            ? groups.map((g) => {
-              const sub = list.filter((m) => m.group === g.id);
-              return sub.some(keep) ? fold(`${c.id}:${g.id}`, g.icon, g.title, sub, h('div', { class: 'milestones' }, sub.filter(keep).map(tile)), 'mscat sub') : null;
-            })
-            : h('div', { class: 'milestones' }, list.filter(keep).map(tile)),
-        ]));
-      }
-      msAnchor.replaceWith(...msPart);
-
-      // Rivalen-Bilanz
-      const rivals = rivalries(realMatches, selectedPlayer);
-      if (rivals.length) {
-        body.appendChild(sec('⚔️ Duelle'));
-        body.appendChild(h('table', { class: 'hist' }, rivals.map((r) => h('tr', {},
-          h('td', {}, `vs. ${r.name}`),
-          h('td', { class: `num ${r.wins > r.losses ? 'accent' : ''}` }, `${r.wins} : ${r.losses}`),
-          h('td', { class: 'dim', style: { fontSize: '13px' } }, r.streak >= 2 ? `🔥 ${r.streak} Siege in Folge` : r.streak <= -2 ? `${-r.streak} Niederlagen in Folge` : ''),
-        ))));
-      }
-
-      // Monatsrückblick
-      const now = new Date();
-      const monthOpts = Array.from({ length: 12 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - i, 1))
-        .filter((d) => realMatches.some((m) => m.createdAt >= d.getTime() && m.createdAt < new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()));
-      if (monthOpts.length) {
-        const sel = h('select', {}, monthOpts.map((d) => h('option', { value: `${d.getFullYear()}-${d.getMonth()}` }, `${MONTHS[d.getMonth()]} ${d.getFullYear()}`)));
-        body.appendChild(sec('📅 Monatsrückblick'));
-        body.appendChild(h('div', { class: 'grid2', style: { alignItems: 'center' } }, sel,
-          h('button', { class: 'btn', onclick: () => { const [y, mo] = sel.value.split('-').map(Number); showMonthRecap(y, mo); } }, 'Anzeigen')));
-      }
-      body.appendChild(h('p', { class: 'dim', style: { fontSize: '13px' } }, 'Gezählt werden beendete Spiele gegen echte Spieler und Trainings (Bestwerte: X01 und Cricket; Siege: alle Spielarten mit 2+ Spielern). Spiele gegen den Computer zählen nicht. Tipp auf eine Treppchen-Stufe öffnet das Match.'));
-    };
-
     // Spiele gegen den Computer: eigene Bilanz je Spiel und Stärke (getrennt von echten Gegnern)
     const drawVsBot = () => {
       const games = finished.filter((m) => vsBot(m) && m.players.length === 2 && m.players[0] === selectedPlayer);
@@ -467,7 +221,6 @@ export function render(root, params, nav) {
       body.appendChild(h('div', { class: 'tabs' }, TABS.map(([k, label]) =>
         h('button', { class: `tab ${tab === k ? 'on' : ''}`, onclick: () => { tab = k; draw(); } }, label))));
       if (tab === 'training') { drawTraining(); return; }
-      if (tab === 'records') { drawRecords(); return; }
       const pr = usable.filter((r) => r.playerId === selectedPlayer && r.mode === tab);
       const myMatches = finished
         .filter((m) => m.mode === tab && !isTraining(m.mode) && !vsBot(m) && m.players.length > 1 && m.players.includes(selectedPlayer))

@@ -1,5 +1,5 @@
 import { h, toast, promptDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGuest } from '../../core/settings.js';
 import { lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getMode } from '../../rules/index.js';
@@ -47,10 +47,17 @@ export function render(root, params, nav) {
       values.map(([v, text]) => h('option', { value: String(v), selected: String(v) === String(current) }, text))));
 
   const maxPlayers = () => getMode(cfg.mode).maxPlayers || 2;
-  const nameOf = (id, i) => known().find((p) => p.id === id)?.name || `Spieler ${i + 1}`;
+  const guests = []; // Gäste dieses Spiels (ohne Statistik, siehe core/settings.js)
+  const nameOf = (id, i) => known().find((p) => p.id === id)?.name || guests.find((g) => g.id === id)?.name || `Spieler ${i + 1}`;
 
   const NEW = '__neu';
+  const GUEST = '__gast';
   const pickPlayer = async (slot, value) => {
+    if (value === GUEST) {
+      const taken = guests.map((g) => g.name);
+      const n = await promptDialog('Gast (ohne Statistik)', newGuest('', taken).name, { ok: 'Mitspielen', placeholder: 'Name' });
+      if (n != null) { const g = newGuest(n, taken); guests.push(g); value = g.id; } else value = null;
+    }
     if (value === NEW) {
       const n = await promptDialog('Neuer Spieler', '', { ok: 'Anlegen', placeholder: 'Name' });
       if (n != null) {
@@ -71,7 +78,8 @@ export function render(root, params, nav) {
     const max = maxPlayers();
     if (cfg.selected.length > max) cfg.selected = cfg.selected.slice(0, max);
     const sel = cfg.selected;
-    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, displayName(p, players)]), [NEW, '+ Neuer Spieler …']];
+    const playerOptions = [['', '– wählen –'], ...players.map((p) => [p.id, displayName(p, players)]),
+      ...guests.map((g) => [g.id, `👤 ${g.name} (Gast)`]), [NEW, '+ Neuer Spieler …'], [GUEST, '+ Gast (ohne Statistik) …']];
     const ready = sel.length >= 2 && sel.every(Boolean) && new Set(sel).size === sel.length;
     const twoPlayers = sel.length === 2;
     if (cfg.starter === 'bull' && !(cfg.camera && twoPlayers)) cfg.starter = 'p0';
@@ -98,8 +106,8 @@ export function render(root, params, nav) {
     body.append(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Neues Spiel')),
       h('div', { class: 'card' },
-        h('div', { class: 'chips', style: { margin: '0 0 4px' } },
-          MODES.map(([k, label]) => h('button', { class: `chip ${cfg.mode === k ? 'on' : ''}`, onclick: () => { cfg.mode = k; draw(); } }, label))),
+        // Spiel als Auswahlfeld (es sind zu viele für eine Knopfreihe), im selben Stil wie die Felder darunter
+        dropdown('Spiel', MODES, cfg.mode, (v) => { cfg.mode = v; draw(); }),
         h('div', { class: 'players-setup' }, playerRows),
         sel.length < max ? h('button', { class: 'btn ghost', style: { minHeight: '44px', fontSize: '16px', margin: '4px 0' }, onclick: () => { sel.push(null); draw(); } }, '+ Spieler') : null,
         h('div', { class: 'grid3' },

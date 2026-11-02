@@ -5,6 +5,7 @@
 
 import { collect, weekStart, milestones, pointsOfList, playerStats, MILESTONES, playDayStart, playDayNo } from './stats.js'; // gegenseitiger Import: stats.js nutzt missionCounts erst beim Aufruf
 import { lsGet, lsSet } from '../core/storage.js';
+import { isGuestId } from '../core/settings.js';
 
 const DAY = 86400000;
 
@@ -287,6 +288,7 @@ export function rivalries(matches, playerId) {
     const me = m.players.indexOf(playerId);
     const op = 1 - me;
     const id = m.players[op];
+    if (isGuestId(id)) continue; // gegen Gäste keine Duell-Bilanz
     const r = map.get(id) || map.set(id, { id, name: m.playerNames[op], wins: 0, losses: 0, streak: 0, last: 0 }).get(id);
     r.name = m.playerNames[op];
     r.last = m.createdAt;
@@ -332,6 +334,7 @@ export function crownHolder(rows, matches) {
   for (const m of today) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
   let best = null;
   for (const [id, name] of names) {
+    if (isGuestId(id)) continue; // Gäste: keine Krone, kein Rückblick
     const st = playerStats(rows.filter((r) => r.playerId === id && ids.has(r.matchId)));
     if (st.darts >= 9 && (!best || st.average > best.average)) best = { playerId: id, name, average: st.average, day };
   }
@@ -386,6 +389,7 @@ export function recap(rows, matches, from, to, prev = null) {
   for (const m of inside) m.players.forEach((id, i) => names.set(id, m.playerNames[i]));
   const out = [];
   for (const [id, name] of names) {
+    if (isGuestId(id)) continue; // Gäste: keine Krone, kein Rückblick
     const s = collect(rows, inside, id);
     const ms = milestones(rows, matches.filter((m) => m.createdAt < to), id).filter((m) => m.at && m.at >= from && m.at < to);
     const average = s.x01Darts ? (s.x01Points / s.x01Darts) * 3 : null;

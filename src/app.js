@@ -14,9 +14,11 @@ import * as help from './ui/screens/help.js';
 import * as tournament from './ui/screens/tournament.js';
 import * as board from './ui/screens/board.js';
 import * as live from './ui/screens/live.js';
+import * as records from './ui/screens/records.js';
+import * as milestones from './ui/screens/milestones.js';
 import { camera } from './vision/camera.js';
 
-const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament, board, live };
+const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament, board, live, records, milestones };
 
 function applyBrand() {
   const r = document.documentElement.style;
@@ -36,9 +38,11 @@ function applyBrand() {
 const root = document.getElementById('app');
 let cleanup = null;
 let current = null;
+let reloadPending = false; // neue App-Version ist aktiv, Neuladen steht aus
 
 export const nav = {
   go(name, params = {}) {
+    if (reloadPending && name === 'home') { location.reload(); return; } // neue Version wartet (siehe unten)
     if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } }
     cleanup = null;
     clear(root);
@@ -60,5 +64,13 @@ requestPersistence();
 nav.go('home');
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service Worker', e));
+  // Neue Version aktiv (sw.js) -> einmal neu laden, damit nie alte und neue Dateien zusammen laufen.
+  // Mitten im Spiel oder beim Kalibrieren erst beim nächsten Wechsel auf die Startseite.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloadPending) return;
+    reloadPending = true;
+    if (current !== 'game' && current !== 'calibrate') location.reload();
+  });
+  navigator.serviceWorker.register('./sw.js').then((r) => r.update()).catch((e) => console.warn('Service Worker', e));
 }

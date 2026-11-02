@@ -4,6 +4,7 @@
 import { derive } from '../game/match.js';
 import { missionCounts } from './progress.js'; // gegenseitiger Import, wird erst beim Aufruf gebraucht
 import { tournamentChampions } from '../core/tournament.js';
+import { isGuestId } from '../core/settings.js';
 
 /** Kennzahlen eines Spielers aus seinen Wurfzeilen (nur X01). */
 export function playerStats(rows) {
@@ -254,6 +255,7 @@ function recordLists(rows, matches, playerId) {
 function globalLists(rows, matches) {
   const lists = {};
   for (const id of new Set(rows.map((r) => r.playerId))) {
+    if (isGuestId(id)) continue; // Gäste stehen nicht in der Bestenliste
     for (const [k, l] of Object.entries(recordLists(rows, matches, id))) (lists[k] || (lists[k] = [])).push(...l);
   }
   return sortLists(lists);
@@ -743,7 +745,11 @@ export function milestones(rows, matches, playerId) {
   const mc = missionCounts(rows, matches, playerId, (ts, c) => {
     for (const d of MILESTONES) if (d.mission && !reached[d.id] && d.test(c)) reached[d.id] = ts;
   });
-  return MILESTONES.map((d) => ({ ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(d.mission ? mc : s) : null }));
+  // detail: Zusatzangaben für die Detailansicht (Doppel-Sammler: welche Doppel schon getroffen sind)
+  return MILESTONES.map((d) => ({
+    ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(d.mission ? mc : s) : null,
+    detail: d.id.startsWith('dbl-') ? { doubles: [...s.doubles] } : null,
+  }));
 }
 
 // ---------- Ränge ----------

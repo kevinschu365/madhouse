@@ -67,7 +67,7 @@ export function planMerge(localPlayers, localMatches, data) {
   }
   // Spieler, die nur in Matches vorkommen (z. B. gelöscht), über den Namen zuordnen – nur wenn eindeutig
   const mapId = (id, name) => {
-    if (String(id).startsWith('bot:')) return id;
+    if (String(id).startsWith('bot:') || String(id).startsWith('guest:')) return id; // Computer und Gäste behalten ihre Kennung
     if (idMap.has(id)) return idMap.get(id);
     const cands = name ? sameName(name) : [];
     return cands.length === 1 ? cands[0].id : id;

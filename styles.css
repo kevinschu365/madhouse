@@ -627,3 +627,48 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .livescreen.tv .bnames { font-size: 36px; }
 .livescreen.tv .bscore { font-size: 44px; }
 .livescreen.tv .boardtile { cursor: default; }
+
+/* Startseite: große Knöpfe für Rekorde und Meilensteine (ab 1.11.0) */
+.btn.bigtile { min-height: 84px; flex-direction: column; gap: 4px; font-size: 18px; font-weight: 800;
+  background: linear-gradient(180deg, #1c1c1c, #121212); border: 1px solid #2a2a2a; }
+.btn.bigtile .tileicon { font-size: 30px; line-height: 1; }
+
+/* Meilensteine: Filter, Detailansicht, Doppel-Raster */
+.msfilter { gap: 8px; }
+.msfilter input[type="search"] { font-size: 16px; }
+.msfilter .grid2 select { padding: 10px 8px; font-size: 15px; }
+.ms.elite.on { box-shadow: inset 0 0 0 2px #f5c542; }
+.ms.elite:not(.on) .mstext b { color: #e8c35a; }
+.msdetail { align-items: stretch; }
+.msdetail h2 { text-align: center; margin: 0; }
+.msdicon { font-size: 64px; text-align: center; line-height: 1.1; filter: grayscale(1); opacity: .6; }
+.msdicon.on { filter: none; opacity: 1; }
+.msdmeta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; }
+.msdstate { text-align: center; font-weight: 700; }
+.msdstate.done { color: var(--accent); }
+.seriesl { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.seriesrow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--surface2); font-size: 14px; opacity: .7; }
+.seriesrow.on { opacity: 1; }
+.seriesrow.cur { box-shadow: inset 0 0 0 2px var(--accent); opacity: 1; }
+.seriesrow .stitle { flex: 1; min-width: 0; }
+.dblgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.dblcell { text-align: center; padding: 8px 0; border-radius: 8px; background: var(--surface2); color: var(--text-dim); font-size: 13px; font-weight: 700; }
+.dblcell.on { background: var(--accent); color: #000; }
+.nextrow.tap, .recentms.tap, .vslot.tap { cursor: pointer; }
+
+/* Rekorde */
+.crowncard { display: flex; align-items: center; gap: 12px; border-color: color-mix(in srgb, #f5c542 45%, transparent); }
+.crownicon { font-size: 34px; }
+
+/* Gäste */
+.chip.guest { border-style: dashed; }
+
+/* Einstellungen: Menü oben (Spieler, Kamera, Anleitung, Was ist neu) */
+.setmenu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.setmenu .btn.bigtile { min-height: 76px; font-size: 16px; }
+.setlist { display: flex; flex-direction: column; gap: 8px; }
+.setrow { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid #222; }
+.setrow:active { filter: brightness(1.3); }
+.seticon { font-size: 26px; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--surface2); }
+.settext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.settext b { font-size: 17px; }
