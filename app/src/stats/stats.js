@@ -4,6 +4,7 @@
 import { derive } from '../game/match.js';
 import { missionCounts } from './progress.js'; // gegenseitiger Import, wird erst beim Aufruf gebraucht
 import { tournamentChampions } from '../core/tournament.js';
+import { isGuestId } from '../core/settings.js';
 
 /** Kennzahlen eines Spielers aus seinen Wurfzeilen (nur X01). */
 export function playerStats(rows) {
@@ -254,6 +255,7 @@ function recordLists(rows, matches, playerId) {
 function globalLists(rows, matches) {
   const lists = {};
   for (const id of new Set(rows.map((r) => r.playerId))) {
+    if (isGuestId(id)) continue; // Gäste stehen nicht in der Bestenliste
     for (const [k, l] of Object.entries(recordLists(rows, matches, id))) (lists[k] || (lists[k] = [])).push(...l);
   }
   return sortLists(lists);
@@ -732,18 +734,26 @@ function hadComeback(m, me) {
 /**
  * Meilensteine eines Spielers: Matches werden der Zeit nach durchgegangen,
  * so steht bei jedem erreichten Meilenstein das Datum des Matches, in dem er fiel.
+ * scope: 'games' (Standard: nur Spiele mit 2+ Spielern – Training zählt nicht), 'training' (nur Trainings) oder 'all'.
+ * Aufgaben-Meilensteine zählen immer alle Spiele und Trainings (Aufgaben wie „Ein Training beenden“).
  * Ergebnis: [{ ...Meilenstein, at (Zeitpunkt oder null), progress ([ist, Ziel] oder null) }]
  */
-export function milestones(rows, matches, playerId) {
+export const isGame = (m) => m.players.length > 1;
+export function milestones(rows, matches, playerId, { scope = 'games' } = {}) {
   const reached = {};
-  const s = collect(rows, matches, playerId, (m, st) => {
+  const scoped = scope === 'all' ? matches : matches.filter((m) => (scope === 'training' ? !isGame(m) : isGame(m)));
+  const s = collect(rows, scoped, playerId, (m, st) => {
     for (const d of MILESTONES) if (!d.mission && !reached[d.id] && d.test(st)) reached[d.id] = m.createdAt;
   });
   // Aufgaben-Meilensteine: Zeitpunkt ist das Match, mit dem die Aufgabe erledigt war
   const mc = missionCounts(rows, matches, playerId, (ts, c) => {
     for (const d of MILESTONES) if (d.mission && !reached[d.id] && d.test(c)) reached[d.id] = ts;
   });
-  return MILESTONES.map((d) => ({ ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(d.mission ? mc : s) : null }));
+  // detail: Zusatzangaben für die Detailansicht (Doppel-Sammler: welche Doppel schon getroffen sind)
+  return MILESTONES.map((d) => ({
+    ...d, at: reached[d.id] || null, progress: d.progress ? d.progress(d.mission ? mc : s) : null,
+    detail: d.id.startsWith('dbl-') ? { doubles: [...s.doubles] } : null,
+  }));
 }
 
 // ---------- Ränge ----------

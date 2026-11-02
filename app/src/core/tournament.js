@@ -148,6 +148,8 @@ export function createTournament({ name, format, mode, options, legsBestOf, inpu
 /** Ergebnis eines Matches: { winnerId, legs: { id: gewonnene Legs }, at } oder null (läuft noch). */
 function matchResult(m) {
   if (!m || m.status !== 'finished' || m.winner == null) return null;
+  // Am PC eingetragenes Ergebnis (Handy ausgefallen): nur Legs, keine Würfe
+  if (m.manualResult) return { winnerId: m.players[m.winner], legs: { ...m.manualResult.legs }, at: m.updatedAt || m.createdAt };
   const legs = {};
   try {
     const st = derive(m);
@@ -296,7 +298,7 @@ export function boardStatus(t, st) {
   for (const [key, c] of Object.entries(t.calls || {})) {
     const g = byKey.get(key);
     if (!g || g.status === 'done' || g.status === 'bye' || !out[c.board - 1]) continue;
-    out[c.board - 1] = { board: c.board, game: g, since: c.at };
+    out[c.board - 1] = { board: c.board, game: g, since: c.at, writer: c.writer || null };
   }
   return out;
 }
@@ -312,7 +314,7 @@ export function queueOrder(games) {
  * Board stehen. Gruppenspiele der Runde nach, K.-o. der Runde nach. Pausen (notBefore) werden eingehalten.
  * Ergebnis: { calls: [{ board, game }], pauseUntil (Zeitpunkt, falls ein Board nur wegen der Pause frei bleibt) }.
  */
-export function planCalls(t, st, now = Date.now()) {
+export function planCalls(t, st, now = Date.now(), { boards: allowed = null } = {}) {
   const boards = boardStatus(t, st);
   const busy = new Set();
   for (const b of boards) if (b.game) { busy.add(b.game.a); busy.add(b.game.b); }
@@ -323,6 +325,7 @@ export function planCalls(t, st, now = Date.now()) {
   let pauseUntil = 0;
   for (const b of boards) {
     if (b.game) continue;
+    if (allowed && !allowed.has(b.board)) continue; // an diesem Board ist gerade kein Handy angemeldet
     const pick = candidates.find((g) => !busy.has(g.a) && !busy.has(g.b) && !calls.some((c) => c.game === g) && !(g.notBefore > now));
     if (pick) {
       calls.push({ board: b.board, game: pick });
@@ -370,4 +373,61 @@ export function tournamentChampions(matches) {
     }
   }
   return out;
+}
+
+// ---------- Schreiber, Highlights, Zeitplan (Live-Ansicht) ----------
+
+/**
+ * Schreiber für ein neu aufgerufenes Spiel: der Verlierer des letzten Spiels an diesem Board
+ * (Darts-Brauch), sonst jemand, der gerade nicht spielt. busy = Spieler, die gerade spielen oder aufgerufen sind.
+ */
+export function pickWriter(t, st, board, game, busy = new Set()) {
+  const byKey = new Map(st.games.map((g) => [g.key, g]));
+  const free = (p) => p && p !== game.a && p !== game.b && !busy.has(p);
+  const last = Object.entries(t.calls || {})
+    .filter(([key, c]) => c.board === board && byKey.get(key)?.status === 'done')
+    .sort((x, y) => y[1].at - x[1].at)[0];
+  if (last) {
+    const g = byKey.get(last[0]);
+    const loser = g.winnerId === g.a ? g.b : g.a;
+    if (free(loser)) return loser;
+  }
+  return t.players.find(free) || null;
+}
+
+/**
+ * Highlights aus Aufnahmen: 180 und Finishes ab 100 (nur X01).
+ * Ergebnis: [{ key (eindeutig), kind ('180'|'finish'), text, speech, playerId }], älteste zuerst.
+ */
+export function highlightsOf(m) {
+  if (!m || m.mode !== 'x01') return [];
+  let st;
+  try { st = derive(m); } catch { return []; }
+  const out = [];
+  for (const leg of st.legs) {
+    for (const info of leg.turns) {
+      const who = m.playerNames[info.player];
+      if (info.ev.finished && info.startRemaining >= 100) {
+        out.push({ key: `${m.id}:${info.index}`, kind: 'finish', text: `🏁 ${info.startRemaining} Finish – ${who}`, speech: `${info.startRemaining} Finish von ${who}!`, playerId: m.players[info.player] });
+      } else if (!info.ev.bust && info.ev.points === 180) {
+        out.push({ key: `${m.id}:${info.index}`, kind: '180', text: `🚀 180 – ${who}`, speech: `Einhundertachtzig! ${who}!`, playerId: m.players[info.player] });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Geschätztes Turnierende aus der bisherigen Spieldauer: { minutes, at } oder null (noch kein Spiel fertig).
+ * Rechnung: Spiele, die noch fehlen ÷ Boards × durchschnittliche Dauer eines Spiels.
+ */
+export function scheduleEstimate(t, st, now = Date.now()) {
+  const done = st.games.filter((g) => g.status === 'done' && g.match && !g.match.manualResult);
+  const durations = done.map((g) => (g.match.updatedAt || 0) - (g.match.createdAt || 0)).filter((d) => d > 30000 && d < 3 * 3600000);
+  if (!durations.length) return null;
+  const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+  const left = st.games.filter((g) => g.status !== 'done' && !g.bye).length;
+  if (!left) return null;
+  const ms = Math.ceil(left / Math.max(1, t.boards || 1)) * avg;
+  return { minutes: Math.round(ms / 60000), at: now + ms };
 }

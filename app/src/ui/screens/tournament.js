@@ -2,11 +2,12 @@
 // Spiele direkt starten oder fortsetzen. Logik in core/tournament.js, Anzeige in ui/tournamentView.js.
 // Läuft die App über den Turnier-Server (PC), kann das Turnier live geschaltet werden (ui/screens/live.js).
 import { h, toast, promptDialog, confirmDialog } from '../dom.js';
-import { getPlayers, addPlayer, getSettings, updateSettings, displayName } from '../../core/settings.js';
+import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGuest, isGuestId } from '../../core/settings.js';
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
-import { liveServer, postTournament } from '../../core/live.js';
+import { liveServer, postTournament, setCloudCode } from '../../core/live.js';
+import { cloudEnabled, newCode, normCode, showCode, fetchState } from '../../core/cloud.js';
 import { confetti } from '../celebrate.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { planView, champCard, nameOf } from '../tournamentView.js';
@@ -35,9 +36,24 @@ export function render(root, params, nav) {
     body.replaceChildren(
       topbar('Turniere', () => nav.go('home')),
       h('button', { class: 'btn primary', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('tournament', { create: true }) }, '＋ Neues Turnier'),
+      // Online-Turnier beitreten (Code von der Turnierleitung)
+      cloudEnabled() && !(live && live.cloud) ? h('button', {
+        class: 'btn', style: { minHeight: '56px' },
+        onclick: async () => {
+          const input = await promptDialog('Online-Turnier beitreten', '', { ok: 'Beitreten', placeholder: 'Code, z. B. K7P2-QX9M' });
+          if (input == null) return;
+          const code = normCode(input);
+          if (!code) { toast('Der Code hat 8 Zeichen (Buchstaben und Ziffern).'); return; }
+          try {
+            const s = await fetchState(code);
+            if (!s.tournament) { toast('Kein Turnier mit diesem Code gefunden.'); return; }
+            setCloudCode(code); unlock(); nav.go('board');
+          } catch (e) { toast(e.message); }
+        },
+      }, '🌐 Turnier beitreten (Code)') : null,
       live ? h('div', { class: 'card stack' },
-        h('b', {}, '🏟️ Turnier-Server erkannt'),
-        h('div', { class: 'small dim' }, 'Diese App läuft über den PC. Turnier anlegen, dann „Live schalten“: Der PC ruft die Spiele an die Boards auf, die iPhones zählen.'),
+        h('b', {}, live.cloud ? `🌐 Online-Turnier · Code ${showCode(live.code)}` : '🏟️ Turnier-Server erkannt'),
+        h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Diese App läuft über den PC. Turnier anlegen, dann „Live schalten“: Der PC ruft die Spiele an die Boards auf, die iPhones zählen.'),
         h('div', { class: 'grid2' },
           h('button', { class: 'btn', onclick: () => nav.go('live') }, '📺 Live-Ansicht'),
           h('button', { class: 'btn', onclick: () => nav.go('board') }, '🎯 Board-Handy'))) : null,
@@ -70,6 +86,7 @@ export function render(root, params, nav) {
       legsBestOf: last.legsBestOf || 3, input: last.input || 'total', groupSize: last.groupSize || 5,
       boards: last.boards || 2, pauseMin: last.pauseMin ?? 0,
       selected: (last.players || []).filter((id) => getPlayers().some((p) => p.id === id)),
+      guests: [], // Gäste dieses Turniers (ohne Statistik)
     };
     const draw = () => {
       const players = getPlayers();
@@ -126,7 +143,27 @@ export function render(root, params, nav) {
               draw();
             },
           }, '＋ Neu'),
-          players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
+          // Gäste: spielen mit, bekommen aber keine Statistik und keine Meilensteine
+          cfg.guests.map((g) => h('button', { class: 'chip on guest', onclick: () => { cfg.guests = cfg.guests.filter((x) => x !== g); cfg.selected = cfg.selected.filter((id) => id !== g.id); draw(); } },
+            h('span', { class: 'pick num' }, cfg.selected.indexOf(g.id) + 1), `👤 ${g.name} ✕`)),
+          h('button', {
+            class: 'chip',
+            onclick: async () => {
+              const txt = await promptDialog('Gäste (ohne Statistik)', '2', { ok: 'Hinzufügen', placeholder: 'Anzahl (z. B. 5) oder Namen mit Komma' });
+              if (txt == null || !txt.trim()) return;
+              const count = /^\s*\d+\s*$/.test(txt) ? Math.min(parseInt(txt, 10), MAX_PLAYERS) : 0;
+              const wanted = count ? Array(count).fill('') : txt.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+              for (const nm of wanted) {
+                if (cfg.selected.length >= MAX_PLAYERS) { toast(`Höchstens ${MAX_PLAYERS} Spieler.`); break; }
+                const g = newGuest(nm, cfg.guests.map((x) => x.name));
+                cfg.guests.push(g);
+                cfg.selected.push(g.id);
+              }
+              draw();
+            },
+          }, '＋ Gäste'),
+          players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); cfg.guests = []; draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
+        cfg.guests.length ? h('p', { class: 'dim small', style: { margin: 0 } }, '👤 Gäste spielen mit, bekommen aber keine Statistik und keine Meilensteine. Für ihre Gegner zählt das Match normal.') : null,
         h('p', { class: 'dim small', style: { margin: 0 } }, info),
         h('button', {
           class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, disabled: !ready,
@@ -137,9 +174,11 @@ export function render(root, params, nav) {
                 name: cfg.name.trim() || 'Turnier', format: cfg.format, mode: cfg.mode,
                 options: cfg.mode === 'x01' ? { startScore: cfg.startScore, doubleOut: true } : { cutThroat: cfg.cutThroat },
                 legsBestOf: cfg.legsBestOf, input: cfg.input, camera: false, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin,
-                players: cfg.selected, playerNames: cfg.selected.map((id) => displayName(players.find((p) => p.id === id), players)),
+                players: cfg.selected, playerNames: cfg.selected.map((id) => (isGuestId(id) ? cfg.guests.find((g) => g.id === id).name : displayName(players.find((p) => p.id === id), players))),
               });
             } catch (e) { toast(e.message); return; }
+            // Spieler-Nummern mitgeben: so ordnet „Turnier-Spiele übernehmen“ die Spieler auf anderen Handys sicher zu
+            t.playerInfo = players.filter((p) => cfg.selected.includes(p.id)).map((p) => ({ id: p.id, name: p.name, code: p.code }));
             saveTournament(t);
             updateSettings({ lastTournament: { format: cfg.format, mode: cfg.mode, startScore: cfg.startScore, cutThroat: cfg.cutThroat, legsBestOf: cfg.legsBestOf, input: cfg.input, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin, players: cfg.selected } });
             toast('🎲 Ausgelost!');
@@ -174,12 +213,21 @@ export function render(root, params, nav) {
       ? champCard(t, st)
       : h('div', { class: 'card stack' },
         h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${t.legsBestOf === 1 ? '1 Leg' : `Best of ${t.legsBestOf} Legs`} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
-        live ? h('button', {
+        live && !live.cloud ? h('button', {
           class: 'btn primary',
           onclick: async () => {
-            try { await postTournament(t); nav.go('live'); } catch (e) { toast(`Server nicht erreichbar: ${e.message}`); }
+            try { await postTournament(t); nav.go('live'); } catch (e) { toast(e.message); }
           },
-        }, '🏟️ Live schalten (PC ruft die Spiele auf)') : null,
+        }, '📶 Live im WLAN (PC ruft die Spiele auf)') : null,
+        // Online: Board-Handys treten per Code aus ihrer normalen App bei (Firebase, siehe core/cloud.js)
+        cloudEnabled() ? h('button', {
+          class: `btn ${live && !live.cloud ? '' : 'primary'}`,
+          onclick: async () => {
+            const code = live && live.cloud ? live.code : newCode();
+            setCloudCode(code);
+            try { await postTournament(t); nav.go('live'); } catch (e) { setCloudCode(null); toast(e.message); }
+          },
+        }, live && live.cloud ? `🌐 Online-Live öffnen (${showCode(live.code)})` : '🌐 Online live schalten (Beitreten per Code)') : null,
         st.open.length
           ? [h('b', {}, st.open.length === 1 ? 'Nächstes Spiel' : `${st.open.length} Spiele bereit`),
             st.open.slice(0, 4).map((g, i) => h('button', { class: `btn ${i === 0 && !live ? 'primary' : ''}`, onclick: () => startGame(g) },

@@ -8,6 +8,64 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.14.0',
+    date: '02.11.2026',
+    items: [
+      'Live-Turnier: jedes Board zeigt, ob ein Handy verbunden ist (📱 Name oder ⚠️ kein Handy) – die Handys melden sich alle 5 Sekunden',
+      'Spiele werden nur an Boards mit verbundenem Handy aufgerufen (abschaltbar)',
+      'Boards während des Turniers hinzufügen oder entfernen (− / ＋ in der Live-Ansicht)',
+      'Ergebnis am PC eintragen, wenn ein Handy ausfällt (Board antippen)',
+      'Schreiber ansagen: „Board 2: Kevin gegen Tom. Schreiber: Nils“ – der Verlierer des letzten Spiels an diesem Board',
+      'Highlights auf dem Fernseher: 180 und Finishes ab 100 groß eingeblendet, wahlweise mit Ansage',
+      'Zeitplan: geschätztes Turnierende; Warnung, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat',
+      'Neue Einstellungen › Turnier & Live: alles einzeln an- und abschaltbar',
+    ],
+  },
+  {
+    version: '1.13.0',
+    date: '02.11.2026',
+    items: [
+      'Online-Turnier (optional, mit Firebase): iPhones treten aus der normalen App per Code bei – Turnier › „Turnier beitreten“',
+      'Das WLAN-Turnier mit QR-Code geht weiter ohne Internet; Online ist eine zweite Möglichkeit',
+      'Board-Handy: „Turnier-Spiele in meine Statistik übernehmen“ (Spieler wählbar) und „Turnier verlassen“',
+      'Board-Handys schreiben beim Live-Turnier nicht mehr direkt in die eigene Statistik – erst beim Übernehmen, sauber zugeordnet',
+      'Training zählt nicht mehr für Rang, Meilensteine und Rekorde der Spiele. Umschalter „Spiele | Training“ bei Meilensteine und Rekorde',
+    ],
+  },
+  {
+    version: '1.12.0',
+    date: '02.11.2026',
+    items: [
+      'Live-Turnier: QR-Code je Board in der Live-Ansicht – mit der iPhone-Kamera scannen, dann öffnet sich direkt das Board-Handy für dieses Board',
+      'Abgleich: beim Senden und beim Einlesen wählbar, wessen Spiele mitkommen (z. B. aus der Turnier-Datei nur deine und die von Nils)',
+      'Turnier-Server: hört jetzt auch auf IPv6 (Firefox), hängt nicht mehr an leeren Verbindungen und schreibt im Fenster mit, was ankommt',
+      'Live schalten: zweiter Versuch bei Netzfehlern und eine verständliche Meldung, wenn das Server-Fenster geschlossen ist',
+    ],
+  },
+  {
+    version: '1.11.0',
+    date: '02.11.2026',
+    items: [
+      'Rekorde und Meilensteine haben eigene große Knöpfe auf der Startseite (nicht mehr in der Statistik)',
+      'Meilensteine: Suche, Filter (erreicht/offen, Punkte, nur Elite) und Sortierung (Kategorie, Punkte, neueste)',
+      'Tipp auf einen Meilenstein zeigt Details: Fortschritt, alle Stufen der Reihe, Vitrine – beim Doppel-Sammler alle 21 Doppel, getroffene grün',
+      'Rekorde: oben umschalten zwischen „Meine Rekorde“ und „Bestenliste“, dazu Abend-Krone, Duelle und Monatsrückblick',
+      'Gäste: „+ Gast“ bei Neues Spiel und „＋ Gäste“ im Turnier (Zahl eingeben, z. B. 5) – spielen mit, bekommen aber keine Statistik und keine Meilensteine',
+      'Neues Spiel: das Spiel wird jetzt per Auswahlfeld gewählt, im selben Stil wie die Felder darunter',
+      'Startseite aufgeräumt: Spieler, Kamera kalibrieren und Anleitung liegen jetzt als Menü in den Einstellungen',
+      'Einstellungen in Unterseiten aufgeteilt: Dieses Handy & Startseite, Ansagen & Töne, Kamera & Geräte-Check, Abgleich & Sicherung',
+    ],
+  },
+  {
+    version: '1.10.1',
+    date: '02.11.2026',
+    items: [
+      'Behoben (vermutlich): schwarzer Bildschirm nach dem Update – eine neue Version wird jetzt immer komplett geladen, nie mehr alte und neue Dateien gemischt',
+      'Start-Hilfe: Startet die App nicht, erscheint nach 6 Sekunden „Reparieren“ (leert nur den Zwischenspeicher, Spiele und Statistik bleiben)',
+      'Nach einem Update lädt die App einmal neu (mitten im Spiel erst beim Zurück zur Startseite)',
+    ],
+  },
+  {
     version: '1.10.0',
     date: '02.11.2026',
     items: [

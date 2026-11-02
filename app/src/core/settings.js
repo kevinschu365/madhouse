@@ -30,6 +30,13 @@ export const DEFAULT_SETTINGS = {
   performance: 'auto',       // 'auto' | 'low' | 'high'
   inputMode: 'total',        // Handeingabe: 'dart' (pro Dart) | 'board' (Scheibe) | 'total' (Summe)
   lastSetup: { startScore: 501, setsBestOf: 1, legsBestOf: 3 },
+  // Turnier & Live (Turnierleitung am PC)
+  tourWriter: true,          // beim Aufruf einen Schreiber ansagen (Verlierer des letzten Spiels an diesem Board)
+  tourHighlights: true,      // Highlights (180, Finish 100+) groß in der Live-Ansicht
+  tourHighlightSpeech: true, // Highlights zusätzlich ansagen
+  tourOnlyConnected: true,   // nur Boards aufrufen, an denen ein Handy verbunden ist
+  tourSchedule: true,        // geschätztes Turnierende anzeigen
+  tourDelayWarn: true,       // warnen, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat
 };
 
 let settings = { ...DEFAULT_SETTINGS, ...lsGet('settings', {}) };
@@ -109,6 +116,20 @@ export function ownerId() {
   const id = getSettings().ownerId;
   return id && getPlayers().some((p) => p.id === id) ? id : null;
 }
+// ---------- Gäste ----------
+// Gäste spielen nur mit: Sie stehen nicht in der Spielerliste und bekommen keine Statistik, keine Meilensteine
+// und keinen Rang. Kennung „guest:…“. Das Match zählt für die echten Mitspieler ganz normal.
+
+/** Ist das ein Gast? */
+export const isGuestId = (id) => String(id || '').startsWith('guest:');
+
+/** Neuer Gast; ohne Namen „Gast 1“, „Gast 2“ … (taken = Namen, die schon vergeben sind). */
+export function newGuest(name = '', taken = []) {
+  let clean = String(name || '').trim().slice(0, 24);
+  if (!clean) { let k = 1; while (taken.includes(`Gast ${k}`)) k++; clean = `Gast ${k}`; }
+  return { id: newId('guest:g'), name: clean, guest: true };
+}
+
 export function playerName(id, fallback = '?') {
   const p = getPlayers().find((x) => x.id === id);
   return p ? p.name : fallback;

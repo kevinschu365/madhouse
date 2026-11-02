@@ -19,6 +19,34 @@
 <body>
   <div id="app"></div>
   <noscript>Madhouse braucht JavaScript.</noscript>
+  <script>
+    // Start-Hilfe: Bleibt der Bildschirm leer (z. B. weil der Zwischenspeicher alte und neue Dateien mischt),
+    // erscheint nach 6 Sekunden ein Knopf. „Reparieren“ leert nur den Zwischenspeicher der App –
+    // Spieler, Spiele und Statistik bleiben erhalten. Absichtlich einfaches JavaScript (läuft auch, wenn der Rest nicht startet).
+    window.__startErrors = [];
+    window.addEventListener('error', function (e) { window.__startErrors.push(e.message || (e.target && e.target.src ? 'Datei fehlt: ' + e.target.src : 'Fehler')); }, true);
+    window.addEventListener('unhandledrejection', function (e) { window.__startErrors.push(String(e.reason && e.reason.message || e.reason)); });
+    window.__madhouseRepair = function () {
+      var jobs = [];
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      }
+      if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+      var again = function () { location.reload(); };
+      Promise.all(jobs).then(again, again);
+    };
+    setTimeout(function () {
+      var app = document.getElementById('app');
+      if (!app || app.children.length) return;
+      app.innerHTML = '<div style="max-width:420px;margin:60px auto;padding:20px;font-family:-apple-system,system-ui,sans-serif;color:#fff;text-align:center">'
+        + '<div style="font-size:48px">🎯</div><h2>Madhouse startet nicht</h2>'
+        + '<p style="color:#9ca3af">Meist liegt das am Zwischenspeicher nach einem Update. „Reparieren“ lädt die App frisch. Spieler, Spiele und Statistik bleiben erhalten.</p>'
+        + '<button id="repairbtn" style="font:inherit;font-size:20px;font-weight:700;width:100%;min-height:56px;border:0;border-radius:14px;background:#22c55e;color:#000;margin-top:8px">Reparieren</button>'
+        + '<p id="starterr" style="color:#6b7280;font-size:12px;margin-top:18px;word-break:break-word"></p></div>';
+      document.getElementById('starterr').textContent = window.__startErrors.slice(0, 3).join(' · ');
+      document.getElementById('repairbtn').onclick = window.__madhouseRepair;
+    }, 6000);
+  </script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

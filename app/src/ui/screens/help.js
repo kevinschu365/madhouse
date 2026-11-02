@@ -14,10 +14,10 @@ export function render(root, params, nav) {
   };
   frame.addEventListener('load', () => { fit(); setTimeout(fit, 300); });
   root.appendChild(h('div', { class: 'stack', style: { maxWidth: '560px', margin: '0 auto' } },
-    h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Anleitung')),
+    h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go(params.back || 'home') }, '‹'), h('h1', {}, 'Anleitung')),
     frame,
     h('a', { class: 'btn', href: 'anleitung.pdf', target: '_blank', rel: 'noopener', style: { textAlign: 'center', textDecoration: 'none', color: 'var(--text)' } }, 'Als PDF öffnen / teilen'),
-    h('button', { class: 'btn ghost', onclick: () => nav.go('home') }, 'Zurück zur Startseite'),
+    h('button', { class: 'btn ghost', onclick: () => nav.go(params.back || 'home') }, 'Zurück'),
   ));
   window.addEventListener('resize', fit);
   return () => window.removeEventListener('resize', fit);

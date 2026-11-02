@@ -133,9 +133,10 @@ export class GameSession {
 
   async persist() {
     try {
+      // Board-Handy beim Live-Turnier: nur zählen und senden (puffert bei Netz-Aussetzern), nicht in die eigene
+      // Statistik schreiben – die Spiele kommen später gezielt über „Turnier-Spiele übernehmen“ bzw. den Abgleich.
+      if (this.match.liveBoard && this.match.tournament) { postMatch(this.match).catch(() => {}); return; }
       await saveMatchWithThrows(this.match, M.throwRows(this.match));
-      // Live-Turnier: Spielstand an den Turnier-Server auf dem PC (puffert bei WLAN-Aussetzern)
-      if (this.match.liveBoard && this.match.tournament) postMatch(this.match).catch(() => {});
     } catch (e) {
       console.warn('Speichern in IndexedDB fehlgeschlagen', e);
       this.emit('error', { message: 'Speichern fehlgeschlagen' });
