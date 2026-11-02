@@ -30,6 +30,13 @@ export const DEFAULT_SETTINGS = {
   performance: 'auto',       // 'auto' | 'low' | 'high'
   inputMode: 'total',        // Handeingabe: 'dart' (pro Dart) | 'board' (Scheibe) | 'total' (Summe)
   lastSetup: { startScore: 501, setsBestOf: 1, legsBestOf: 3 },
+  // Turnier & Live (Turnierleitung am PC)
+  tourWriter: true,          // beim Aufruf einen Schreiber ansagen (Verlierer des letzten Spiels an diesem Board)
+  tourHighlights: true,      // Highlights (180, Finish 100+) groß in der Live-Ansicht
+  tourHighlightSpeech: true, // Highlights zusätzlich ansagen
+  tourOnlyConnected: true,   // nur Boards aufrufen, an denen ein Handy verbunden ist
+  tourSchedule: true,        // geschätztes Turnierende anzeigen
+  tourDelayWarn: true,       // warnen, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat
 };
 
 let settings = { ...DEFAULT_SETTINGS, ...lsGet('settings', {}) };

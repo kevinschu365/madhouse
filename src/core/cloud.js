@@ -34,14 +34,22 @@ async function req(url, method, body) {
 
 export const putTournament = (code, t) => req(`${base(code)}/t.json`, 'PUT', JSON.stringify(t));
 export const putMatch = (code, m) => req(`${base(code)}/m/${m.id}.json`, 'PUT', JSON.stringify(m));
+/** Board-Handy meldet sich: { board, device, at }. */
+export const putPresence = (code, p) => req(`${base(code)}/m/_b${p.board}.json`, 'PUT', JSON.stringify(p));
 /** Turnier online löschen (nach dem Turnier; die Spiele bleiben auf den Geräten). */
 export const deleteOnline = (code) => req(`${base(code)}.json`, 'DELETE');
 
-/** Rohdaten { t: Text, m: { id: Text } } -> { tournament, matches }. */
+/** Rohdaten { t: Text, m: { id: Text } } -> { tournament, matches, presence }.
+ * Meldungen der Board-Handys liegen als m/_b1, m/_b2 … bei den Spielständen (so reichen die bestehenden Regeln). */
 function parseState(raw) {
   const tournament = raw && typeof raw.t === 'string' ? JSON.parse(raw.t) : null;
-  const matches = Object.values((raw && raw.m) || {}).filter((s) => typeof s === 'string').map((s) => JSON.parse(s));
-  return { tournament, matches };
+  const matches = [];
+  const presence = {};
+  for (const [k, s] of Object.entries((raw && raw.m) || {})) {
+    if (typeof s !== 'string') continue;
+    if (k.startsWith('_b')) presence[k.slice(2)] = JSON.parse(s); else matches.push(JSON.parse(s));
+  }
+  return { tournament, matches, presence };
 }
 
 /** Einmal laden (z. B. beim Beitreten prüfen, ob es den Code gibt). */

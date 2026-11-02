@@ -14,6 +14,7 @@ const SECTIONS = [
   { id: 'phone', icon: '📱', title: 'Dieses Handy & Startseite', note: 'Wer bin ich, was zeigt die Startseite', cards: ['Dieses Handy'] },
   { id: 'voice', icon: '🔊', title: 'Ansagen & Töne', note: 'Stimme, Dialekt, Sprüche, Warntöne', cards: ['Ansage'] },
   { id: 'camera', icon: '📷', title: 'Kamera & Geräte-Check', note: 'Erkennung, Diagnose, Kalibrierung, Gerät', cards: ['Kamera', 'Geräte-Check'] },
+  { id: 'tour', icon: '🏆', title: 'Turnier & Live', note: 'Schreiber, Highlights, Handys, Zeitplan', cards: ['Turnier & Live'] },
   { id: 'data', icon: '💾', title: 'Abgleich & Sicherung', note: 'Zweites Handy, Sicherung, Daten löschen', cards: ['Handys abgleichen', 'Daten'] },
 ];
 
@@ -143,6 +144,17 @@ export function render(root, params, nav) {
             return sel;
           })()),
         h('button', { class: 'btn', onclick: () => nav.go('calibrate', { mode: 'full', back: 'settings' }) }, 'Neu kalibrieren'),
+      ),
+
+      h('div', { class: 'card' },
+        h('h3', {}, 'Turnier & Live'),
+        h('p', { class: 'dim', style: { margin: '0 0 6px', fontSize: '13px' } }, 'Gilt für die Turnierleitung am PC (Live-Ansicht).'),
+        toggle('tourWriter', 'Schreiber ansagen', 'Beim Aufruf: „Schreiber: Nils“ – der Verlierer des letzten Spiels an diesem Board'),
+        toggle('tourHighlights', 'Highlights auf dem Fernseher', '180 und Finishes ab 100 groß einblenden'),
+        s.tourHighlights ? toggle('tourHighlightSpeech', 'Highlights ansagen', '„180! Kevin an Board 2“') : null,
+        toggle('tourOnlyConnected', 'Nur Boards mit verbundenem Handy aufrufen', 'Spiele gehen nur an Boards, an denen gerade ein Handy angemeldet ist'),
+        toggle('tourSchedule', 'Zeitplan anzeigen', 'Geschätztes Turnierende aus der bisherigen Spieldauer'),
+        toggle('tourDelayWarn', 'Warnung bei Verzögerung', 'Aufgerufenes Spiel nach 5 Minuten noch nicht begonnen: gelb markieren und nochmal ansagen'),
       ),
 
       h('div', { class: 'card stack' },

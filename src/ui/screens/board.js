@@ -2,10 +2,10 @@
 // startet es mit einem Tipp und meldet jede Aufnahme an den PC (über GameSession -> core/live.js).
 // Der PC (ui/screens/live.js) entscheidet, welches Spiel an welches Board kommt.
 import { h, toast } from '../dom.js';
-import { lsGet } from '../../core/storage.js';
+import { lsGet, lsSet } from '../../core/storage.js';
 import { unlock, say } from '../../audio/speech.js';
 import { tournamentState, boardStatus, planCalls, matchTag } from '../../core/tournament.js';
-import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode } from '../../core/live.js';
+import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat } from '../../core/live.js';
 import { showCode } from '../../core/cloud.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
 import { BRAND, APP_VERSION } from '../../config.js';
@@ -51,7 +51,12 @@ export function render(root, params, nav) {
     const st = tournamentState(t, state.matches);
     const mine = boardStatus(t, st)[board - 1];
     const g = mine && mine.game;
-    const active = lsGet('activeMatch', null);
+    let active = lsGet('activeMatch', null);
+    // Hat die Turnierleitung das Ergebnis am PC eingetragen (Handy war ausgefallen), das alte Spiel hier freigeben
+    if (active && active.tournament && active.tournament.id === t.id) {
+      const done = st.games.find((x) => x.key === active.tournament.game);
+      if (done && done.status === 'done' && done.match && done.match.id !== active.id) { lsSet('activeMatch', null); active = null; }
+    }
     const content = [];
     if (st.done && st.champion) {
       content.push(h('div', { class: 'card callcard' }, h('div', { class: 'callicon' }, '🏆'), h('div', { class: 'callnames' }, nameOf(t, st.champion)), h('div', { class: 'dim' }, 'hat das Turnier gewonnen!')));
@@ -67,6 +72,7 @@ export function render(root, params, nav) {
         h('div', { class: 'callhead' }, running ? '⏵ Läuft' : '📣 Aufruf'),
         h('div', { class: 'callnames' }, nameOf(t, g.a), h('span', { class: 'vs' }, 'gegen'), nameOf(t, g.b)),
         h('div', { class: 'dim' }, `${g.roundName}${running ? ` · ${liveScore(g.match)}` : ''}`),
+        mine.writer ? h('div', { class: 'writer' }, `✍️ Schreiber: ${nameOf(t, mine.writer)}`) : null,
         running
           ? (here || !active
             ? h('button', { class: 'btn primary big', onclick: () => nav.go('game', { match: here ? active : g.match, liveBoard: board }) }, 'Weiterspielen')
@@ -107,6 +113,7 @@ export function render(root, params, nav) {
         h('div', { class: 'small dim' }, 'Das Board-Handy funktioniert nur, wenn die App über den PC geöffnet wird: Turnier-Server starten und am iPhone die Adresse öffnen, die der PC anzeigt (z. B. http://192.168.1.20:8130/app/).')));
       return;
     }
+    startHeartbeat(); // dieses Handy meldet sich bei der Turnierleitung (läuft auch im Spiel weiter)
     tick();
     timer = setInterval(tick, POLL_MS);
   });

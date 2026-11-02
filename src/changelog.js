@@ -8,6 +8,20 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.14.0',
+    date: '02.11.2026',
+    items: [
+      'Live-Turnier: jedes Board zeigt, ob ein Handy verbunden ist (📱 Name oder ⚠️ kein Handy) – die Handys melden sich alle 5 Sekunden',
+      'Spiele werden nur an Boards mit verbundenem Handy aufgerufen (abschaltbar)',
+      'Boards während des Turniers hinzufügen oder entfernen (− / ＋ in der Live-Ansicht)',
+      'Ergebnis am PC eintragen, wenn ein Handy ausfällt (Board antippen)',
+      'Schreiber ansagen: „Board 2: Kevin gegen Tom. Schreiber: Nils“ – der Verlierer des letzten Spiels an diesem Board',
+      'Highlights auf dem Fernseher: 180 und Finishes ab 100 groß eingeblendet, wahlweise mit Ansage',
+      'Zeitplan: geschätztes Turnierende; Warnung, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat',
+      'Neue Einstellungen › Turnier & Live: alles einzeln an- und abschaltbar',
+    ],
+  },
+  {
     version: '1.13.0',
     date: '02.11.2026',
     items: [

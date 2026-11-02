@@ -16,6 +16,7 @@ import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
 import { milestoneToast, rankUpScreen } from '../celebrate.js';
+import { startHeartbeat } from '../../core/live.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -28,6 +29,7 @@ export function render(root, params, nav) {
   session.match.camera = useCamera;
   if (params.tournament) session.match.tournament = params.tournament; // Turnier-Match (core/tournament.js)
   if (params.liveBoard) session.match.liveBoard = params.liveBoard;    // Live-Turnier: an welchem Board (core/live.js)
+  if (session.match.liveBoard) startHeartbeat();                       // Board-Handy meldet sich weiter bei der Turnierleitung
   const mode = session.state.mode;
   const training = mode.kind === 'training';
   const cricket = mode.id === 'cricket';

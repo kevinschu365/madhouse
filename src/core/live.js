@@ -7,7 +7,7 @@
 // Fällt das Netz kurz aus, werden Spielstände gepuffert und beim nächsten Mal nachgeschickt.
 
 import { lsGet, lsSet } from './storage.js';
-import { putTournament, putMatch, watch, showCode } from './cloud.js';
+import { putTournament, putMatch, putPresence, watch, showCode } from './cloud.js';
 
 const TIMEOUT = 8000;
 let pingCache = null;
@@ -132,6 +132,43 @@ async function flushQueue() {
 /** Wie viele Spielstände warten noch auf Übertragung? */
 export function pendingCount() {
   return Object.keys(lsGet('liveQueue', {}) || {}).length;
+}
+
+// ---------- Board-Handy meldet sich (Herzschlag) ----------
+// Alle 5 Sekunden: „Board 2 ist da“. Die Turnierleitung sieht so, welche Boards ein Handy haben,
+// und ruft (je nach Einstellung) nur dort Spiele auf. Läuft weiter, auch während des Spiels.
+export const PRESENCE_MS = 5000;
+export const PRESENCE_TIMEOUT = 30000; // so lange ohne Meldung gilt ein Handy als weg
+let heartbeat = null;
+
+/** Name dieses Geräts für die Anzeige an der Turnierleitung. */
+export function deviceName() {
+  return lsGet('liveDevice', null) || (/iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : 'Handy');
+}
+
+async function beat() {
+  const board = myBoard();
+  if (!board) return;
+  const info = await liveServer();
+  if (!info) return;
+  // Online-Turnier schon beendet (gelöscht)? Dann nicht mehr melden – sonst entstünden dort neue Reste
+  if (info.cloud && cloud && cloud.code === info.code && cloud.state && !cloud.state.tournament) return;
+  const p = { board, device: deviceName(), at: Date.now(), active: (lsGet('activeMatch', null) || {}).id || null };
+  try {
+    if (info.cloud) await putPresence(info.code, p); else await call('/api/presence', p);
+  } catch { /* nächster Versuch in 5 Sekunden */ }
+}
+
+/** Herzschlag starten (einmal je App-Start, läuft über alle Bildschirme). */
+export function startHeartbeat() {
+  if (heartbeat) return;
+  beat();
+  heartbeat = setInterval(beat, PRESENCE_MS);
+}
+
+/** Boards, an denen gerade ein Handy angemeldet ist (Set der Nummern). */
+export function connectedBoards(presence, now = Date.now()) {
+  return new Set(Object.values(presence || {}).filter((p) => p && now - p.at < PRESENCE_TIMEOUT).map((p) => Number(p.board)));
 }
 
 /** Welches Board zählt dieses Handy? (bleibt gespeichert) */
