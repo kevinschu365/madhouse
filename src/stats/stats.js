@@ -734,11 +734,15 @@ function hadComeback(m, me) {
 /**
  * Meilensteine eines Spielers: Matches werden der Zeit nach durchgegangen,
  * so steht bei jedem erreichten Meilenstein das Datum des Matches, in dem er fiel.
+ * scope: 'games' (Standard: nur Spiele mit 2+ Spielern – Training zählt nicht), 'training' (nur Trainings) oder 'all'.
+ * Aufgaben-Meilensteine zählen immer alle Spiele und Trainings (Aufgaben wie „Ein Training beenden“).
  * Ergebnis: [{ ...Meilenstein, at (Zeitpunkt oder null), progress ([ist, Ziel] oder null) }]
  */
-export function milestones(rows, matches, playerId) {
+export const isGame = (m) => m.players.length > 1;
+export function milestones(rows, matches, playerId, { scope = 'games' } = {}) {
   const reached = {};
-  const s = collect(rows, matches, playerId, (m, st) => {
+  const scoped = scope === 'all' ? matches : matches.filter((m) => (scope === 'training' ? !isGame(m) : isGame(m)));
+  const s = collect(rows, scoped, playerId, (m, st) => {
     for (const d of MILESTONES) if (!d.mission && !reached[d.id] && d.test(st)) reached[d.id] = m.createdAt;
   });
   // Aufgaben-Meilensteine: Zeitpunkt ist das Match, mit dem die Aufgabe erledigt war

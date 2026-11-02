@@ -133,3 +133,30 @@ export function syncFileName() {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   return `${BRAND.name.toLowerCase()}-abgleich-${stamp}.json`;
 }
+
+/**
+ * Nur die Spiele bestimmter Spieler: behält Matches, an denen mindestens einer von ids beteiligt war,
+ * dazu die Spieler, die darin vorkommen (damit Gegner zugeordnet werden), Vitrine und Turniere dieser Spieler.
+ */
+export function filterSyncData(data, ids) {
+  const keep = new Set(ids);
+  const matches = (data.matches || []).filter((m) => m.players.some((p) => keep.has(p)));
+  const used = new Set(matches.flatMap((m) => m.players));
+  return {
+    ...data,
+    matches,
+    players: (data.players || []).filter((p) => used.has(p.id) || keep.has(p.id)),
+    showcase: Object.fromEntries(Object.entries(data.showcase || {}).filter(([k]) => keep.has(k))),
+    tournaments: (data.tournaments || []).filter((t) => (t.players || []).some((p) => keep.has(p))),
+  };
+}
+
+/** Spieler einer Abgleich-Datei mit Zahl ihrer Spiele (ohne Gäste und Computer): [{ id, name, count }]. */
+export function syncPlayers(data) {
+  const names = new Map((data.players || []).map((p) => [p.id, p.name]));
+  for (const m of data.matches || []) m.players.forEach((id, i) => { if (!names.has(id)) names.set(id, m.playerNames[i]); });
+  return [...names].filter(([id]) => !String(id).startsWith('guest:') && !String(id).startsWith('bot:'))
+    .map(([id, name]) => ({ id, name, count: (data.matches || []).filter((m) => m.players.includes(id)).length }))
+    .filter((p) => p.count > 0)
+    .sort((a, b) => b.count - a.count);
+}

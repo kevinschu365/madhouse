@@ -32,4 +32,9 @@ export const BRAND = {
   </svg>`,
 };
 
-export const APP_VERSION = '1.11.0';
+export const APP_VERSION = '1.13.0';
+
+// Online-Turnier (optional): Adresse der eigenen Firebase Realtime Database, z. B.
+// 'https://madhouse-darts-default-rtdb.europe-west1.firebasedatabase.app'. Leer = nur Turnier im WLAN (QR-Code).
+// Einrichtung siehe ANLEITUNG.md › „Online-Turnier“.
+export const FIREBASE_DB_URL = 'https://madhouse-82927-default-rtdb.europe-west1.firebasedatabase.app';

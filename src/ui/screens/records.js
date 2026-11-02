@@ -1,7 +1,8 @@
 // Rekorde (eigener Bereich, Knopf auf der Startseite): Treppchen je Bestwert – eigene oder Bestenliste aller Spieler,
 // für immer, diese Saison oder diesen Monat –, Abend-Krone, Duelle und Monatsrückblick.
 import { h } from '../dom.js';
-import { personalPodiums, allPlayersPodiums, RECORD_DEFS, MEDALS } from '../../stats/stats.js';
+import { personalPodiums, allPlayersPodiums, trainingRecords, RECORD_DEFS, MEDALS } from '../../stats/stats.js';
+import { getMode } from '../../rules/index.js';
 import { crownHolder, seasonOf, rivalries } from '../../stats/progress.js';
 import { showMonthRecap, MONTHS } from '../recapSheet.js';
 import { showMatchDetail } from '../matchDetail.js';
@@ -12,12 +13,31 @@ export function render(root, params, nav) {
   root.appendChild(body);
   let period = 'all';  // 'all' | 'season' | 'month'
   let view = 'mine';   // 'mine' (eigene) | 'all' (Bestenliste aller Spieler)
+  let scope = 'games'; // 'games' | 'training'
 
   loadStatsData().then(({ finished, realMatches, usable, names, ids }) => {
     let player = pickDefault(ids, params.player);
     const draw = () => {
       body.replaceChildren(topbar('Rekorde', nav));
       if (!ids.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Spiele gespeichert.')); return; }
+      // Spiele oder Training – Trainings zählen nicht in die Bestwerte der Spiele
+      body.appendChild(h('div', { class: 'seg two' },
+        h('button', { class: scope === 'games' ? 'on' : '', onclick: () => { scope = 'games'; draw(); } }, '🎯 Spiele'),
+        h('button', { class: scope === 'training' ? 'on' : '', onclick: () => { scope = 'training'; draw(); } }, '🏋️ Training')));
+      if (scope === 'training') {
+        body.appendChild(playerPicker(ids, names, player, (v) => { player = v; draw(); }));
+        const recs = Object.values(trainingRecords(finished, player, getMode));
+        body.appendChild(sec(`🏋️ Trainings-Rekorde von ${names.get(player) || '?'}`));
+        if (!recs.length) body.appendChild(h('p', { class: 'dim' }, 'Noch keine Trainings beendet.'));
+        body.appendChild(h('div', { class: 'podiums' }, recs.map((r) => h('div', { class: 'podcard trainrec' },
+          h('div', { class: 'podtitle' }, getMode(r.last.mode).describe(r.last.options)),
+          h('div', { class: 'kpis' },
+            h('div', { class: 'kpi' }, h('b', { class: 'num' }, r.best.text), h('span', {}, `🏆 Rekord · ${date(r.best.at)}`)),
+            h('div', { class: 'kpi' }, h('b', { class: 'num' }, r.last.text), h('span', {}, `Zuletzt · ${date(r.last.at)}`)),
+            h('div', { class: 'kpi' }, h('b', { class: 'num' }, r.count), h('span', {}, 'Mal gespielt')))))));
+        body.appendChild(h('p', { class: 'dim small' }, 'Trainings zählen nicht in die Bestwerte, Ränge und Meilensteine der Spiele.'));
+        return;
+      }
       const global = view === 'all';
       // Umschalter groß oben: eigene Rekorde oder Bestenliste aller Spieler
       body.appendChild(h('div', { class: 'seg two' },

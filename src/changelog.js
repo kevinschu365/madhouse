@@ -8,6 +8,27 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.13.0',
+    date: '02.11.2026',
+    items: [
+      'Online-Turnier (optional, mit Firebase): iPhones treten aus der normalen App per Code bei – Turnier › „Turnier beitreten“',
+      'Das WLAN-Turnier mit QR-Code geht weiter ohne Internet; Online ist eine zweite Möglichkeit',
+      'Board-Handy: „Turnier-Spiele in meine Statistik übernehmen“ (Spieler wählbar) und „Turnier verlassen“',
+      'Board-Handys schreiben beim Live-Turnier nicht mehr direkt in die eigene Statistik – erst beim Übernehmen, sauber zugeordnet',
+      'Training zählt nicht mehr für Rang, Meilensteine und Rekorde der Spiele. Umschalter „Spiele | Training“ bei Meilensteine und Rekorde',
+    ],
+  },
+  {
+    version: '1.12.0',
+    date: '02.11.2026',
+    items: [
+      'Live-Turnier: QR-Code je Board in der Live-Ansicht – mit der iPhone-Kamera scannen, dann öffnet sich direkt das Board-Handy für dieses Board',
+      'Abgleich: beim Senden und beim Einlesen wählbar, wessen Spiele mitkommen (z. B. aus der Turnier-Datei nur deine und die von Nils)',
+      'Turnier-Server: hört jetzt auch auf IPv6 (Firefox), hängt nicht mehr an leeren Verbindungen und schreibt im Fenster mit, was ankommt',
+      'Live schalten: zweiter Versuch bei Netzfehlern und eine verständliche Meldung, wenn das Server-Fenster geschlossen ist',
+    ],
+  },
+  {
     version: '1.11.0',
     date: '02.11.2026',
     items: [

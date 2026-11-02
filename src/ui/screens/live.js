@@ -10,9 +10,15 @@ import { say, unlock } from '../../audio/speech.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { SYNC_FORMAT, syncFileName } from '../../core/sync.js';
 import { getTournaments, saveTournament, tournamentState, boardStatus, planCalls, queueOrder, TOURNAMENT_FORMATS } from '../../core/tournament.js';
-import { liveServer, liveState, postTournament, boardUrl } from '../../core/live.js';
+import { liveServer, liveState, postTournament, boardUrl, baseUrl, setCloudCode } from '../../core/live.js';
+import { showCode, deleteOnline } from '../../core/cloud.js';
 import { planView, champCard, nameOf, liveScore } from '../tournamentView.js';
 import { confetti } from '../celebrate.js';
+import { offerSync } from '../syncUi.js';
+import { qrSvg } from '../qr.js';
+
+const qrCache = new Map(); // die Ansicht wird alle 2 Sekunden neu gezeichnet – QR-Codes nur einmal berechnen
+const qrFor = (text) => qrCache.get(text) || qrCache.set(text, qrSvg(text, 150)).get(text);
 
 const POLL_MS = 2000;
 
@@ -37,7 +43,7 @@ export function render(root, params, nav) {
         list.length ? list.map((t) => h('button', {
           class: 'btn', onclick: async () => {
             unlock();
-            try { await postTournament(t); tick(); } catch (e) { toast(`Server nicht erreichbar: ${e.message}`); }
+            try { await postTournament(t); tick(); } catch (e) { toast(e.message); }
           },
         }, `${t.name} · ${TOURNAMENT_FORMATS[t.format] || ''} · ${t.players.length} Spieler`)) : h('div', { class: 'dim' }, 'Noch kein Turnier angelegt.'),
         h('button', { class: 'btn primary', onclick: () => nav.go('tournament', { create: true }) }, '＋ Neues Turnier')));
@@ -53,14 +59,14 @@ export function render(root, params, nav) {
       showcase: {},
       tournaments: [t],
     };
-    offerFile(syncFileName(), JSON.stringify(data));
+    offerSync(data); // mit Auswahl, wessen Spiele in die Datei kommen
   }
 
   async function tick() {
     if (disposed) return;
     let state;
     try { state = await liveState(); } catch (e) {
-      body.replaceChildren(h('div', { class: 'card' }, h('b', {}, '📡 Turnier-Server nicht erreichbar'), h('div', { class: 'small dim' }, 'Läuft das Fenster „Turnier-Server“ auf dem PC noch? Es wird weiter versucht.')));
+      body.replaceChildren(h('div', { class: 'card' }, h('b', {}, info && info.cloud ? '🌐 Online-Dienst nicht erreichbar' : '📡 Turnier-Server nicht erreichbar'), h('div', { class: 'small dim' }, info && info.cloud ? `${e.message}. Es wird weiter versucht.` : 'Läuft das Fenster „Turnier-Server“ auf dem PC noch? Es wird weiter versucht.')));
       return;
     }
     let t = state.tournament;
@@ -104,7 +110,7 @@ export function render(root, params, nav) {
     const played = st.games.filter((g) => g.status === 'done').length;
     const total = st.games.filter((g) => !g.bye).length;
     const phase = st.done ? 'Beendet' : t.format === 'gko' && !st.groupsDone ? 'Gruppenphase' : t.ko ? (st.koRounds.find((r) => r.games.some((g) => g.status !== 'done' && g.status !== 'bye'))?.name || 'K.-o.') : 'Spiele';
-    const url = boardUrl(info);
+    const url = baseUrl(info); // nur WLAN
     const called = new Set(Object.keys(t.calls || {}));
     const next = queueOrder(st.games.filter((g) => g.status === 'ready' && !called.has(g.key))).slice(0, 6);
 
@@ -139,7 +145,19 @@ export function render(root, params, nav) {
         tv ? null : h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'),
         h('div', { class: 'livetitle' }, h('h1', {}, t.name), h('div', { class: 'dim' }, `${phase} · ${played} / ${total} Spiele`)),
         h('button', { class: 'iconbtn', title: 'Fernseher-Ansicht', onclick: () => { tv = !tv; body.classList.toggle('tv', tv); if (tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); draw(t, st, matches, plan); } }, tv ? '✕' : '📺')),
-      url && !tv && !st.done ? h('div', { class: 'card joincard' }, h('span', {}, '📱 Board-Handys öffnen:'), h('b', { class: 'num' }, url), h('span', { class: 'small dim' }, '› „Board-Handy“ › Board wählen')) : null,
+      // QR-Code je Board: mit der iPhone-Kamera scannen, dann öffnet sich direkt das Board-Handy für dieses Board
+      // Online: Code groß – in der eigenen App unter Turnier › Beitreten eingeben
+      info && info.cloud && !st.done ? h('div', { class: 'card codecard' },
+        h('div', { class: 'small dim' }, '🌐 Online-Turnier · in der Madhouse-App: Turnier › „Beitreten“ › Code'),
+        h('div', { class: 'bigcode num' }, showCode(info.code))) : null,
+      (url || info?.cloud) && !st.done ? h('details', { class: 'card joincard', open: !played },
+        h('summary', {}, info.cloud ? '📱 Ohne installierte App: QR-Code mit der iPhone-Kamera scannen' : '📱 Board-Handys verbinden: QR-Code mit der iPhone-Kamera scannen'),
+        h('div', { class: 'qrrow' }, boards.map((b) => h('div', { class: 'qrbox' },
+          h('div', { class: 'qrimg', html: qrFor(boardUrl(info, b.board)) }),
+          h('b', {}, `Board ${b.board}`)))),
+        info.cloud
+          ? h('div', { class: 'small dim' }, 'Der QR-Code öffnet Madhouse in Safari direkt am richtigen Board. Wer die App installiert hat, gibt besser den Code oben ein.')
+          : h('div', { class: 'small dim' }, 'Ohne QR: in Safari ', h('b', { class: 'num' }, url), ' öffnen › „Board-Handy“ › Board wählen. iPhone und PC müssen im selben WLAN sein.')) : null,
       st.done && st.champion ? champCard(t, st) : null,
       h('div', { class: 'boardgrid' }, boards.map(tile)),
       plan.pauseUntil && !st.done ? h('div', { class: 'card pausecard' }, `☕ Pause – weiter um ${fmtClock(plan.pauseUntil)} Uhr (noch ${Math.max(1, Math.ceil((plan.pauseUntil - Date.now()) / 60000))} min)`) : null,
@@ -148,6 +166,15 @@ export function render(root, params, nav) {
       tv ? null : h('div', { class: 'row', style: { marginTop: '12px' } },
         h('button', { class: 'btn', onclick: () => exportFile(t, matches) }, '📤 Abgleich-Datei für alle'),
         h('button', { class: 'btn ghost', onclick: () => nav.go('tournament', { id: t.id }) }, 'Turnierplan')),
+      tv || !(info && info.cloud) ? null : h('button', {
+        class: 'btn danger',
+        onclick: async () => {
+          if (!(await confirmDialog('Online-Turnier beenden?', 'Turnier und Spielstände werden online gelöscht. Vorher „Abgleich-Datei für alle“ erstellen oder die Board-Handys „Turnier-Spiele übernehmen“ lassen – auf diesem PC bleiben die Spiele erhalten.', { ok: 'Beenden und löschen', danger: true }))) return;
+          try { await deleteOnline(info.code); } catch (e) { toast(e.message); }
+          setCloudCode(null);
+          nav.go('tournament', { id: t.id });
+        },
+      }, '🌐 Online-Turnier beenden'),
       tv ? null : h('p', { class: 'small dim' }, 'Spiele werden automatisch an freie Boards verteilt und angesagt (Lautsprecher am PC an). Tipp auf ein aufgerufenes Board nimmt den Aufruf zurück, z. B. wenn ein Spieler fehlt. Nach dem Turnier: „Abgleich-Datei für alle“ in der normalen App jedes Spielers einlesen (Einstellungen › Abgleich).'),
     );
   }

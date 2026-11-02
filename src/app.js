@@ -1,7 +1,7 @@
 // Einstieg: Farben setzen, Bildschirme verwalten, Service Worker registrieren.
 import { BRAND } from './config.js';
 import { clear } from './ui/dom.js';
-import { requestPersistence } from './core/storage.js';
+import { requestPersistence, lsSet } from './core/storage.js';
 import * as home from './ui/screens/home.js';
 import * as players from './ui/screens/players.js';
 import * as setup from './ui/screens/setup.js';
@@ -61,7 +61,12 @@ export const nav = {
 
 applyBrand();
 requestPersistence();
-nav.go('home');
+// QR-Code vom Turnier-Server („?board=2“): direkt das Board-Handy für dieses Board öffnen.
+// Die Adresse wird nur gelesen, nicht verändert (siehe Kamera-Hinweis in nav.go).
+const qs = new URLSearchParams(location.search);
+const qrBoard = parseInt(qs.get('board'), 10);
+if (qs.get('live')) lsSet('liveCloud', qs.get('live').toUpperCase()); // Online-Turnier (QR-Code mit Code)
+if (qrBoard > 0) { lsSet('liveBoard', qrBoard); nav.go('board'); } else nav.go('home');
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // Neue Version aktiv (sw.js) -> einmal neu laden, damit nie alte und neue Dateien zusammen laufen.

@@ -18,11 +18,34 @@ export function render(root, params, nav) {
   loadStatsData().then((data) => {
     const { finished, realMatches, usable, names, ids } = data;
     let player = pickDefault(ids, params.player);
+    let scope = 'games'; // 'games' | 'training'
+
+    // Training: eigene Meilensteine (Trainings, Darts, Spieltage), zählen nicht für Rang und Saison
+    const drawTraining = () => {
+      const ms = milestones(usable, realMatches, player, { scope: 'training' }).filter((m) => m.cat === 'grind' && !m.id.startsWith('wstreak') && !m.id.startsWith('day-'));
+      const done = ms.filter((m) => m.at);
+      const trainings = finished.filter((m) => m.players.length === 1 && m.players[0] === player).length;
+      body.appendChild(h('div', { class: 'card mshero', style: '--rc: var(--accent)' },
+        h('div', { class: 'kpis' }, kpi(trainings, 'Trainings'), kpi(`${done.length} / ${ms.length}`, 'Meilensteine'), kpi(fmt(done.reduce((a, m) => a + m.pts, 0)), 'Punkte')),
+        h('div', { class: 'small dim' }, 'Trainings-Meilensteine zählen nicht für Rang und Saison – dort zählen nur Spiele gegen echte Mitspieler. Rekorde je Übung: Rekorde › Training.')));
+      body.appendChild(sec('🏋️ Trainings-Meilensteine'));
+      body.appendChild(h('div', { class: 'milestones' }, ms.sort((a, b) => (b.at ? 1 : 0) - (a.at ? 1 : 0)).map((m) => h('div', { class: `ms ${m.at ? 'on' : ''}` },
+        h('div', { class: 'msicon' }, m.icon),
+        h('div', { class: 'mstext' },
+          h('b', {}, m.title),
+          h('span', { class: 'num' }, `${m.at ? date(m.at) : m.progress ? `${fmt(m.progress[0])} / ${fmt(m.progress[1])}` : 'noch offen'} · ${m.pts} P.`),
+          !m.at && m.progress && m.progress[0] > 0 ? h('div', { class: 'ratebar thin' }, h('div', { style: { width: `${Math.round((m.progress[0] / m.progress[1]) * 100)}%` } })) : null)))));
+    };
 
     const draw = () => {
       body.replaceChildren(topbar('Meilensteine', nav));
       if (!ids.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Spiele gespeichert.')); return; }
       body.appendChild(playerPicker(ids, names, player, (v) => { player = v; draw(); }));
+      // Spiele (zählen für Rang und Saison) oder Training (eigene Ansicht, zählt nicht für den Rang)
+      body.appendChild(h('div', { class: 'seg two' },
+        h('button', { class: scope === 'games' ? 'on' : '', onclick: () => { scope = 'games'; draw(); } }, '🎯 Spiele'),
+        h('button', { class: scope === 'training' ? 'on' : '', onclick: () => { scope = 'training'; draw(); } }, '🏋️ Training')));
+      if (scope === 'training') { drawTraining(); return; }
       const ms = milestones(usable, realMatches, player);
       const rk = playerRank(ms);
       const me = names.get(player) || '?';
