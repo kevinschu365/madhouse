@@ -127,7 +127,13 @@ export function createTournament({ name, format, mode, options, legsBestOf, inpu
   }
   if (format === 'ko') ko = makeKo(seeds.map((p) => ({ p })));
   const groupGames = [];
-  groups.forEach((list, gi) => roundRobin(list).forEach((x, i) => groupGames.push({ key: `g${gi}-r${x.round}-${i}`, group: gi, round: x.round, a: x.a, b: x.b })));
+  groups.forEach((list, gi) => {
+    const perRound = {};
+    roundRobin(list).forEach((x, i) => {
+      const slot = perRound[x.round] = (perRound[x.round] ?? -1) + 1; // Nummer innerhalb der Runde (für die Reihenfolge)
+      groupGames.push({ key: `g${gi}-r${x.round}-${i}`, group: gi, round: x.round, slot, a: x.a, b: x.b });
+    });
+  });
   return {
     id: newId('t'), createdAt: Date.now(), name: name || 'Turnier', format, mode, options, legsBestOf,
     input: input || 'total', camera: !!camera,
@@ -168,10 +174,16 @@ export function standings(players, results) {
     }
     direct.add(`${r.winnerId}>${r.winnerId === a ? b : a}`);
   }
+  const key = (r) => `${r.won}|${r.legsFor - r.legsAgainst}|${r.legsFor}`;
+  const tied = new Map();
+  for (const r of Object.values(row)) tied.set(key(r), (tied.get(key(r)) || 0) + 1);
+  // Direkter Vergleich nur bei genau zwei Punktgleichen (bei drei im Kreis wäre er widersprüchlich),
+  // sonst feste Reihenfolge – so kommt überall derselbe Sieger heraus.
   return Object.values(row).sort((x, y) => y.won - x.won
     || (y.legsFor - y.legsAgainst) - (x.legsFor - x.legsAgainst)
     || y.legsFor - x.legsFor
-    || (direct.has(`${y.id}>${x.id}`) ? 1 : direct.has(`${x.id}>${y.id}`) ? -1 : 0));
+    || (tied.get(key(x)) === 2 ? (direct.has(`${y.id}>${x.id}`) ? 1 : direct.has(`${x.id}>${y.id}`) ? -1 : 0) : 0)
+    || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
 }
 
 /** Matches eines Turniers je Spiel: beendetes bevorzugt, sonst das neueste laufende (abgebrochene zählen nicht). */
@@ -289,6 +301,12 @@ export function boardStatus(t, st) {
   return out;
 }
 
+/** Reihenfolge der Warteschlange: Gruppenspiele vor K.-o., dann Runde, dann abwechselnd die Gruppen (A, B, A, B …). */
+export function queueOrder(games) {
+  return games.slice().sort((x, y) => (x.phase === y.phase ? 0 : x.phase === 'group' ? -1 : 1)
+    || x.round - y.round || (x.slot ?? 0) - (y.slot ?? 0) || (x.group ?? 0) - (y.group ?? 0));
+}
+
 /**
  * Neue Aufrufe für freie Boards: das nächste spielbare Spiel, dessen Spieler gerade nicht an einem anderen
  * Board stehen. Gruppenspiele der Runde nach, K.-o. der Runde nach. Pausen (notBefore) werden eingehalten.
@@ -300,9 +318,7 @@ export function planCalls(t, st, now = Date.now()) {
   for (const b of boards) if (b.game) { busy.add(b.game.a); busy.add(b.game.b); }
   for (const g of st.games) if (g.status === 'running') { busy.add(g.a); busy.add(g.b); }
   const called = new Set(Object.keys(t.calls || {}));
-  const candidates = st.games
-    .filter((g) => g.status === 'ready' && !called.has(g.key))
-    .sort((x, y) => (x.phase === y.phase ? 0 : x.phase === 'group' ? -1 : 1) || x.round - y.round);
+  const candidates = queueOrder(st.games.filter((g) => g.status === 'ready' && !called.has(g.key)));
   const calls = [];
   let pauseUntil = 0;
   for (const b of boards) {

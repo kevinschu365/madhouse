@@ -5,6 +5,7 @@ import * as M from './match.js';
 import { lsSet, saveMatchWithThrows } from '../core/storage.js';
 import { announceDart, announceTurn, announceParts, speechHelpers } from '../audio/speech.js';
 import { hitLabel } from '../core/board.js';
+import { postMatch } from '../core/live.js';
 
 export class GameSession {
   constructor(match) {
@@ -133,6 +134,8 @@ export class GameSession {
   async persist() {
     try {
       await saveMatchWithThrows(this.match, M.throwRows(this.match));
+      // Live-Turnier: Spielstand an den Turnier-Server auf dem PC (puffert bei WLAN-Aussetzern)
+      if (this.match.liveBoard && this.match.tournament) postMatch(this.match).catch(() => {});
     } catch (e) {
       console.warn('Speichern in IndexedDB fehlgeschlagen', e);
       this.emit('error', { message: 'Speichern fehlgeschlagen' });

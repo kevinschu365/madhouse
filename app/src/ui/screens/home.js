@@ -11,6 +11,7 @@ import { getPlayers, getSettings, updateSettings, ownerId, displayName } from '.
 import { milestones, playerRank } from '../../stats/stats.js';
 import { weeklyChallenges, weekStatus, dayStatus, weekStreak, dayStreak, crownHolder, nearGoals } from '../../stats/progress.js';
 import { showEveningRecap } from '../recapSheet.js';
+import { liveServer } from '../../core/live.js';
 
 export function render(root, params, nav) {
   const active = lsGet('activeMatch', null);
@@ -45,6 +46,14 @@ export function render(root, params, nav) {
     );
   }
   // Abendbilanz: wird nachgeladen und erscheint nur, wenn heute schon gespielt wurde
+  // Live-Turnier: nur sichtbar, wenn die App über den Turnier-Server auf dem PC geöffnet wurde
+  const liveCard = h('div', { class: 'card stack livecard hidden' },
+    h('b', {}, '🏟️ Live-Turnier'),
+    h('div', { class: 'small dim' }, 'Diese App läuft über den Turnier-Server auf dem PC.'),
+    h('div', { class: 'grid2' },
+      h('button', { class: 'btn primary', onclick: () => nav.go('board') }, '🎯 Board-Handy'),
+      h('button', { class: 'btn', onclick: () => nav.go('live') }, '📺 Turnierleitung')));
+  liveServer().then((i) => { if (i) liveCard.classList.remove('hidden'); });
   const tonight = h('div', { class: 'card tonight hidden', onclick: () => showEveningRecap() });
   // Fortschritt: Wochenaufgaben, Ränge, Serien, „Fast geschafft“ (wird nachgeladen)
   const progress = h('div', { class: 'homeprogress hidden' });
@@ -53,6 +62,7 @@ export function render(root, params, nav) {
   root.appendChild(h('div', { class: 'home' },
     h('div', { class: 'hero' }, h('span', { class: 'logo', html: BRAND.logoSvg }), h('h1', {}, BRAND.name)),
     resume,
+    liveCard,
     h('button', { class: 'btn primary', style: { minHeight: '64px', fontSize: '22px' }, onclick: () => nav.go('setup') }, 'Neues Spiel'),
     h('div', { class: 'grid2', style: { gap: '10px' } },
       h('button', { class: 'btn', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('training') }, '🎯 Training'),

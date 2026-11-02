@@ -8,6 +8,19 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.10.0',
+    date: '02.11.2026',
+    items: [
+      'Große Turniere: K.-o. bis 32 Spieler, neues Format Gruppen + K.-o. (8–32 Spieler, Platz 1 und 2 jeder Gruppe kommen weiter)',
+      'Neue Spieler im Turnier schnell anlegen: mehrere Namen auf einmal, mit Komma getrennt',
+      'Live-Turnier im WLAN: Der PC ist die Turnierleitung (werkzeuge › „Turnier-Server starten“), die iPhones zählen an den Boards (Handeingabe)',
+      'Freies Board = sofort das nächste Spiel: Der PC ruft es auf und sagt es an („Board 2: Kevin gegen Tom“), das Board-Handy zeigt es mit Start-Knopf',
+      'Pause vor K.-o.-Runden einstellbar (5, 10 oder 15 Minuten) – wird angesagt und als Uhrzeit angezeigt',
+      'Live-Ansicht für PC und Fernseher: alle Boards mit Spielstand, Gruppen-Tabellen, K.-o.-Baum, Sieger mit Konfetti',
+      'Nach dem Turnier: „Abgleich-Datei für alle“ – in der eigenen App einlesen, dann zählen die Spiele für Statistik und Meilensteine',
+    ],
+  },
+  {
     version: '1.9.0',
     date: '02.11.2026',
     items: [

@@ -12,9 +12,11 @@ import * as calibrate from './ui/screens/calibrate.js';
 import * as training from './ui/screens/training.js';
 import * as help from './ui/screens/help.js';
 import * as tournament from './ui/screens/tournament.js';
+import * as board from './ui/screens/board.js';
+import * as live from './ui/screens/live.js';
 import { camera } from './vision/camera.js';
 
-const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament };
+const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament, board, live };
 
 function applyBrand() {
   const r = document.documentElement.style;

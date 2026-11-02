@@ -27,6 +27,7 @@ export function render(root, params, nav) {
   let useCamera = params.camera ?? (match.camera || false);
   session.match.camera = useCamera;
   if (params.tournament) session.match.tournament = params.tournament; // Turnier-Match (core/tournament.js)
+  if (params.liveBoard) session.match.liveBoard = params.liveBoard;    // Live-Turnier: an welchem Board (core/live.js)
   const mode = session.state.mode;
   const training = mode.kind === 'training';
   const cricket = mode.id === 'cricket';
@@ -640,8 +641,8 @@ export function render(root, params, nav) {
       // Turnier: zurück zum Turnierbaum statt Revanche
       m.tournament ? h('button', {
         class: 'btn primary',
-        onclick: () => { s.close(); nav.go('tournament', { id: m.tournament.id, celebrate: true }); },
-      }, `🏆 Zurück zum Turnier`) : null,
+        onclick: () => { s.close(); nav.go(m.liveBoard ? 'board' : 'tournament', { id: m.tournament.id, celebrate: true }); },
+      }, m.liveBoard ? `🎯 Zurück zu Board ${m.liveBoard}` : '🏆 Zurück zum Turnier') : null,
       m.tournament ? null : h('button', {
         class: 'btn primary',
         onclick: () => {
