@@ -3,12 +3,12 @@
 // Aufbau nach ISO/IEC 18004: Daten + Reed-Solomon-Prüfwerte, feste Muster, Maske mit der kleinsten Strafwertung.
 
 // Je Version: [Prüfwerte je Block, Blöcke, Datenwerte je Block] für Stufe M
-const BLOCKS = { 1: [10, 1, 16], 2: [16, 1, 28], 3: [26, 1, 44], 4: [18, 2, 32], 5: [24, 2, 43], 6: [16, 4, 27] };
-const ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34] };
+export const BLOCKS = { 1: [10, 1, 16], 2: [16, 1, 28], 3: [26, 1, 44], 4: [18, 2, 32], 5: [24, 2, 43], 6: [16, 4, 27] };
+export const ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34] };
 
 // ---------- Rechnen im Galois-Feld GF(256) ----------
-const EXP = new Array(512);
-const LOG = new Array(256);
+export const EXP = new Array(512);
+export const LOG = new Array(256);
 {
   let x = 1;
   for (let i = 0; i < 255; i++) {
@@ -18,7 +18,7 @@ const LOG = new Array(256);
   }
   for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
 }
-const mul = (a, b) => (a && b ? EXP[LOG[a] + LOG[b]] : 0);
+export const mul = (a, b) => (a && b ? EXP[LOG[a] + LOG[b]] : 0);
 
 /** Generator-Polynom für n Prüfwerte, höchster Grad zuerst (führende 1). */
 function generator(n) {
@@ -151,7 +151,7 @@ function buildMatrix(version, words, mask) {
   return m;
 }
 
-function maskBit(mask, r, c) {
+export function maskBit(mask, r, c) {
   switch (mask) {
     case 0: return (r + c) % 2 === 0;
     case 1: return r % 2 === 0;
@@ -217,4 +217,26 @@ export function qrSvg(text, size = 160) {
   let path = '';
   m.forEach((row, r) => row.forEach((dark, c) => { if (dark) path += `M${c + 4} ${r + 4}h1v1h-1z`; }));
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" width="${size}" height="${size}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+}
+
+/** Welche Module sind feste Muster (Suchmuster, Taktlinien, Ausrichtung, Format, dunkles Modul)? Für den QR-Leser. */
+export function fixedModules(version) {
+  const size = 17 + 4 * version;
+  const fixed = Array.from({ length: size }, () => new Array(size).fill(false));
+  const mark = (r, c) => { if (r >= 0 && c >= 0 && r < size && c < size) fixed[r][c] = true; };
+  for (const [r0, c0] of [[0, 0], [0, size - 7], [size - 7, 0]]) {
+    for (let dr = -1; dr <= 7; dr++) for (let dc = -1; dc <= 7; dc++) mark(r0 + dr, c0 + dc);
+  }
+  for (let i = 8; i < size - 8; i++) { mark(6, i); mark(i, 6); }
+  const pos = ALIGN[version];
+  for (const r of pos) {
+    for (const c of pos) {
+      if ((r === 6 && c === 6) || (r === 6 && c === size - 7) || (r === size - 7 && c === 6)) continue;
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) mark(r + dr, c + dc);
+    }
+  }
+  for (let i = 0; i < 9; i++) { mark(8, i); mark(i, 8); }
+  for (let i = 0; i < 8; i++) { mark(8, size - 1 - i); mark(size - 1 - i, 8); }
+  mark(size - 8, 8);
+  return fixed;
 }

@@ -6,9 +6,10 @@ import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGue
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
 import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
-import { liveServer, postTournament, setCloudCode } from '../../core/live.js';
+import { liveServer, postTournament, setCloudCode, setMyBoard } from '../../core/live.js';
 import { cloudEnabled, newCode, normCode, showCode, fetchState } from '../../core/cloud.js';
 import { confetti } from '../celebrate.js';
+import { scanQR } from '../qrScan.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { planView, champCard, nameOf } from '../tournamentView.js';
 
@@ -30,6 +31,31 @@ export function render(root, params, nav) {
     else drawList(matches, live);
   }).catch((e) => body.replaceChildren(topbar('Turnier', () => nav.go('home')), h('p', { class: 'dim' }, `Turniere konnten nicht geladen werden: ${e.message}`)));
 
+  /**
+   * Online-Turnier beitreten. text: eingetippter Code, „MADHOUSE:CODE“ oder die Adresse aus dem QR-Code
+   * (…?live=CODE, optional &board=2). Ohne Board-Angabe bekommt das Handy das erste freie Board.
+   */
+  async function join(text) {
+    const t = String(text || '').trim();
+    let code = null;
+    let board = null;
+    const m = /[?&]live=([A-Za-z0-9-]+)/.exec(t);
+    if (m) {
+      code = normCode(m[1]);
+      const b = /[?&]board=(\d+)/.exec(t);
+      board = b ? +b[1] : null;
+    } else if (/^http:\/\//i.test(t)) {
+      toast('Das ist ein WLAN-Turnier: bitte mit der Kamera-App des iPhones scannen (öffnet Safari).');
+      return;
+    } else code = normCode(t.replace(/^MADHOUSE:/i, ''));
+    if (!code) { toast('Kein gültiger Turnier-Code (8 Zeichen, Buchstaben und Ziffern).'); return; }
+    try {
+      const s = await fetchState(code);
+      if (!s.tournament) { toast('Kein Turnier mit diesem Code gefunden.'); return; }
+      setCloudCode(code); setMyBoard(board); nav.go('board');
+    } catch (e) { toast(e.message); }
+  }
+
   // ---------- Übersicht ----------
   function drawList(matches, live) {
     const list = getTournaments();
@@ -37,20 +63,18 @@ export function render(root, params, nav) {
       topbar('Turniere', () => nav.go('home')),
       h('button', { class: 'btn primary', style: { minHeight: '60px', fontSize: '20px' }, onclick: () => nav.go('tournament', { create: true }) }, '＋ Neues Turnier'),
       // Online-Turnier beitreten (Code von der Turnierleitung)
-      cloudEnabled() && !(live && live.cloud) ? h('button', {
-        class: 'btn', style: { minHeight: '56px' },
-        onclick: async () => {
-          const input = await promptDialog('Online-Turnier beitreten', '', { ok: 'Beitreten', placeholder: 'Code, z. B. K7P2-QX9M' });
-          if (input == null) return;
-          const code = normCode(input);
-          if (!code) { toast('Der Code hat 8 Zeichen (Buchstaben und Ziffern).'); return; }
-          try {
-            const s = await fetchState(code);
-            if (!s.tournament) { toast('Kein Turnier mit diesem Code gefunden.'); return; }
-            setCloudCode(code); unlock(); nav.go('board');
-          } catch (e) { toast(e.message); }
-        },
-      }, '🌐 Turnier beitreten (Code)') : null,
+      cloudEnabled() && !(live && live.cloud) ? h('div', { class: 'grid2' },
+        h('button', {
+          class: 'btn', style: { minHeight: '56px' },
+          onclick: async () => { unlock(); const text = await scanQR('QR-Code vom PC scannen'); if (text) join(text); },
+        }, '📷 Beitreten: QR scannen'),
+        h('button', {
+          class: 'btn', style: { minHeight: '56px' },
+          onclick: async () => {
+            const input = await promptDialog('Online-Turnier beitreten', '', { ok: 'Beitreten', placeholder: 'Code, z. B. K7P2-QX9M' });
+            if (input != null) { unlock(); join(input); }
+          },
+        }, '⌨️ Code eintippen')) : null,
       live ? h('div', { class: 'card stack' },
         h('b', {}, live.cloud ? `🌐 Online-Turnier · Code ${showCode(live.code)}` : '🏟️ Turnier-Server erkannt'),
         h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Diese App läuft über den PC. Turnier anlegen, dann „Live schalten“: Der PC ruft die Spiele an die Boards auf, die iPhones zählen.'),
@@ -124,7 +148,7 @@ export function render(root, params, nav) {
             dropdown('Legs', [1, 3, 5, 7].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`]), cfg.legsBestOf, (v) => { cfg.legsBestOf = +v; }),
             dropdown('Eingabe', [['total', 'Summe'], ['dart', 'Pro Dart'], ['board', 'Scheibe']].filter(([k]) => k !== 'total' || cfg.mode === 'x01'), cfg.input, (v) => { cfg.input = v; }),
             cfg.format === 'gko' ? dropdown('Gruppengröße', [[4, 'etwa 4'], [5, 'etwa 5'], [6, 'etwa 6']], cfg.groupSize, (v) => { cfg.groupSize = +v; draw(); }) : null,
-            dropdown('Boards', [1, 2, 3, 4, 5, 6].map((v) => [v, String(v)]), cfg.boards, (v) => { cfg.boards = +v; }),
+            dropdown('Boards (= Handys)', [1, 2, 3, 4, 5, 6].map((v) => [v, String(v)]), cfg.boards, (v) => { cfg.boards = +v; }),
             cfg.format !== 'rr' ? dropdown('Pause vor K.-o.-Runden', [[0, 'keine'], [5, '5 Minuten'], [10, '10 Minuten'], [15, '15 Minuten']], cfg.pauseMin, (v) => { cfg.pauseMin = +v; }) : null,
           ),
         ),

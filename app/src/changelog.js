@@ -8,6 +8,17 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.15.0',
+    date: '02.11.2026',
+    items: [
+      'Behoben: Laptop zeigte „kein Handy“, obwohl ein Handy verbunden war (die Uhren von PC und Handy liefen auseinander) – jetzt zählt nur die Uhr des Laptops',
+      'Board-Handy lässt den Bildschirm an, auch beim Warten aufs nächste Spiel (sonst meldet sich ein gesperrtes iPhone nicht mehr)',
+      'Beitreten per QR-Code direkt in der App: Turnier › „📷 Beitreten: QR scannen“ – der QR-Leser ist selbst gebaut, ohne Fremdbibliothek',
+      'Ein Beitreten-QR-Code für alle in der Live-Ansicht: das erste Handy wird Board 1, das nächste Board 2 …',
+      'Beim Anlegen heißt das Feld jetzt „Boards (= Handys)“',
+    ],
+  },
+  {
     version: '1.14.0',
     date: '02.11.2026',
     items: [

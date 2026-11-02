@@ -166,7 +166,30 @@ export function startHeartbeat() {
   heartbeat = setInterval(beat, PRESENCE_MS);
 }
 
-/** Boards, an denen gerade ein Handy angemeldet ist (Set der Nummern). */
+/**
+ * Anwesenheit nach der eigenen Uhr: Die Turnierleitung merkt sich, wann sie zuletzt eine NEUE Meldung eines
+ * Boards gesehen hat. So stört es nicht, wenn die Uhren von PC und Handy auseinanderlaufen.
+ * Beim ersten Blick gilt ein Board als „unbekannt“, bis sich seine Meldung ändert (alte Einträge zählen nicht).
+ */
+export function presenceTracker() {
+  const seen = new Map(); // Board -> { at (Zeitstempel des Handys), localAt (eigene Uhr), device }
+  return {
+    update(presence, now = Date.now()) {
+      for (const p of Object.values(presence || {})) {
+        if (!p || !p.board) continue;
+        const b = Number(p.board);
+        const old = seen.get(b);
+        if (!old) seen.set(b, { at: p.at, localAt: now - PRESENCE_TIMEOUT, device: p.device });
+        else if (old.at !== p.at) seen.set(b, { at: p.at, localAt: now, device: p.device });
+      }
+    },
+    connected(now = Date.now()) {
+      return new Set([...seen].filter(([, v]) => now - v.localAt < PRESENCE_TIMEOUT).map(([b]) => b));
+    },
+  };
+}
+
+/** Boards, an denen gerade ein Handy angemeldet ist (Set der Nummern), nach den Zeitstempeln der Handys. */
 export function connectedBoards(presence, now = Date.now()) {
   return new Set(Object.values(presence || {}).filter((p) => p && now - p.at < PRESENCE_TIMEOUT).map((p) => Number(p.board)));
 }

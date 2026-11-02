@@ -5,7 +5,8 @@ import { h, toast } from '../dom.js';
 import { lsGet, lsSet } from '../../core/storage.js';
 import { unlock, say } from '../../audio/speech.js';
 import { tournamentState, boardStatus, planCalls, matchTag } from '../../core/tournament.js';
-import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat } from '../../core/live.js';
+import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards } from '../../core/live.js';
+import { keepAwake } from '../../core/wakelock.js';
 import { showCode } from '../../core/cloud.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
 import { BRAND, APP_VERSION } from '../../config.js';
@@ -22,6 +23,8 @@ export function render(root, params, nav) {
   let lastCall = null;   // zuletzt angesagter Aufruf (nur einmal ansagen)
   let disposed = false;
   let cloudInfo = null;  // { code } beim Online-Turnier
+  let manualPick = false; // „Anderes Board wählen“: Auswahl zeigen statt automatisch zuteilen
+  keepAwake(true);       // Bildschirm anlassen, sonst meldet sich das Handy nicht mehr (iOS pausiert gesperrte Apps)
   const topbar = (title) => h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, title));
 
   const fmtClock = (ts) => new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -39,12 +42,23 @@ export function render(root, params, nav) {
       body.replaceChildren(topbar('Board-Handy'), h('div', { class: 'card' }, h('b', {}, 'Noch kein Turnier live.'), h('div', { class: 'small dim' }, 'Am PC ein Turnier anlegen und „Live schalten“ tippen.')));
       return;
     }
-    if (!board || board > t.boards) {
+    // Beim Beitreten automatisch das erste freie Board (an dem gerade kein anderes Handy angemeldet ist)
+    if ((!board || board > t.boards) && !manualPick) {
+      const taken = connectedBoards(state.presence || {});
+      const free = Array.from({ length: t.boards }, (_, i) => i + 1).find((b) => !taken.has(b));
+      if (free) {
+        board = free; setMyBoard(board);
+        toast(`📱 Dieses Handy ist Board ${board}`);
+        tick();
+        return;
+      }
+    }
+    if (!board || board > t.boards || manualPick) {
       body.replaceChildren(topbar(t.name),
         h('div', { class: 'card stack' },
           h('b', {}, 'An welchem Board liegt dieses Handy?'),
           h('div', { class: 'boardpick' }, Array.from({ length: t.boards }, (_, i) => h('button', {
-            class: 'btn primary', onclick: () => { unlock(); board = i + 1; setMyBoard(board); tick(); },
+            class: 'btn primary', onclick: () => { unlock(); board = i + 1; manualPick = false; setMyBoard(board); tick(); },
           }, `Board ${i + 1}`)))));
       return;
     }
@@ -99,7 +113,7 @@ export function render(root, params, nav) {
       topbar(`Board ${board}`),
       h('div', { class: 'small dim' }, `${t.name}${pendingCount() ? ` · ⚠️ ${pendingCount()} Spielstand wartet auf Übertragung` : ''}`),
       content,
-      h('button', { class: 'btn ghost', onclick: () => { board = null; setMyBoard(null); tick(); } }, 'Anderes Board wählen'),
+      h('button', { class: 'btn ghost', onclick: () => { manualPick = true; tick(); } }, 'Anderes Board wählen'),
       // Online: Spiele dieses Turniers in die eigene Statistik übernehmen (Spieler wählbar) und das Turnier verlassen
       cloudInfo ? h('button', { class: 'btn', onclick: () => importSyncData(cloudSyncData(t, state.matches)) }, '📥 Turnier-Spiele in meine Statistik übernehmen') : null,
       cloudInfo ? h('button', { class: 'btn ghost', onclick: () => { setCloudCode(null); setMyBoard(null); nav.go('home'); } }, `🌐 Turnier verlassen (Code ${showCode(cloudInfo.code)})`) : null,
@@ -117,7 +131,7 @@ export function render(root, params, nav) {
     tick();
     timer = setInterval(tick, POLL_MS);
   });
-  return () => { disposed = true; clearInterval(timer); };
+  return () => { disposed = true; clearInterval(timer); keepAwake(false); };
 }
 
 /** Abgleich-Daten aus einem Online-Turnier: beendete Spiele, Spieler mit Nummern (für die sichere Zuordnung). */

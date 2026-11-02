@@ -66,7 +66,9 @@ requestPersistence();
 const qs = new URLSearchParams(location.search);
 const qrBoard = parseInt(qs.get('board'), 10);
 if (qs.get('live')) lsSet('liveCloud', qs.get('live').toUpperCase()); // Online-Turnier (QR-Code mit Code)
-if (qrBoard > 0) { lsSet('liveBoard', qrBoard); nav.go('board'); } else nav.go('home');
+if (qrBoard > 0) { lsSet('liveBoard', qrBoard); nav.go('board'); }
+else if (qs.get('live')) { lsSet('liveBoard', null); nav.go('board'); } // Beitreten ohne Board: erstes freies Board
+else nav.go('home');
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // Neue Version aktiv (sw.js) -> einmal neu laden, damit nie alte und neue Dateien zusammen laufen.

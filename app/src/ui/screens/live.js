@@ -12,7 +12,7 @@ import { say, unlock } from '../../audio/speech.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
 import { getTournaments, saveTournament, tournamentState, boardStatus, planCalls, queueOrder, matchTag, pickWriter, highlightsOf, scheduleEstimate, TOURNAMENT_FORMATS } from '../../core/tournament.js';
-import { liveServer, liveState, postTournament, postMatch, boardUrl, baseUrl, setCloudCode, connectedBoards } from '../../core/live.js';
+import { liveServer, liveState, postTournament, postMatch, boardUrl, baseUrl, setCloudCode, presenceTracker } from '../../core/live.js';
 import { showCode, deleteOnline } from '../../core/cloud.js';
 import { planView, champCard, nameOf, liveScore } from '../tournamentView.js';
 import { confetti } from '../celebrate.js';
@@ -38,6 +38,7 @@ export function render(root, params, nav) {
   const saved = new Map();    // Match-Id -> updatedAt, schon in die eigene Statistik übernommen
   const said = new Set();     // schon angesagt (Aufrufe, Pausen, Sieger, Verspätungen)
   let seenHighlights = null;  // beim ersten Laden alte Highlights nicht nachholen
+  const presence = presenceTracker(); // welche Boards gerade ein Handy haben
   const flashQueue = [];
   let flashing = false;
   const fmtClock = (ts) => new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -95,7 +96,6 @@ export function render(root, params, nav) {
     let t = state.tournament;
     if (!t || !t.players) { pickTournament(); return; }
     const matches = state.matches || [];
-    const presence = state.presence || {};
     const s = getSettings();
 
     // Fertige Spiele in die eigene Statistik übernehmen (PC-Speicher)
@@ -107,7 +107,8 @@ export function render(root, params, nav) {
 
     let st = tournamentState(t, matches);
     // Freie Boards sofort mit dem nächsten Spiel belegen und ansagen (je nach Einstellung nur mit angemeldetem Handy)
-    const plan = planCalls(t, st, Date.now(), { boards: s.tourOnlyConnected ? connectedBoards(presence) : null });
+    presence.update(state.presence || {}); // Anwesenheit nach eigener Uhr (siehe core/live.js)
+    const plan = planCalls(t, st, Date.now(), { boards: s.tourOnlyConnected ? presence.connected() : null });
     if (plan.calls.length) {
       t = { ...t, calls: { ...(t.calls || {}) } };
       const busy = new Set();
@@ -150,7 +151,7 @@ export function render(root, params, nav) {
       announce('champ', `Turniersieger: ${nameOf(t, st.champion)}! Herzlichen Glückwunsch!`);
       confetti(4000);
     }
-    last = { t, st, matches, plan, presence };
+    last = { t, st, matches, plan, raw: state.presence || {} };
     draw();
   }
 
@@ -220,10 +221,10 @@ export function render(root, params, nav) {
   // ---------- Anzeige ----------
   function draw() {
     if (!last) return;
-    const { t, st, matches, plan, presence } = last;
+    const { t, st, matches, plan, raw } = last;
     const s = getSettings();
     const boards = boardStatus(t, st);
-    const connected = connectedBoards(presence);
+    const connected = presence.connected();
     const boardOf = (g) => boards.find((b) => b.game && b.game.key === g.key)?.board || null;
     const played = st.games.filter((g) => g.status === 'done').length;
     const total = st.games.filter((g) => !g.bye).length;
@@ -234,7 +235,7 @@ export function render(root, params, nav) {
     const eta = s.tourSchedule && !st.done ? scheduleEstimate(t, st) : null;
 
     const phonePill = (b) => {
-      const p = presence[b.board];
+      const p = raw[b.board];
       return connected.has(b.board)
         ? h('span', { class: 'phone ok' }, `📱 ${p && p.device ? p.device : 'verbunden'}`)
         : h('span', { class: 'phone off' }, '⚠️ kein Handy');
@@ -270,9 +271,14 @@ export function render(root, params, nav) {
           h('button', { class: 'iconbtn', title: 'Board hinzufügen', onclick: () => changeBoards(t, st, +1) }, '＋')),
         h('button', { class: 'iconbtn', title: 'Fernseher-Ansicht', onclick: () => { tv = !tv; body.classList.toggle('tv', tv); if (tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); draw(); } }, tv ? '✕' : '📺')),
       // Online: Code groß – in der eigenen App unter Turnier › Beitreten eingeben
-      info && info.cloud && !st.done ? h('div', { class: 'card codecard' },
-        h('div', { class: 'small dim' }, '🌐 Online-Turnier · in der Madhouse-App: Turnier › „Beitreten“ › Code'),
-        h('div', { class: 'bigcode num' }, showCode(info.code))) : null,
+      // Ein QR-Code für alle: in der App „QR scannen“ – jedes Handy bekommt das nächste freie Board
+      info && info.cloud && !st.done ? h('div', { class: 'card codecard joinrow' },
+        h('div', { class: 'qrimg big', html: qrFor(`${location.origin}${location.pathname}?live=${info.code}`) }),
+        h('div', { class: 'stack', style: { gap: '4px' } },
+          h('div', { class: 'small dim' }, '🌐 Online-Turnier beitreten'),
+          h('div', { class: 'bigcode num' }, showCode(info.code)),
+          h('div', { class: 'small dim' }, 'In der Madhouse-App: Turnier › „📷 Beitreten: QR scannen“ (oder Code eintippen). Das erste Handy wird Board 1, das nächste Board 2 …'),
+          h('div', { class: 'small dim' }, `${connected.size} von ${t.boards} Handys verbunden`))) : null,
       // QR-Code je Board: mit der iPhone-Kamera scannen, dann öffnet sich direkt das Board-Handy für dieses Board
       (url || info?.cloud) && !st.done ? h('details', { class: 'card joincard', open: !played && connected.size < t.boards },
         h('summary', {}, `${info.cloud ? '📱 Ohne installierte App: QR-Code mit der iPhone-Kamera scannen' : '📱 Board-Handys verbinden: QR-Code mit der iPhone-Kamera scannen'} · ${connected.size} / ${t.boards} verbunden`),
