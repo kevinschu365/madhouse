@@ -11,10 +11,10 @@ import { throwRows, createMatch, winsNeeded, derive } from '../../game/match.js'
 import { playerStats } from '../../stats/stats.js';
 import { checkoutPaths } from '../../rules/checkout.js';
 import { hitLabel } from '../../core/board.js';
-import { say, unlock } from '../../audio/speech.js';
+import { say as appSay, unlock, availableVoices } from '../../audio/speech.js';
 import { BRAND, APP_VERSION } from '../../config.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
-import { getTournaments, saveTournament, tournamentState, boardStatus, planCalls, upcomingQueue, matchTag, pickWriter, highlightsOf, scheduleEstimate, forecast, resolvedRules, formatFor, formatText, gameMinutes, withLog, TOURNAMENT_FORMATS, TIEBREAK_TEXT } from '../../core/tournament.js';
+import { getTournaments, saveTournament, tournamentState, boardStatus, planCalls, upcomingQueue, matchTag, pickWriter, highlightsOf, scheduleEstimate, forecast, resolvedRules, formatFor, formatText, gameMinutes, withLog, plannedPauseStart, TOURNAMENT_FORMATS, TIEBREAK_TEXT } from '../../core/tournament.js';
 import { exportSheet } from '../tourExport.js';
 import { liveServer, liveState, postTournament, postMatch, boardUrl, baseUrl, presenceTracker, endLive, withoutKicked, deviceId, deviceName } from '../../core/live.js';
 import { handoverSheet } from '../handover.js';
@@ -24,8 +24,30 @@ import { confetti } from '../celebrate.js';
 import { offerSync } from '../syncUi.js';
 import { qrSvg } from '../qr.js';
 
+// Ansagen der Turnierleitung mit eigener Lautstärke, Stimme und Tempo (⚙️ › Ton), sonst wie in der App
+const say = (text, o = {}) => {
+  const s = getSettings();
+  return appSay(text, { ...o, volume: s.tourVolume ?? 1, voiceURI: s.tourVoiceURI || null, rate: s.tourRate || null, ignoreQuiet: true });
+};
+
+/** Offene Rufe der Board-Handys (🙋), die die Turnierleitung noch nicht bestätigt hat (t.helpAck). */
+const helpCalls = (pres, t) => Object.values(pres || {}).filter((p) => p && p.help && !p.left && ((t.helpAck || {})[p.board] || 0) < p.help);
+
 const qrCache = new Map(); // die Ansicht wird alle 2 Sekunden neu gezeichnet – QR-Codes nur einmal berechnen
 const qrFor = (text) => qrCache.get(text) || qrCache.set(text, qrSvg(text, 150)).get(text);
+
+// Zeiten oben im Fokus/Fernseher, einzeln an/aus. Einstellung: true/undefined = alle, false = keine (bis 1.35.0),
+// sonst { run, groups, final, end } – fehlender Schlüssel = an
+const TIMES = [['run', '⏱ Läuft'], ['groups', '👥 Gruppen fertig'], ['final', '🏆 Finale'], ['end', '🏁 Ende']];
+// Kacheln oben in der Turnierleitung (⚙️ › Ansicht), einzeln an/aus – gleiche Logik wie die Zeiten
+const HEAD = [['prog', '🎯 Spiele'], ['boards', '🎯 Boards'], ['next', '📣 Nächster Aufruf'], ['planned', '☕ Pause geplant'], ...TIMES];
+const timeOn = (cfg, k) => cfg !== false && !(cfg && cfg[k] === false);
+/** Kleine Punkte zum Antippen, je Kachel einer. onChange bekommt die neue Einstellung (Objekt). */
+const dotPicker = (list, cfg, onChange) => h('div', { class: 'timedots' }, list.map(([k, label]) => h('button', {
+  class: `timedot ${timeOn(cfg, k) ? 'on' : ''}`,
+  onclick: () => onChange({ ...Object.fromEntries(list.map(([x]) => [x, timeOn(cfg, x)])), [k]: !timeOn(cfg, k) }),
+}, h('i'), label)));
+const timePicker = (cfg, onChange) => dotPicker(TIMES, cfg, onChange);
 
 const POLL_MS = 2000;
 const LATE_MS = 5 * 60000; // aufgerufen, aber nach 5 Minuten noch nicht begonnen
@@ -48,6 +70,7 @@ export function render(root, params, nav) {
   let autoTab = false;        // Seite wurde vom automatischen Wechsel gesetzt (nicht von Hand)
   let manualUntil = 0;        // nach einem Klick auf eine Seite 60 Sekunden nicht automatisch wechseln
   let podiumShown = false;    // Siegerehrung schon einmal von selbst gezeigt
+  let pauseWas = 0;           // Ende der zuletzt gesehenen Pause (für „Es geht weiter“)
   let qrOpen = null;          // QR-Codes: null = automatisch, sonst von Hand ein/aus
   let openPanel = null;       // aufgeklappte Kachel unter der Beitreten-Zeile: 'phones' | 'pause' | 'call' | null
   let seenCalls = null;       // schon groß eingeblendete Aufrufe (Fokus und Fernseher)
@@ -235,10 +258,30 @@ export function render(root, params, nav) {
         refs.add(ref); keys.add(g.key);
         dirty = true;
       }
+      // 🗓️ Geplante Pause ist dran: jetzt starten (laufende Spiele werden zu Ende gespielt)
+      const pp = t.plannedPause;
+      const ppStart = plannedPauseStart(t);
+      if (ppStart) {
+        t = { ...t, ...ppStart };
+        if (ppStart.pausedUntil) t = withLog(t, `☕ Geplante Pause beginnt – bis ${fmtClock(ppStart.pausedUntil)} Uhr${pp.reason ? ` – ${pp.reason}` : ''}`, { undo: { op: 'pause' } });
+        dirty = true;
+      }
+    }
+    // Geplante Pause: 5 Minuten vorher ansagen
+    if (t.plannedPause && t.plannedPause.at - Date.now() < 5 * 60000 && t.plannedPause.at > Date.now()) {
+      const pp = t.plannedPause;
+      announce(`ppsoon:${pp.at}`, `In ${Math.max(1, Math.round((pp.at - Date.now()) / 60000))} Minuten ist Pause${pp.reason ? `: ${pp.reason}` : ''}, bis ${fmtClock(pp.at + pp.min * 60000)} Uhr.`);
     }
     // Freie Boards sofort mit dem nächsten Spiel belegen und ansagen (je nach Einstellung nur mit angemeldetem Handy)
     presence.update(pres); // Anwesenheit nach eigener Uhr (siehe core/live.js)
-    const plan = planCalls(t, st, Date.now(), { boards: s.tourOnlyConnected ? presence.connected() : null, rest: (s.tourRest || 0) * 60000 });
+    // 🙋 Ein Board-Handy ruft die Turnierleitung: einmal ansagen (Hinweis oben, bestätigen mit „Bin unterwegs“)
+    for (const p of helpCalls(pres, t)) announce(`help:${p.board}:${p.help}`, `Board ${p.board} ruft die Turnierleitung.`);
+    const plan = planCalls(t, st, Date.now(), { boards: s.tourOnlyConnected ? presence.connected() : null, rest: (s.tourRest || 0) * 60000, gap: (s.tourBoardGap || 0) * 60000, beforePause: s.tourBeforePause !== false });
+    // Pause ist eben zu Ende: „Es geht weiter“ – vor den Aufrufen (abschaltbar unter ⚙️ › Ablauf)
+    if (pauseWas && !plan.manualPause) { // abgelaufen oder vorzeitig beendet
+      if (s.tourPauseEndCalls !== false) announce(`resume:${pauseWas}`, 'Die Pause ist vorbei. Es geht weiter!');
+      pauseWas = 0;
+    }
     if ((plan.calls.length || dirty) && !viewer) {
       t = { ...t, calls: { ...(t.calls || {}) } };
       const busy = new Set();
@@ -310,8 +353,13 @@ export function render(root, params, nav) {
       const why = plan.manualPause && t.pauseReason ? `${t.pauseReason}. ` : 'Pause. ';
       const isStart = plan.manualPause && t.startAt && t.startAt === t.pausedUntil;
       announce(`pause:${plan.pauseUntil}`, isStart ? `Das Turnier beginnt um ${fmtClock(plan.pauseUntil)} Uhr.` : `${why}Es geht in ${minutes} Minuten weiter, um ${fmtClock(plan.pauseUntil)} Uhr.`);
-      // eine Minute vorher erinnern (nur wenn die Pause länger als 2 Minuten war)
-      if (plan.pauseUntil - Date.now() < 60000 && minutes >= 1 && said.has(`pause:${plan.pauseUntil}`)) announce(`pauseend:${plan.pauseUntil}`, isStart ? 'In einer Minute geht es los. Bitte an die Boards.' : 'In einer Minute geht es weiter. Bitte zurück an die Boards.');
+      // eine Minute vorher erinnern (nur wenn die Pause länger als 2 Minuten war) – auf Wunsch mit den ersten Spielen
+      if (plan.pauseUntil - Date.now() < 60000 && minutes >= 1 && said.has(`pause:${plan.pauseUntil}`)) {
+        const first = s.tourPauseEndCalls !== false ? upcomingQueue(t, st).slice(0, t.boards || 1) : [];
+        const firstText = first.length ? ` Als Erstes: ${first.map((g) => `${nameOf(t, g.a)} gegen ${nameOf(t, g.b)}`).join(', ')}.` : '';
+        announce(`pauseend:${plan.pauseUntil}`, (isStart ? 'In einer Minute geht es los. Bitte an die Boards.' : 'In einer Minute geht es weiter. Bitte zurück an die Boards.') + firstText);
+      }
+      if (plan.manualPause) pauseWas = plan.pauseUntil;
     }
     if (st.done && st.champion && !said.has('champ')) {
       announce('champ', `Turniersieger: ${nameOf(t, st.champion)}! Herzlichen Glückwunsch!`);
@@ -422,6 +470,18 @@ export function render(root, params, nav) {
     const ok = await commit({ ...last.t, pausedUntil: ts, pauseReason: reason }, `☕ Pause bis ${fmtClock(ts)} Uhr (${min} Min.)${reason ? ` – ${reason}` : ''}`, { undo: { op: 'pause' } });
     if (ok) toast(`☕ Pause bis ${fmtClock(ts)} Uhr`);
     return ok;
+  }
+  /** 🗓️ Pause für später planen: beginnt um at, dauert min Minuten (startet von selbst, siehe tick). */
+  async function planPause(at, min, why) {
+    if (!(at > Date.now())) { toast('Die Uhrzeit liegt in der Vergangenheit.'); return false; }
+    const reason = (why || '').trim() || null;
+    const ok = await commit({ ...last.t, plannedPause: { at, min, reason } }, `🗓️ Pause geplant: ${fmtClock(at)}–${fmtClock(at + min * 60000)} Uhr${reason ? ` – ${reason}` : ''}`);
+    if (ok) toast(`🗓️ Pause um ${fmtClock(at)} Uhr geplant (${min} Min.)`);
+    return ok;
+  }
+  async function cancelPlanned() {
+    await commit({ ...last.t, plannedPause: null }, '🗓️ Geplante Pause gestrichen');
+    toast('Geplante Pause gestrichen');
   }
   async function endPause() {
     said.delete(`pause:${last.t.pausedUntil}`);
@@ -542,8 +602,13 @@ export function render(root, params, nav) {
       pauseReasonIn.blur(); pauseTimeIn.blur(); // sonst bleibt die Ansicht beim alten Stand stehen (siehe draw)
       if (await startPause(ts, pauseReasonIn.value)) { pauseReasonIn.value = ''; pauseTimeIn.value = ''; draw(); }
     };
+    const pp = t.plannedPause;
     return h('div', { class: 'card pausepanel' },
       h('div', { class: 'pphead' }, h('b', {}, '☕ Pause'), h('span', { class: 'small dim' }, 'Laufende Spiele werden zu Ende gespielt, danach wird bis zum Ende nichts aufgerufen.')),
+      // 🗓️ geplante Pause bzw. Knopf zum Planen
+      h('div', { class: 'planned' },
+        h('span', {}, pp ? `🗓️ Geplant: ${fmtClock(pp.at)}–${fmtClock(pp.at + pp.min * 60000)} Uhr${pp.reason ? ` · ${pp.reason}` : ''} (in ${Math.max(1, Math.ceil((pp.at - Date.now()) / 60000))} Min.)` : '🗓️ Pause für später festlegen (z. B. in 20 Min. oder um 21:30)'),
+        h('button', { class: 'chip', onclick: pauseSheet }, pp ? 'Ändern' : 'Planen …')),
       h('div', { class: 'pprow' }, pauseReasonIn,
         h('div', { class: 'chips' }, [5, 10, 15, 20, 30, 45, 60].map((min) => h('button', { class: 'chip', onclick: () => go(Date.now() + min * 60000) }, `${min}′`))),
         h('div', { class: 'ppuntil' }, h('span', { class: 'small dim' }, 'oder bis'), pauseTimeIn, h('button', { class: 'chip', onclick: () => go(timeToTs(pauseTimeIn.value)) }, 'OK'))));
@@ -557,6 +622,7 @@ export function render(root, params, nav) {
     const until = h('input', { type: 'time', value: paused ? fmtClock(t.pausedUntil) : '' });
     const start = async (ts) => { if (!ts) return; sh.close(); await startPause(ts, reason.value); };
     const atTime = () => start(timeToTs(until.value));
+    const planBox = planPauseBox(reason, () => sh.close());
     const sh = sheet(h('div', { class: 'stack' },
       h('h2', {}, paused ? `☕ Pause bis ${fmtClock(t.pausedUntil)} Uhr` : '☕ Pause einlegen'),
       h('div', { class: 'small dim' }, 'Laufende Spiele werden zu Ende gespielt, danach wird bis zum Ende der Pause nichts aufgerufen. Fokus und Fernseher zeigen ein großes Banner mit Countdown, eine Minute vorher kommt eine Ansage.'),
@@ -570,12 +636,48 @@ export function render(root, params, nav) {
         class: 'btn primary',
         onclick: async () => { sh.close(); await endPause(); },
       }, '▶ Pause beenden – jetzt weiter') : null,
+      planBox,
       h('button', { class: 'btn ghost', onclick: () => sh.close() }, 'Abbrechen')));
   }
 
   /**
+   * 🗓️ Pause für später planen (im ☕-Fenster): Beginn in X Min. oder um Uhrzeit, Dauer, Grund wie oben.
+   * Fokus und Fernseher zeigen sie vorher an („☕ Pause um 12:30 · in 14 Min.“), 5 Min. vorher kommt eine Ansage.
+   */
+  function planPauseBox(reasonIn, close) {
+    const box = h('div', { class: 'card stack planbox' });
+    let startIn = 20;  // Minuten ab jetzt (oder null, wenn Uhrzeit gewählt)
+    let dur = 15;
+    const atIn = h('input', { type: 'time', title: 'Beginn um Uhrzeit', onchange: () => { startIn = null; fill(); } });
+    const fill = () => {
+      const pp = last.t.plannedPause;
+      const startTs = startIn != null ? Date.now() + startIn * 60000 : (atIn.value ? timeToTs(atIn.value) : null);
+      box.replaceChildren(
+        h('b', {}, '🗓️ Pause für später planen'),
+        pp ? h('div', { class: 'planned' }, h('span', {}, `Geplant: ${fmtClock(pp.at)}–${fmtClock(pp.at + pp.min * 60000)} Uhr${pp.reason ? ` · ${pp.reason}` : ''}`),
+          h('button', { class: 'chip', onclick: async () => {
+            close();
+            const until = Date.now() + pp.min * 60000;
+            await commit({ ...last.t, plannedPause: null, pausedUntil: until, pauseReason: pp.reason || null }, `☕ Geplante Pause vorgezogen – bis ${fmtClock(until)} Uhr`, { undo: { op: 'pause' } });
+          } }, '▶ Jetzt starten'),
+          h('button', { class: 'chip dangerchip', onclick: async () => { await cancelPlanned(); fill(); } }, '✕ Streichen')) : null,
+        h('div', { class: 'small dim' }, 'Beginn'),
+        h('div', { class: 'chips' }, [10, 20, 30, 45, 60, 90].map((m) => h('button', { class: `chip ${startIn === m ? 'on' : ''}`, onclick: () => { startIn = m; atIn.value = ''; fill(); } }, `in ${m} Min.`)),
+          h('span', { class: 'small dim' }, 'oder um'), atIn),
+        h('div', { class: 'small dim' }, 'Dauer'),
+        h('div', { class: 'chips' }, [10, 15, 20, 30, 45, 60].map((m) => h('button', { class: `chip ${dur === m ? 'on' : ''}`, onclick: () => { dur = m; fill(); } }, `${m} Min.`))),
+        h('button', {
+          class: 'btn', disabled: !startTs,
+          onclick: async () => { if (await planPause(startTs, dur, reasonIn.value)) close(); },
+        }, startTs ? `${pp ? 'Neu planen' : 'Planen'}: ${fmtClock(startTs)}–${fmtClock(startTs + dur * 60000)} Uhr` : 'Uhrzeit wählen'));
+    };
+    fill();
+    return box;
+  }
+
+  /**
    * 📺 Fernseher steuern (Turnierleitung): Einstellungen des Fernseher-Fensters liegen im Turnier (t.tv) und gelten
-   * dort sofort – auch auf einem anderen Gerät. { page: 'auto'|'boards'|'groups'|'ko'|'results', zoom, planZoom, rotate, rotateSec }
+   * dort sofort – auch auf einem anderen Gerät. { page: 'auto'|'boards'|'groups'|'ko'|'results', zoom, planZoom, rotate, rotateSec, times }
    */
   function tvControlPanel() {
     const box = h('div', { class: 'stack tvpanel' });
@@ -601,7 +703,38 @@ export function render(root, params, nav) {
           h('button', { class: `chip ${c.rotate ? 'on' : ''}`, onclick: () => set({ rotate: !c.rotate }) }, c.rotate ? 'An' : 'Aus')) : null,
         c.page === 'auto' && c.rotate ? h('div', { class: 'seg' }, [10, 20, 40].map((v) => h('button', { class: c.rotateSec === v ? 'on' : '', onclick: () => set({ rotateSec: v }) }, `alle ${v} s`))) : null,
         h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Größe'),
-          h('div', { class: 'boardctl' }, h('button', { class: 'toolbtn', onclick: () => step('zoom', -0.1, 0.6, 1.8) }, 'A−'), h('span', { class: 'num small' }, pct(c.zoom)), h('button', { class: 'toolbtn', onclick: () => step('zoom', 0.1, 0.6, 1.8) }, 'A+'))));
+          h('div', { class: 'boardctl' }, h('button', { class: 'toolbtn', onclick: () => step('zoom', -0.1, 0.6, 1.8) }, 'A−'), h('span', { class: 'num small' }, pct(c.zoom)), h('button', { class: 'toolbtn', onclick: () => step('zoom', 0.1, 0.6, 1.8) }, 'A+'))),
+        h('div', { class: 'timesrow' }, h('span', { class: 'name' }, '⏱ Zeiten oben', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Antippen zum Ein- und Ausblenden')),
+          timePicker(c.times, (v) => set({ times: v }))),
+        h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Farben', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Hell für helle Räume oder Beamer')),
+          h('div', { class: 'seg two', style: { minWidth: '190px', margin: 0 } }, [['dark', '🌙 Dunkel'], ['light', '☀️ Hell']].map(([v, label]) => h('button', { class: (c.theme || 'dark') === v ? 'on' : '', onclick: () => set({ theme: v }) }, label)))),
+        brandRow(t));
+    };
+    // Vereinsname und Logo oben im Fernseher-Bild (und im Fokus): im Turnier (t.brand), Logo verkleinert als Bild-Daten
+    const brandRow = (t) => {
+      const b = t.brand || {};
+      const save = (patch) => commit({ ...last.t, brand: { ...(last.t.brand || {}), ...patch } }, null).then(() => { fill(); draw(); });
+      const nameIn = h('input', { type: 'text', placeholder: 'Vereinsname (optional)', value: b.name || '', maxlength: 40, onchange: () => save({ name: nameIn.value.trim() }) });
+      const fileIn = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' }, onchange: () => {
+        const f = fileIn.files && fileIn.files[0];
+        if (!f) return;
+        const img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 160 / Math.max(img.width, img.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(img.src);
+          save({ logo: cv.toDataURL('image/png') });
+        };
+        img.onerror = () => toast('Bild konnte nicht gelesen werden.');
+        img.src = URL.createObjectURL(f);
+      } });
+      return h('div', { class: 'timesrow' }, h('span', { class: 'name' }, '🏷️ Verein oben', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Name und Logo links neben dem Turniernamen')),
+        nameIn,
+        h('div', { class: 'chips' }, b.logo ? h('img', { class: 'brandlogo', src: b.logo, alt: 'Logo' }) : null,
+          h('button', { class: 'chip', onclick: () => fileIn.click() }, b.logo ? '🖼️ Logo ändern' : '🖼️ Logo wählen'),
+          b.logo ? h('button', { class: 'chip', onclick: () => save({ logo: null }) }, '✕ Logo entfernen') : null, fileIn));
     };
     fill();
     return box;
@@ -718,6 +851,76 @@ export function render(root, params, nav) {
     next.log = (next.log || []).map((x) => (x.id === e.id ? { ...x, undone: Date.now() } : x));
     await commit(next, `↩ Rückgängig: ${e.text}`, { kind: 'undo' });
     toast('↩ Zurückgenommen');
+  }
+
+  /**
+   * 📊 Turnier-Statistik: wie lange die Spiele dauern – gesamt, je Phase (Gruppe, K.-o., Halbfinale, Finale) und je
+   * Board, dazu Anlauf (Aufruf bis Beginn), Tempo und die längsten Spiele. Nur am Board gespielte Spiele zählen
+   * (am PC eingetragene und kampflose haben keine echte Dauer).
+   */
+  function tourStatsSheet() {
+    if (!last) return;
+    const { t, st } = last;
+    const min = (ms) => ms / 60000;
+    const games = st.games.filter((g) => g.status === 'done' && g.match && !g.match.manualResult && g.match.createdAt && g.match.updatedAt > g.match.createdAt)
+      .map((g) => ({ g, dur: min(g.match.updatedAt - g.match.createdAt), board: (t.calls || {})[g.key]?.board || null, call: (t.calls || {})[g.key]?.at || null }));
+    const avg = (l) => (l.length ? l.reduce((a, x) => a + x.dur, 0) / l.length : 0);
+    const fm = (m) => (m >= 60 ? `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')} Std.` : `${Math.round(m)} Min.`);
+    const phaseOf = (g) => (g.phase === 'group' ? 'Gruppenphase' : g.third ? 'Spiel um Platz 3' : g.round === t.ko.rounds ? 'Finale' : g.round === t.ko.rounds - 1 ? 'Halbfinale' : 'K.-o.-Runden');
+    const row = (label, l, note = '') => h('div', { style: { display: 'contents' } }, h('span', {}, label, note ? h('span', { class: 'dim small' }, ` · ${note}`) : null), h('span', { class: 'num dim' }, `${l.length}×`), h('span', { class: 'num' }, l.length ? `Ø ${fm(avg(l))}` : '–'));
+    const phases = ['Gruppenphase', 'K.-o.-Runden', 'Halbfinale', 'Spiel um Platz 3', 'Finale'].map((p) => [p, games.filter((x) => phaseOf(x.g) === p)]).filter(([, l]) => l.length);
+    const boardsList = Array.from({ length: t.boards || 1 }, (_, i) => [i + 1, games.filter((x) => x.board === i + 1)]).filter(([, l]) => l.length);
+    // Anlauf: vom Aufruf bis zum ersten Wurf (Match angelegt)
+    const lead = games.filter((x) => x.call && x.g.match.createdAt >= x.call).map((x) => min(x.g.match.createdAt - x.call));
+    const own = last.matches.filter((m) => m.tournament && m.tournament.id === t.id && m.createdAt);
+    const span = own.length ? min(Date.now() - Math.min(...own.map((m) => m.createdAt))) : 0;
+    const longest = games.slice().sort((a, b) => b.dur - a.dur).slice(0, 3);
+    const fmtOf = (g) => formatText(formatFor(t, g));
+    const sh = sheet(h('div', { class: 'stack' },
+      h('h2', {}, '📊 Turnier-Statistik'),
+      games.length ? [
+        h('div', { class: 'kpis' },
+          h('div', { class: 'kpi' }, h('b', { class: 'num' }, fm(avg(games))), h('span', {}, 'Ø je Spiel')),
+          h('div', { class: 'kpi' }, h('b', { class: 'num' }, span > 10 ? (games.length / (span / 60)).toFixed(1).replace('.', ',') : '–'), h('span', {}, 'Spiele pro Std.')),
+          h('div', { class: 'kpi' }, h('b', { class: 'num' }, lead.length ? fm(lead.reduce((a, b) => a + b, 0) / lead.length) : '–'), h('span', {}, 'Ø Aufruf → Start'))),
+        sec('⏱ Dauer je Phase'),
+        h('div', { class: 'tstat' }, phases.map(([p, l]) => row(p, l, fmtOf(l[0].g)))),
+        boardsList.length ? [sec('🎯 Dauer je Board'), h('div', { class: 'tstat' }, boardsList.map(([b, l]) => row(`Board ${b}`, l)))] : null,
+        sec('🐢 Längste Spiele'),
+        h('div', { class: 'tstat' }, longest.map((x) => h('div', { style: { display: 'contents' } },
+          h('span', {}, `${nameOf(t, x.g.a)} – ${nameOf(t, x.g.b)}`, h('span', { class: 'dim small' }, ` · ${x.g.roundName}`)),
+          h('span', { class: 'num dim' }, x.board ? `B${x.board}` : ''),
+          h('span', { class: 'num' }, fm(x.dur))))),
+        h('div', { class: 'small dim' }, `${games.length} Spiele mit gemessener Dauer. Am PC eingetragene und kampflose Spiele zählen nicht.`),
+      ] : h('p', { class: 'dim' }, 'Noch kein Spiel fertig – die Dauer wird ab dem ersten Ergebnis gemessen.'),
+      h('button', { class: 'btn primary', onclick: () => sh.close() }, 'Schließen')));
+  }
+
+  /** 🔍 Spieler suchen: Namen tippen, Treffer zeigen, wo der Spieler gerade ist – Tipp öffnet sein Profil. */
+  function searchSheet() {
+    if (!last) return;
+    const { t, st } = last;
+    const input = h('input', { type: 'search', placeholder: 'Name eintippen …', autocomplete: 'off' });
+    const list = h('div', { class: 'searchlist' });
+    const where = (id) => {
+      const b = boardStatus(t, st).find((x) => x.game && (x.game.a === id || x.game.b === id));
+      if (b) return b.game.status === 'running' ? `🎯 spielt an Board ${b.board}` : `📣 aufgerufen an Board ${b.board}`;
+      if (boardStatus(t, st).some((x) => x.writer === id)) return '✍️ schreibt';
+      if ((t.absent || {})[id]) return '⏸ nicht da';
+      const n = upcomingQueue(t, st).findIndex((g) => g.a === id || g.b === id);
+      return n >= 0 ? `⏭️ ${n === 0 ? 'als Nächstes dran' : `noch ${n} Spiel${n > 1 ? 'e' : ''} davor`}` : '–';
+    };
+    const fill = () => {
+      const q = input.value.trim().toLowerCase();
+      const ids = t.players.filter((id) => !q || nameOf(t, id).toLowerCase().includes(q)).sort((a, b) => nameOf(t, a).localeCompare(nameOf(t, b)));
+      list.replaceChildren(...(ids.length ? ids.map((id) => h('button', { class: 'searchrow', onclick: () => { sh.close(); profile(id); } },
+        h('b', {}, nameOf(t, id)), h('span', { class: 'dim' }, where(id)))) : [h('p', { class: 'dim' }, 'Kein Spieler gefunden.')]));
+    };
+    input.addEventListener('input', fill);
+    fill();
+    const sh = sheet(h('div', { class: 'stack' }, h('h2', {}, '🔍 Spieler suchen'), input, list,
+      h('button', { class: 'btn ghost', onclick: () => sh.close() }, 'Schließen')));
+    setTimeout(() => input.focus(), 50);
   }
 
   /** 📜 Protokoll: alle Ergebnisse und Eingriffe der Turnierleitung, neueste zuerst, mit Rückgängig. */
@@ -1184,6 +1387,23 @@ export function render(root, params, nav) {
    * 🖥️ Fernseher: oben das Fenster öffnen (oder, wenn es schon offen ist, nach vorn holen/schließen) und gleich darunter
    * steuern (Seite, Wechsel, Größe). Weitere Wege (anderes Gerät, Übergabe, Zuschauer-Link) aufklappbar darunter.
    */
+  /** 🖥️ › Fokus auf diesem Laptop: Zeiten oben einzeln und Farben (früher unter ⚙️ › Ansicht). */
+  function focusBox() {
+    const box = h('div', { class: 'stack tvpanel' });
+    const fill = () => {
+      const s = getSettings();
+      box.replaceChildren(
+        h('div', { class: 'timesrow' }, h('span', { class: 'name' }, '⏱ Zeiten oben', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Antippen zum Ein- und Ausblenden')),
+          timePicker(s.tourFocusTimes, (v) => { updateSettings({ tourFocusTimes: v }); fill(); draw(); })),
+        h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Farben'),
+          h('div', { class: 'seg two', style: { minWidth: '190px', margin: 0 } }, [['dark', '🌙 Dunkel'], ['light', '☀️ Hell']].map(([v, label]) => h('button', {
+            class: (s.tourTheme || 'dark') === v ? 'on' : '', onclick: () => { updateSettings({ tourTheme: v }); fill(); draw(); },
+          }, label)))));
+    };
+    fill();
+    return box;
+  }
+
   function screenMenu() {
     const url = tvUrl();
     const open = tvWin && !tvWin.closed;
@@ -1198,6 +1418,9 @@ export function render(root, params, nav) {
       h('b', {}, '📺 Fernseher steuern'),
       h('div', { class: 'small dim' }, 'Wirkt sofort im Fernseher-Fenster – auch auf einem anderen Gerät. Vollbild: dort F11 oder Doppelklick.'),
       tvControlPanel(),
+      // 🎯 Fokus auf diesem Laptop: eigene Zeiten und Farben (das Fernseher-Fenster hat seine oben)
+      h('b', {}, '🎯 Fokus auf diesem Laptop'),
+      focusBox(),
       h('details', { class: 'infofold morefold' }, h('summary', {}, '➕ Weitere Möglichkeiten: anderes Gerät, Übergabe, Zuschauer-Link'),
       h('div', { class: 'stack' },
       h('b', {}, 'Anderes Gerät als Fernseher (Smart-TV, zweiter Laptop, Tablet)'),
@@ -1249,6 +1472,10 @@ export function render(root, params, nav) {
             h('button', { class: 'toolbtn', onclick: () => { updateSettings({ tourZoom: Math.round(Math.max(0.7, (getSettings().tourZoom || 1) - 0.1) * 10) / 10 }); fill(); draw(); } }, 'A−'),
             h('span', { class: 'num small' }, `${Math.round((s.tourZoom || 1) * 100)} %`),
             h('button', { class: 'toolbtn', onclick: () => { updateSettings({ tourZoom: Math.round(Math.min(1.6, (getSettings().tourZoom || 1) + 0.1) * 10) / 10 }); fill(); draw(); } }, 'A+'))),
+        h('div', { class: 'timesrow' },
+          h('span', { class: 'name' }, '📊 Kacheln der Turnierleitung', h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Antippen zum Ein- und Ausblenden – Fokus und Fernseher stellst du unter 🖥️ Fernseher ein')),
+          dotPicker(HEAD, s.tourHeadShow, (v) => { updateSettings({ tourHeadShow: v }); fill(); draw(); }),
+          seg('tourHeadPlace', [['top', '▔ Oben in der Leiste'], ['cards', '▭ Groß als Karten darunter']])),
         h('div', { class: 'small dim' }, 'QR-Codes zum Verbinden (Auto: solange noch Handys fehlen)'),
         h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [[null, 'Auto'], [true, 'An'], [false, 'Aus']].map(([v, label]) => h('button', {
           class: qrOpen === v ? 'on' : '', onclick: () => { qrOpen = v; fill(); draw(); },
@@ -1256,6 +1483,14 @@ export function render(root, params, nav) {
         sec('🔊 Ton'),
         toggle('tourSound', 'Ansagen am PC', 'Aufrufe, Pausen, Sieger. Aus = alles nur auf dem Bildschirm'),
         s.tourSound ? toggle('tourHighlightSpeech', 'Highlights ansagen', '„180! Kevin an Board 2“') : null,
+        s.tourSound ? h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Lautstärke'),
+          h('input', { type: 'range', min: 0.1, max: 1, step: 0.1, value: s.tourVolume ?? 1, style: { maxWidth: '200px' }, onchange: (e) => { updateSettings({ tourVolume: +e.target.value }); unlock(); say('Board 1.', { interrupt: true }); } })) : null,
+        s.tourSound ? h('div', { class: 'small dim' }, 'Tempo der Ansagen') : null,
+        s.tourSound ? seg('tourRate', [[null, 'Wie App'], [0.85, 'Langsam'], [1, 'Normal'], [1.15, 'Schnell']]) : null,
+        s.tourSound && availableVoices().length > 1 ? h('label', { class: 'field' }, h('span', {}, 'Stimme der Turnierleitung'),
+          h('select', { onchange: (e) => { updateSettings({ tourVoiceURI: e.target.value || null }); unlock(); say('Board 1: Ansage mit dieser Stimme.', { interrupt: true }); } },
+            h('option', { value: '' }, 'Wie in der App'),
+            availableVoices().map((v) => h('option', { value: v.voiceURI, selected: v.voiceURI === s.tourVoiceURI }, v.name)))) : null,
         s.tourSound ? h('button', { class: 'btn ghost', onclick: () => { unlock(); say('Test. Board 1: Ansage funktioniert.', { interrupt: true }); } }, '🔊 Ton testen') : null,
         sec('📐 Anordnung unter den Boards'),
         h('div', { class: 'small dim' }, 'Reihenfolge mit ↑ / ↓, ein- und ausblenden mit An/Aus (schnell auch mit 👁 oben in der Leiste).'),
@@ -1279,6 +1514,10 @@ export function render(root, params, nav) {
         toggle('tourCallTwice', 'Aufrufe zweimal ansagen', 'Für laute Räume: „… Ich wiederhole: …“'),
         h('div', { class: 'small dim' }, '😮‍💨 Ruhezeit: Wer gerade gespielt hat, kommt möglichst erst danach wieder dran (gibt es kein anderes Spiel, trotzdem – kein Board bleibt leer)'),
         seg('tourRest', [[0, 'Aus'], [3, '3 Min.'], [5, '5 Min.'], [10, '10 Min.']]),
+        h('div', { class: 'small dim' }, '⏳ Board kurz frei lassen: nach Spielende so lange nichts Neues an dieses Board (Zeit zum Aufräumen und Wechseln)'),
+        seg('tourBoardGap', [[0, 'Sofort'], [1, '1 Min.'], [2, '2 Min.'], [3, '3 Min.']]),
+        toggle('tourBeforePause', 'Vor einer geplanten Pause nichts Langes mehr aufrufen', 'Nur Spiele, die nach üblicher Dauer noch vor der Pause fertig werden'),
+        toggle('tourPauseEndCalls', 'Pausenende mit den ersten Spielen ansagen', '1 Min. vorher „… Als Erstes: Anna gegen Ben“, am Ende „Es geht weiter!“'),
         h('div', { class: 'small dim' }, '⚠️ Spiel läuft ungewöhnlich lange: Kachel orange ab … (Auto = doppelte übliche Dauer des Formats, mindestens 15 Min.)'),
         seg('tourStaleMin', [['auto', 'Auto'], [30, '30'], [45, '45'], [60, '60'], [0, 'Aus']]),
         toggle('tourOnlyConnected', 'Nur Boards mit Handy aufrufen', 'Spiele gehen nur an Boards, an denen ein Handy angemeldet ist'),
@@ -1433,8 +1672,10 @@ export function render(root, params, nav) {
     const PZK = viewer ? 'tourPlanZoomTv' : 'tourPlanZoom';
     // Fernseher-Fenster: Größe, Seite und Wechsel kommen von der Turnierleitung (t.tv, 🖥️ › „Fernseher steuern“)
     const tvc = viewer ? (t.tv || {}) : {};
-    const zoom = tvc.zoom || s[ZK] || 1;
-    const planZoom = tvc.planZoom || s[PZK] || 1;
+    // Handy (schmaler Bildschirm): kein Fokus-/Fernseher-Layout und keine Größe vom PC – alles untereinander, mit Zurück
+    const phone = matchMedia('(max-width: 760px)').matches;
+    const zoom = phone ? 1 : tvc.zoom || s[ZK] || 1;
+    const planZoom = phone ? 1 : tvc.planZoom || s[PZK] || 1;
     body.style.zoom = String(zoom);
     body.style.setProperty('--z', String(zoom)); // für die volle Bildschirmhöhe im Fokus (CSS rechnet 100vh / Zoom)
     const n = boardStatus(t, st).length;
@@ -1536,6 +1777,8 @@ export function render(root, params, nav) {
     };
 
     const tool = (label, title, onclick, on = false) => h('button', { class: `toolbtn ${on ? 'on' : ''}`, title, onclick }, label);
+    // Knopf mit Beschriftung (Leiste der Turnierleitung)
+    const ltool = (icon, text, title, onclick, on = false) => h('button', { class: `ltool ${on ? 'on' : ''}`, title, onclick }, h('span', { class: 'licon' }, icon), h('span', { class: 'tlabel' }, text));
     // Wer steht gerade am Board (für die Tabellen): spielt / aufgerufen / schreibt – mit Board-Nummer
     const busyMap = {};
     for (const b of boards) {
@@ -1544,9 +1787,46 @@ export function render(root, params, nav) {
       if (b.writer && !busyMap[b.writer]) busyMap[b.writer] = { kind: 'write', board: b.board };
     }
     // Fokus: nur Uhr, Boards und die gewählten Bereiche (Standard: Als Nächstes und Bestwerte)
-    const focus = viewer || !!s.tourFocus;
+    const focus = viewer || (!!s.tourFocus && !phone);
+    // Fernseher/Fokus: Vereinslogo und -name (im Turnier, t.brand) und helles Farbschema für helle Räume
+    const brand = t.brand || {};
+    document.documentElement.classList.toggle('tvlight', focus && !phone && (viewer ? tvc.theme : s.tourTheme) === 'light');
+    // 🗓️ Geplante Pause (Fokus/Fernseher, auf allen Seiten): schmaler Hinweis mit Uhrzeit und Countdown bis zum Beginn
+    const plannedBar = () => {
+      const pp = t.plannedPause;
+      if (!focus || !pp || st.done || pp.at <= Date.now()) return null;
+      const left = pp.at - Date.now();
+      const mm = Math.floor(left / 60000);
+      const ss = Math.floor((left % 60000) / 1000);
+      return h('div', { class: `pausebanner slim planned ${viewer ? '' : 'tap'}`, onclick: () => { if (!viewer) pauseSheet(); } },
+        h('div', { class: 'pbicon' }, '🗓️'),
+        h('div', { class: 'pbtext' },
+          h('div', { class: 'pbtitle' }, `${pp.reason || 'Pause'} um ${fmtClock(pp.at)} Uhr`),
+          h('div', { class: 'pbsub' }, `${pp.min} Minuten, bis ${fmtClock(pp.at + pp.min * 60000)} Uhr · laufende Spiele werden noch zu Ende gespielt`)),
+        h('div', { class: 'pbcount num' }, h('span', { class: 'pbin' }, 'in '), left >= 3600000 ? `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, '0')} h` : `${mm}:${String(ss).padStart(2, '0')}`));
+    };
+    // Pause: Banner mit Grund, Uhrzeit und Countdown – groß über den Boards, schmal über allen anderen Seiten
+    // (Gruppen, K.-o., Ergebnisse), damit die Restzeit auch beim Durchwechseln immer zu sehen ist
+    const pauseBar = (slim = false) => {
+      if (!plan.pauseUntil || st.done) return null;
+      const left = Math.max(0, plan.pauseUntil - Date.now());
+      const mm = Math.floor(left / 60000);
+      const ss = Math.floor((left % 60000) / 1000);
+      const running = boards.filter((b) => b.game && b.game.status === 'running').length;
+      return h('div', { class: `pausebanner ${slim ? 'slim' : ''} ${viewer ? '' : 'tap'}`, onclick: () => { if (!viewer && plan.manualPause) pauseSheet(); } },
+        h('div', { class: 'pbicon' }, '☕'),
+        h('div', { class: 'pbtext' },
+          h('div', { class: 'pbtitle' }, plan.manualPause ? (t.pauseReason || 'Pause') : `Pause vor ${(st.koRounds.find((r) => r.games.some((g) => g.status !== 'done' && g.status !== 'bye')) || {}).name || 'der nächsten Runde'}`),
+          h('div', { class: 'pbsub' }, `Nächste Spiele um ${fmtClock(plan.pauseUntil)} Uhr${running ? ` · ${running} Spiel${running > 1 ? 'e laufen' : ' läuft'} noch zu Ende` : ' · gerade läuft kein Spiel'}`)),
+        h('div', { class: 'pbcount num' }, left >= 3600000 ? `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, '0')} h` : `${mm}:${String(ss).padStart(2, '0')}`));
+    };
     // Gibt es die rechte Spalte (Turnierbaum daneben)? Dann steht die Pause-Karte dort oben, sonst unter den Boards
     const main = h('div', { class: 'livemain stack' },
+      // 🙋 Rufe der Board-Handys: rot oben, bis „Bin unterwegs“ getippt wird (das Handy bekommt eine Bestätigung)
+      viewer ? null : helpCalls(raw, t).map((p) => h('div', { class: 'helpbar' },
+        h('span', { class: 'hbicon' }, '🙋'),
+        h('div', { class: 'hbtext' }, h('b', {}, `Board ${p.board} ruft die Turnierleitung`), h('span', { class: 'small' }, `seit ${fmtClock(p.help)} Uhr`)),
+        h('button', { class: 'chip on', onclick: () => commit({ ...last.t, helpAck: { ...(last.t.helpAck || {}), [p.board]: p.help } }, `🙋 Ruf von Board ${p.board} bestätigt`) }, '✅ Bin unterwegs'))),
       // Beitreten: eine schmale Zeile. Online ein QR-Code für die App (jedes Handy bekommt das nächste freie Board),
       // den QR-Code für ein bestimmtes Board (auch ohne App, mit der iPhone-Kamera) zeigt die Kachel des freien Boards.
       canJoin && !focus ? h('div', { class: 'card joinbar' },
@@ -1609,18 +1889,7 @@ export function render(root, params, nav) {
       }, t.ceremony ? '🏆 Siegerehrung nochmal starten' : '🏆 Siegerehrung starten (Platz 3, 2, 1 – mit Ansage)') : null,
       // Höchstens 2 Boards nebeneinander (ab 5 Boards 3) – so werden die Kacheln groß; einstellbar unter ⚙️
       // Pause: großes Banner über den Boards (auch Fokus und Fernseher) mit Grund, Uhrzeit und Countdown
-      plan.pauseUntil && !st.done ? (() => {
-        const left = Math.max(0, plan.pauseUntil - Date.now());
-        const mm = Math.floor(left / 60000);
-        const ss = Math.floor((left % 60000) / 1000);
-        const running = boards.filter((b) => b.game && b.game.status === 'running').length;
-        return h('div', { class: `pausebanner ${viewer ? '' : 'tap'}`, onclick: () => { if (!viewer && plan.manualPause) pauseSheet(); } },
-          h('div', { class: 'pbicon' }, '☕'),
-          h('div', { class: 'pbtext' },
-            h('div', { class: 'pbtitle' }, plan.manualPause ? (t.pauseReason || 'Pause') : `Pause vor ${(st.koRounds.find((r) => r.games.some((g) => g.status !== 'done' && g.status !== 'bye')) || {}).name || 'der nächsten Runde'}`),
-            h('div', { class: 'pbsub' }, `Nächste Spiele um ${fmtClock(plan.pauseUntil)} Uhr${running ? ` · ${running} Spiel${running > 1 ? 'e laufen' : ' läuft'} noch zu Ende` : ' · gerade läuft kein Spiel'}`)),
-          h('div', { class: 'pbcount num' }, left >= 3600000 ? `${Math.floor(mm / 60)}:${String(mm % 60).padStart(2, '0')} h` : `${mm}:${String(ss).padStart(2, '0')}`));
-      })() : null,
+      pauseBar() || plannedBar(),
       h('div', { class: `boardgrid cols${boardCols}` }, boards.map(tile)),
       // ☕ Pause-Karte (Turnierleitung): rechts neben dem Turnierbaum, ohne rechte Spalte direkt unter den Boards
       // Wer nicht da ist (Check-in / Abwesenheit) – nur an der Leitung
@@ -1747,46 +2016,95 @@ export function render(root, params, nav) {
     });
     // Fernseher-Fenster: oben keine Knöpfe – nur ein unauffälliges ⛶ (Vollbild geht nur am Gerät selbst)
     const tvFull = h('button', { class: 'toolbtn tvfull', title: 'Vollbild (oder F11)', onclick: () => fullBtn.click() }, '⛶');
-    body.classList.toggle('focus', focus);
-    body.classList.toggle('onerow', focus && n <= boardCols); // nur eine Reihe Boards (z. B. 2): Boards begrenzen, unten mehr Platz
+    // Fernseher-Link auf dem Handy geöffnet: ‹ zur Startseite, 👀 zur Zuschauer-Ansicht (fürs Handy gemacht)
+    const leaveTv = (to) => { history.replaceState(null, '', location.pathname); nav.go(to); };
+    const phoneTv = viewer && phone ? h('button', { class: 'chip phonewatch', onclick: () => leaveTv('watch') }, '👀 Zuschauer-Ansicht') : null;
+    body.classList.toggle('focus', focus && !phone);
+    body.classList.toggle('phone', phone);
+    body.classList.toggle('onerow', focus && !phone && n <= boardCols); // nur eine Reihe Boards (z. B. 2): Boards begrenzen, unten mehr Platz
+    // Kacheln (Spiele, Boards, Zeiten …): oben in der Leiste oder – nur Turnierleitung – groß als Karten darunter (⚙️ › Ansicht)
+    const cardsBelow = !focus && s.tourHeadPlace === 'cards';
+    let headChips = null;
     body.replaceChildren(
       h('div', { class: 'livehead' },
-        tv || focus ? null : h('button', { class: 'iconbtn', title: 'Zur Turnier-Seite', onclick: () => nav.go('tournament', { id: t.id }) }, '‹'),
-        // Titel mit Phase als Schild, darunter (nicht im Fokus) der Fortschritt
+        viewer && phone ? h('button', { class: 'iconbtn', title: 'Zur Startseite', onclick: () => leaveTv('home') }, '‹')
+        : tv || focus ? null : h('button', { class: 'iconbtn', title: 'Zur Turnier-Seite', onclick: () => nav.go('tournament', { id: t.id }) }, '‹'),
+        // Titel mit Phase als Schild; im Fokus/Fernseher davor Vereinslogo und -name (🖥️ › Fernseher steuern)
         h('div', { class: 'livetitle' },
-          h('div', { class: 'titlerow' }, h('h1', {}, t.name), h('span', { class: 'phasepill' }, phase)),
-          focus ? null : h('div', { class: 'progrow' }, h('div', { class: 'liveprog' }, h('i', { style: { width: `${total ? Math.round((played / total) * 100) : 0}%` } })), h('span', { class: 'small dim num' }, `${played} / ${total} Spiele`))),
+          h('div', { class: 'titlerow' },
+            focus && brand.logo ? h('img', { class: 'brandlogo', src: brand.logo, alt: '' }) : null,
+            focus && brand.name ? h('span', { class: 'brandname' }, brand.name) : null,
+            h('h1', {}, t.name), h('span', { class: 'phasepill' }, phase))),
         // Laufzeit und Prognose als ruhige Kacheln: jede Angabe genau einmal
-        h('div', { class: 'infochips', title: 'Geschätzt aus dem bisherigen Tempo und dem Format jeder Runde. Wird mit jedem fertigen Spiel genauer.' }, (() => {
-          const chip = (label, value, cls = '') => h('div', { class: `ichip ${cls}` }, h('span', { class: 'ilabel' }, label), h('b', { class: 'ival num' }, value));
+        // Fokus/Fernseher: jede Zeit einzeln abschaltbar (⚙️ › Ansicht bzw. 🖥️ › Fernseher steuern)
+        // Turnierleitung: davor Fortschritt, Board-Status und nächster Aufruf
+        (headChips = (() => {
+          // Turnierleitung: ⚙️ › Ansicht › Kacheln oben; Fokus: 🖥️ › Fokus; Fernseher-Fenster: 🖥️ › Fernseher steuern
+          const cfg = focus ? (viewer ? tvc.times : s.tourFocusTimes) : s.tourHeadShow;
+          const chip = (label, value, cls = '', extra = null) => h('div', { class: `ichip ${cls}` }, h('span', { class: 'ilabel' }, label), h('b', { class: 'ival num' }, value), extra);
           const own = matches.filter((m) => m.tournament && m.tournament.id === t.id && m.status !== 'aborted' && m.createdAt);
           const out = [];
-          if (own.length) {
+          if (!focus) {
+            if (timeOn(cfg, 'prog')) out.push(chip('🎯 Spiele', `${played} / ${total}`, 'prog', h('div', { class: 'liveprog' }, h('i', { style: { width: `${total ? Math.round((played / total) * 100) : 0}%` } }))));
+            const playing = boards.filter((b) => b.game && b.game.status === 'running').length;
+            const called = boards.filter((b) => b.game && b.game.status !== 'running').length;
+            const free = boards.length - playing - called;
+            if (timeOn(cfg, 'boards')) out.push(h('div', { class: 'ichip', title: 'Boards: spielen · aufgerufen · frei' }, h('span', { class: 'ilabel' }, '🎯 Boards'),
+              h('b', { class: 'ival num bstat' }, h('span', { class: 'bs play' }, `● ${playing}`), h('span', { class: 'bs call' }, `● ${called}`), h('span', { class: 'bs free' }, `○ ${free}`))));
+            const first = next[0];
+            if (first && !st.done && timeOn(cfg, 'next')) {
+              // Wann das nächste Spiel aufgerufen wird: freie Boards ohne Handy rufen nichts auf (Einstellung
+              // „Nur Boards mit Handy“) – dann „wartet auf Handy“ statt eines irreführenden „jetzt“
+              const at = eta && eta.starts.get(first.key);
+              const freeBoards = boards.filter((b) => !b.game);
+              const usable = freeBoards.filter((b) => !s.tourOnlyConnected || connected.has(b.board));
+              const pp = t.plannedPause;
+              const val = plan.manualPause ? `~${fmtClock(plan.pauseUntil)}`
+                : freeBoards.length && !usable.length ? 'wartet auf Handy'
+                : pp && s.tourBeforePause !== false && pp.at > Date.now() && at && at >= pp.at ? `nach der Pause ~${fmtClock(at)}`
+                : !at || at - Date.now() < 60000 ? (usable.length ? 'jetzt' : 'gleich') : `~${fmtClock(at)}`;
+              out.push(h('div', { class: 'ichip', title: `Wann das nächste Spiel (${nameOf(t, first.a)} – ${nameOf(t, first.b)}) aufgerufen wird. „wartet auf Handy“: Ein Board ist frei, aber dort ist kein Handy angemeldet.` },
+                h('span', { class: 'ilabel' }, '📣 Nächster Aufruf'), h('b', { class: 'ival num' }, val)));
+            }
+            if (t.plannedPause && !plan.manualPause && timeOn(cfg, 'planned')) {
+              const pp = t.plannedPause;
+              out.push(chip('☕ Pause geplant', `${fmtClock(pp.at)}–${fmtClock(pp.at + pp.min * 60000)}`, 'planchip'));
+            }
+          }
+          if (!timeOn(cfg, 'run')) { /* aus */ } else if (own.length) {
             const end = st.done ? Math.max(...own.filter((m) => m.status === 'finished').map((m) => m.updatedAt || m.createdAt)) : Date.now();
             const min = Math.max(0, Math.floor((end - Math.min(...own.map((m) => m.createdAt))) / 60000));
             out.push(chip(st.done ? '⏱ Dauer' : '⏱ Läuft', `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')} Std.`));
           } else if (!st.done) out.push(chip('⏱ Start', 'gleich'));
-          if (eta && eta.groupsAt) out.push(chip('👥 Gruppen fertig', `~${fmtClock(eta.groupsAt)}`));
-          if (eta && eta.finalAt) out.push(chip('🏆 Finale', `~${fmtClock(eta.finalAt)}`));
-          if (eta) out.push(chip('🏁 Ende', `~${fmtClock(eta.at)}`, 'end'));
-          return out;
-        })()),
+          if (eta && eta.groupsAt && timeOn(cfg, 'groups')) out.push(chip('👥 Gruppen fertig', `~${fmtClock(eta.groupsAt)}`));
+          if (eta && eta.finalAt && timeOn(cfg, 'final')) out.push(chip('🏆 Finale', `~${fmtClock(eta.finalAt)}`));
+          if (eta && timeOn(cfg, 'end')) out.push(chip('🏁 Ende', `~${fmtClock(eta.at)}`, 'end'));
+          return out.length ? h('div', { class: `infochips ${cardsBelow ? 'headcards' : ''}`, title: 'Geschätzt aus dem bisherigen Tempo und dem Format jeder Runde. Wird mit jedem fertigen Spiel genauer.' }, out) : null;
+        })(), cardsBelow ? null : headChips),
         h('div', { class: 'liveclockbox' }, h('div', { class: 'liveclock num' }, fmtClock(Date.now()))),
         // Leiste: Größe, Boards −/＋, Ton, QR-Codes, Bereiche, Fokus, Einstellungen, Fernseher (im Fokus nur Fokus und Fernseher)
         // Fernseher-Fenster: Seiten, Größe, Wechsel, Vollbild. Fokus am Laptop: dazu 🎯 (zurück zu allen Knöpfen) und 📺
-        viewer ? tvFull
+        viewer ? phoneTv || tvFull
         : focus ? h('div', { class: 'toolbar' }, settingsBtn, focusBtn) : h('div', { class: 'toolbar' },
-          tv ? null : h('div', { class: 'boardctl' },
-            h('button', { class: 'toolbtn', title: 'Board entfernen', onclick: () => changeBoards(t, st, -1) }, '−'),
-            h('span', { class: 'num' }, `${t.boards} 🎯`),
-            h('button', { class: 'toolbtn', title: 'Board hinzufügen', onclick: () => changeBoards(t, st, +1) }, '＋')),
-          focusBtn,
-          tool('🛠️', 'Turnier steuern: Pause, Anwesenheit/Check-in, Durchsage, Spieler gibt auf', controlMenu),
-          tool('📜', 'Protokoll: alle Ergebnisse und Eingriffe, mit Rückgängig', logSheet),
-          tool('🖥️', 'Fernseher: Fenster öffnen, Fernseher steuern, Zuschauer-Link', screenMenu),
-          settingsBtn)),
+          // Turnierleitung: jeder Knopf mit Beschriftung darunter (ab 1.36.0)
+          tv ? null : h('div', { class: 'boardctl labeled' },
+            h('div', { class: 'bcrow' },
+              h('button', { class: 'toolbtn', title: 'Board entfernen', onclick: () => changeBoards(t, st, -1) }, '−'),
+              h('span', { class: 'num' }, `${t.boards}`),
+              h('button', { class: 'toolbtn', title: 'Board hinzufügen', onclick: () => changeBoards(t, st, +1) }, '＋')),
+            h('span', { class: 'tlabel' }, 'Boards')),
+          phone ? null : ltool('🎯', 'Fokus', 'Fokus: nur Uhr, Boards und das Wichtigste', () => { updateSettings({ tourFocus: true }); draw(); }), // Fokus ist fürs große Bild – auf dem Handy nicht
+          st.done ? null : ltool('☕', plan.manualPause ? `noch ${Math.max(1, Math.ceil((plan.pauseUntil - Date.now()) / 60000))}′` : t.plannedPause ? `um ${fmtClock(t.plannedPause.at)}` : 'Pause', 'Pause einlegen, planen, verlängern oder beenden', pauseSheet, !!plan.manualPause),
+          ltool(s.tourSound ? '🔊' : '🔇', s.tourSound ? 'Ton an' : 'Ton aus', 'Ansagen am PC an/aus (z. B. während einer Rede)', () => { const on = !getSettings().tourSound; updateSettings({ tourSound: on }); if (on) unlock(); draw(); }, !s.tourSound),
+          ltool('🛠️', 'Steuern', 'Turnier steuern: Pause, Anwesenheit/Check-in, Durchsage, Spieler gibt auf', controlMenu),
+          ltool('📜', 'Protokoll', 'Protokoll: alle Ergebnisse und Eingriffe, mit Rückgängig', logSheet),
+          ltool('📊', 'Statistik', 'Turnier-Statistik: Spieldauer je Phase und Board, Tempo, längste Spiele', tourStatsSheet),
+          ltool('🔍', 'Suchen', 'Spieler suchen: wo er gerade ist, wann er dran ist', searchSheet),
+          ltool('🖥️', 'Fernseher', 'Fernseher: Fenster öffnen, Fernseher steuern, Zuschauer-Link', screenMenu),
+          ltool('⚙️', 'Ansicht', 'Einstellungen: Ansicht (Seite, Größe, QR-Codes, Zeiten), Ton, Anordnung, Ablauf', liveSettings))),
+      cardsBelow ? headChips : null,
       // Boards groß oben; Turnierbaum/Tabellen auf breiten Bildschirmen rechts daneben, sonst darunter
-      page ? h('div', { class: 'livegrid pagegrid' }, page) : h('div', { class: `livegrid ${planSide ? 'plan-auto' : ''}` }, main, side),
+      page ? h('div', { class: 'livegrid pagegrid' }, showStart ? null : pauseBar(true) || plannedBar(), page) : h('div', { class: `livegrid ${planSide ? 'plan-auto' : ''}` }, main, side),
       showStart ? null : cornerQr,
       tv || focus ? null : h('div', { class: 'grid2', style: { marginTop: '12px' } },
         h('button', { class: 'btn', onclick: () => exportSheet(t, st, matches) }, '📄 Drucken: Aushang, Ergebnisse, Urkunden'),
@@ -1820,5 +2138,5 @@ export function render(root, params, nav) {
     tick();
     timer = setInterval(tick, POLL_MS);
   });
-  return () => { disposed = true; clearInterval(timer); flash.remove(); document.removeEventListener('dblclick', dbl); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
+  return () => { disposed = true; clearInterval(timer); document.documentElement.classList.remove('tvlight'); flash.remove(); document.removeEventListener('dblclick', dbl); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
 }

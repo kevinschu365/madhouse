@@ -4,8 +4,8 @@
 import { h, toast } from '../dom.js';
 import { lsGet, lsSet } from '../../core/storage.js';
 import { unlock, say } from '../../audio/speech.js';
-import { tournamentState, boardStatus, planCalls, matchTag, formatFor, formatText } from '../../core/tournament.js';
-import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards, leaveBoard, isKicked, withoutKicked, deviceId } from '../../core/live.js';
+import { tournamentState, boardStatus, planCalls, matchTag, formatFor, formatText, upcomingQueue } from '../../core/tournament.js';
+import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards, leaveBoard, isKicked, withoutKicked, deviceId, requestHelp } from '../../core/live.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { showCode } from '../../core/cloud.js';
 import { SYNC_FORMAT } from '../../core/sync.js';
@@ -89,6 +89,22 @@ export function render(root, params, nav) {
       else if ((t.stopped || {})[active.id]) { lsSet('activeMatch', null); active = null; }
     }
     const content = [];
+    // 🙋 Turnierleitung rufen: bestätigt die Leitung (t.helpAck), Hinweis zeigen und den Ruf beenden
+    const help = lsGet('liveHelp', null);
+    if (help && ((t.helpAck || {})[board] || 0) >= help) {
+      requestHelp(false);
+      toast('✅ Die Turnierleitung hat deinen Ruf gesehen und kommt.', 5000);
+      if (navigator.vibrate) navigator.vibrate([100, 80, 100]);
+    }
+    // Gerade ein Spiel an diesem Handy beendet: bestätigen, dass das Ergebnis bei der Turnierleitung ist
+    if (params.doneGame && !(g && g.status === 'running')) {
+      const dg = st.games.find((x) => x.key === params.doneGame);
+      const arrived = dg && dg.status === 'done' && dg.result;
+      content.push(h('div', { class: `card resultok ${arrived ? 'ok' : ''}` },
+        arrived
+          ? [h('b', {}, '✅ Ergebnis ist bei der Turnierleitung'), h('div', { class: 'num' }, `${nameOf(t, dg.a)} ${dg.result.legs[dg.a] ?? 0} : ${dg.result.legs[dg.b] ?? 0} ${nameOf(t, dg.b)}`)]
+          : [h('b', {}, '⏳ Ergebnis wird übertragen …'), h('div', { class: 'small dim' }, pendingCount() ? 'Noch keine Verbindung – wird automatisch nachgeschickt.' : 'Einen Moment.')]));
+    }
     if (st.done && st.champion) {
       content.push(h('div', { class: 'card callcard' }, h('div', { class: 'callicon' }, '🏆'), h('div', { class: 'callnames' }, nameOf(t, st.champion)), h('div', { class: 'dim' }, 'hat das Turnier gewonnen!')));
     } else if (g) {
@@ -122,15 +138,28 @@ export function render(root, params, nav) {
           }, `Spiel starten (${nameOf(t, g.a)} wirft an)`)));
     } else {
       const { pauseUntil } = planCalls(t, st);
-      content.push(h('div', { class: 'card callcard' },
+      const left = pauseUntil ? Math.max(0, pauseUntil - Date.now()) : 0;
+      // Pause: großer Countdown; danach die ersten Spiele (so viele wie Boards – wer wohin kommt, entscheidet der PC)
+      const first = upcomingQueue(t, st).slice(0, pauseUntil ? t.boards || 1 : 1);
+      content.push(h('div', { class: `card callcard ${pauseUntil ? 'pausecard' : ''}` },
         h('div', { class: 'callicon' }, pauseUntil ? '☕' : '⏳'),
-        h('div', { class: 'callnames small' }, pauseUntil ? `Pause bis ${fmtClock(pauseUntil)}` : 'Warte auf das nächste Spiel'),
-        h('div', { class: 'dim small' }, pauseUntil ? `Noch etwa ${Math.max(1, Math.ceil((pauseUntil - Date.now()) / 60000))} Minuten.` : 'Der PC ruft das nächste Spiel auf, sobald es möglich ist.')));
+        h('div', { class: 'callnames small' }, pauseUntil ? `${(t.pausedUntil === pauseUntil && t.pauseReason) || 'Pause'} bis ${fmtClock(pauseUntil)} Uhr` : 'Warte auf das nächste Spiel'),
+        pauseUntil ? h('div', { class: 'pcount num' }, `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`)
+          : h('div', { class: 'dim small' }, 'Der PC ruft das nächste Spiel auf, sobald es möglich ist.'),
+        first.length ? h('div', { class: 'nextup' }, h('span', { class: 'dim small' }, pauseUntil ? 'Nach der Pause als Erstes:' : 'Als Nächstes dran:'),
+          first.map((nx) => h('div', {}, h('b', {}, `${nameOf(t, nx.a)} – ${nameOf(t, nx.b)}`), h('span', { class: 'dim small' }, ` · ${nx.roundName}`)))) : null));
     }
+    // 🗓️ Geplante Pause: Hinweis am Board (auch während eines Spiels)
+    const pp = t.plannedPause;
+    if (pp && pp.at > Date.now()) content.push(h('div', { class: 'card plannedinfo' }, `🗓️ ${pp.reason || 'Pause'} um ${fmtClock(pp.at)} Uhr (${pp.min} Min.) – in ${Math.max(1, Math.ceil((pp.at - Date.now()) / 60000))} Min.`));
+    const helping = !!lsGet('liveHelp', null);
     body.replaceChildren(
       topbar(`Board ${board}`),
       h('div', { class: 'small dim' }, `${t.name}${pendingCount() ? ` · ⚠️ ${pendingCount()} Spielstand wartet auf Übertragung` : ''}`),
       content,
+      // 🙋 Problem am Board (Streit, Handy, Board kaputt): die Turnierleitung bekommt einen Hinweis mit Ton
+      h('button', { class: `btn ${helping ? 'helpon' : ''}`, onclick: () => { unlock(); requestHelp(!helping); toast(helping ? 'Ruf zurückgenommen' : `🙋 Die Turnierleitung wurde gerufen (Board ${board})`); tick(); } },
+        helping ? '🙋 Turnierleitung gerufen … (tippen = zurücknehmen)' : '🙋 Turnierleitung rufen'),
       h('button', { class: 'btn ghost', onclick: () => { manualPick = true; tick(); } }, 'Anderes Board wählen'),
       // Handy abmelden: die Turnierleitung zeigt sofort wieder den QR-Code dieses Boards (ein anderes Handy kann übernehmen)
       cloudInfo ? null : h('button', { class: 'btn ghost', onclick: async () => { await leaveBoard(); toast(`📴 Board ${board} freigegeben`); nav.go('home'); } }, `📴 Board ${board} freigeben (Handy abmelden)`),

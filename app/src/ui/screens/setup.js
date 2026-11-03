@@ -103,8 +103,34 @@ export function render(root, params, nav) {
       scram: () => null,
     }[cfg.mode]();
 
+    // ⭐ Favoriten: gespeicherte Einstellungen (Spiel, Format, Spieler, Eingabe) mit einem Tipp übernehmen
+    const favs = getSettings().favorites || [];
+    const FAV_KEYS = ['mode', 'cutThroat', 'startScore', 'lives', 'rounds', 'innings', 'target', 'setsBestOf', 'legsBestOf', 'camera', 'input'];
+    const applyFav = (f) => {
+      for (const k of FAV_KEYS) if (f.cfg[k] !== undefined) cfg[k] = f.cfg[k];
+      cfg.selected = (f.cfg.players || []).filter(validId).slice(0, 6);
+      while (cfg.selected.length < 2) cfg.selected.push(null);
+      cfg.starter = 'p0';
+      draw();
+      toast(`⭐ ${f.name}`, 1200);
+    };
+    const saveFav = async () => {
+      const players = sel.filter((id) => id && validId(id));
+      const auto = `${MODES.find(([k]) => k === cfg.mode)?.[1] || cfg.mode}${cfg.mode === 'x01' ? ` ${cfg.startScore}` : ''} · ${cfg.legsBestOf > 1 ? `Bo${cfg.legsBestOf}` : '1 Leg'}${players.length ? ` · ${players.map((id, i) => nameOf(id, i)).join(' vs. ')}` : ''}`;
+      const name = await promptDialog('Als Favorit speichern', auto, { ok: 'Speichern', placeholder: 'Name' });
+      if (name == null) return;
+      const c = Object.fromEntries(FAV_KEYS.map((k) => [k, cfg[k]]));
+      updateSettings({ favorites: [...favs, { id: `f${Date.now()}`, name: name.trim() || auto, cfg: { ...c, players } }].slice(-8) });
+      draw();
+      toast('⭐ Favorit gespeichert');
+    };
+    const delFav = (f) => { updateSettings({ favorites: favs.filter((x) => x.id !== f.id) }); draw(); };
+
     body.append(
       h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Neues Spiel')),
+      favs.length ? h('div', { class: 'favrow' }, favs.map((f) => h('div', { class: 'favchip' },
+        h('button', { class: 'favgo', onclick: () => applyFav(f) }, `⭐ ${f.name}`),
+        h('button', { class: 'favdel', title: 'Favorit löschen', 'aria-label': 'Favorit löschen', onclick: () => delFav(f) }, '✕')))) : null,
       h('div', { class: 'card' },
         // Spiel als Auswahlfeld (es sind zu viele für eine Knopfreihe), im selben Stil wie die Felder darunter
         dropdown('Spiel', MODES, cfg.mode, (v) => { cfg.mode = v; draw(); }),
@@ -122,7 +148,7 @@ export function render(root, params, nav) {
         h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '14px' } },
           cfg.mode === 'cricket' && cfg.cutThroat ? MODE_TEXT.cricketCut : MODE_TEXT[cfg.mode],
           ' Wer das Leg beginnt, wechselt nach jedem Leg.',
-          cfg.camera ? ' Korrekturen per Zahlenfeld; fällt die Kamera aus, kannst du im Menü auf Handeingabe wechseln.' : ' Die Eingabeart bleibt während des Spiels fest.',
+          cfg.camera ? ' Korrekturen per Zahlenfeld; fällt die Kamera aus, kannst du im Menü auf Handeingabe wechseln.' : ' Die Eingabe kannst du im Spiel über ☰ wechseln.',
           cfg.camera && !hasCal ? ' Noch keine Kalibrierung – sie kommt vor dem Spiel.' : ''),
         h('p', { class: 'dim', style: { margin: '6px 0 0', fontSize: '14px' } }, '🤖 Gegen den Computer spielst du im Training – das zählt nicht in deine Statistik.'),
       ),
@@ -163,6 +189,7 @@ export function render(root, params, nav) {
           else nav.go('game', gameParams);
         },
       }, ready ? 'Spiel starten' : 'Spieler wählen'),
+      h('button', { class: 'btn ghost', onclick: saveFav }, '☆ Diese Einstellungen als Favorit speichern'),
     );
   };
   draw();

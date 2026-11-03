@@ -531,7 +531,7 @@ export function queueOrder(games) {
  * Board stehen. Gruppenspiele der Runde nach, K.-o. der Runde nach. Pausen (notBefore) werden eingehalten.
  * Ergebnis: { calls: [{ board, game }], pauseUntil (Zeitpunkt, falls ein Board nur wegen der Pause frei bleibt) }.
  */
-export function planCalls(t, st, now = Date.now(), { boards: allowed = null, rest = 0 } = {}) {
+export function planCalls(t, st, now = Date.now(), { boards: allowed = null, rest = 0, gap = 0, beforePause = false } = {}) {
   // Von Hand angehalten („⏸ Turnier anhalten“, t.pausedUntil): bis dahin keine neuen Aufrufe
   if (t.pausedUntil && t.pausedUntil > now) return { calls: [], pauseUntil: t.pausedUntil, manualPause: true };
   const boards = boardStatus(t, st);
@@ -546,12 +546,29 @@ export function planCalls(t, st, now = Date.now(), { boards: allowed = null, res
   const lastEnd = new Map();
   for (const g of st.games) if (g.result && !g.result.walkover) for (const p of [g.a, g.b]) lastEnd.set(p, Math.max(lastEnd.get(p) || 0, g.result.at || 0));
   const rested = (g) => !rest || [g.a, g.b].every((p) => now - (lastEnd.get(p) || 0) >= rest);
+  // Wartezeit je Board (gap): nach dem Ende des letzten Spiels dort so lange nichts Neues aufrufen
+  const boardEnd = new Map();
+  if (gap) {
+    const byKey = new Map(st.games.map((g) => [g.key, g]));
+    for (const [key, c] of Object.entries(t.calls || {})) {
+      const g = byKey.get(key);
+      if (g && g.result && !g.result.walkover) boardEnd.set(c.board, Math.max(boardEnd.get(c.board) || 0, g.result.at || 0));
+    }
+  }
+  // beforePause: vor einer geplanten Pause (t.plannedPause) nur Spiele aufrufen, die nach üblicher Dauer noch davor fertig werden
+  const pp = t.plannedPause;
+  const fitsBeforePause = (g) => {
+    if (!beforePause || !pp || pp.at <= now) return true;
+    const f = formatFor(t, g);
+    return now + gameMinutes(f.legsBestOf, f.setsBestOf) * 60000 <= pp.at;
+  };
   const calls = [];
   let pauseUntil = 0;
   for (const b of boards) {
     if (b.game) continue;
     if (allowed && !allowed.has(b.board)) continue; // an diesem Board ist gerade kein Handy angemeldet
-    const free = (g) => !busy.has(g.a) && !busy.has(g.b) && !calls.some((c) => c.game === g) && !(g.notBefore > now);
+    if (gap && now - (boardEnd.get(b.board) || 0) < gap) continue;
+    const free = (g) => !busy.has(g.a) && !busy.has(g.b) && !calls.some((c) => c.game === g) && !(g.notBefore > now) && fitsBeforePause(g);
     const pick = candidates.find((g) => free(g) && rested(g)) || candidates.find(free);
     if (pick) {
       calls.push({ board: b.board, game: pick });
@@ -695,7 +712,10 @@ export function forecast(t, st, now = Date.now()) {
   const assign = (g, notBefore) => {
     if (ends.has(g.key)) return ends.get(g.key);
     const i = free.indexOf(Math.min(...free));
-    const s0 = Math.max(free[i], notBefore, t.pausedUntil || 0); // während einer Pause beginnt nichts vor ihrem Ende
+    let s0 = Math.max(free[i], notBefore, t.pausedUntil || 0); // während einer Pause beginnt nichts vor ihrem Ende
+    // geplante Pause (t.plannedPause): was in sie fallen würde, beginnt erst danach
+    const pp = t.plannedPause;
+    if (pp && s0 >= pp.at && s0 < pp.at + pp.min * 60000) s0 = pp.at + pp.min * 60000;
     free[i] = s0 + dur(g);
     starts.set(g.key, s0); ends.set(g.key, free[i]);
     return free[i];
@@ -730,6 +750,19 @@ export function forecast(t, st, now = Date.now()) {
     groupsAt: t.format === 'gko' && !st.groupsDone ? groupsEnd : null,
     finalAt,
   };
+}
+
+/**
+ * Geplante Pause (t.plannedPause = { at, min, reason }) fällig? Dann die Änderung am Turnier, die sie startet:
+ * Pause bis at + min (gerechnet ab der geplanten Zeit, nicht ab dem Erkennen), Plan gelöscht. Sonst null.
+ * Läuft schon eine längere Pause, wird der Plan nur gelöscht.
+ */
+export function plannedPauseStart(t, now = Date.now()) {
+  const pp = t.plannedPause;
+  if (!pp || pp.at > now) return null;
+  const until = pp.at + pp.min * 60000;
+  if (until <= now || (t.pausedUntil || 0) >= until) return { plannedPause: null };
+  return { plannedPause: null, pausedUntil: until, pauseReason: pp.reason || null };
 }
 
 /** Geschätztes Turnierende: { minutes, at, groupsAt, finalAt, starts } oder null (siehe forecast). */

@@ -5,6 +5,7 @@ import { h, toast, sheet } from '../dom.js';
 import { milestones, playerRank, RANKS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed, ELITE_PTS } from '../../stats/stats.js';
 import { crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, dayStatus, missionCounts } from '../../stats/progress.js';
 import { loadStatsData, pickDefault, playerPicker, date, sec, kpi, topbar } from '../statsData.js';
+import { showMatchDetail } from '../matchDetail.js';
 
 const PTS_FILTERS = [['all', 'Alle Punkte'], ['low', 'bis 9 P.'], ['mid', '10–39 P.'], ['elite', `ab ${ELITE_PTS} P. (★ Elite)`]];
 const fmt = (n) => n.toLocaleString('de-DE');
@@ -37,13 +38,40 @@ export function render(root, params, nav) {
           !m.at && m.progress && m.progress[0] > 0 ? h('div', { class: 'ratebar thin' }, h('div', { style: { width: `${Math.round((m.progress[0] / m.progress[1]) * 100)}%` } })) : null)))));
     };
 
+    // 🏆 Trophäenschrank: alle erreichten Meilensteine (Spiele), Filter nach Kategorie, Sortierung, Tipp = Details
+    let trophyCat = 'all';
+    let trophySort = 'new'; // 'new' | 'old' | 'pts'
+    const drawTrophies = (ms, showDetail) => {
+      const got = ms.filter((m) => m.at);
+      const cats = MILESTONE_CATEGORIES.filter((c) => got.some((m) => m.cat === c.id));
+      const shown = got.filter((m) => trophyCat === 'all' || m.cat === trophyCat)
+        .sort((a, b) => (trophySort === 'pts' ? b.pts - a.pts || b.at - a.at : trophySort === 'old' ? a.at - b.at : b.at - a.at));
+      const elite = got.filter((m) => m.elite).length;
+      body.appendChild(h('div', { class: 'card mshero', style: '--rc: #f5c542' },
+        h('div', { class: 'kpis' }, kpi(`${got.length} / ${ms.filter((m) => !m.secret || m.at).length}`, 'Trophäen'), kpi(elite, '★ Elite'), kpi(fmt(got.reduce((a, m) => a + m.pts, 0)), 'Punkte'))));
+      if (!got.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Trophäe – die erste gibt es oft schon beim ersten Spiel.')); return; }
+      body.appendChild(h('div', { class: 'chips trophycats' },
+        h('button', { class: `chip ${trophyCat === 'all' ? 'on' : ''}`, onclick: () => { trophyCat = 'all'; draw(); } }, `Alle (${got.length})`),
+        cats.map((c) => h('button', { class: `chip ${trophyCat === c.id ? 'on' : ''}`, onclick: () => { trophyCat = c.id; draw(); } }, `${c.icon} ${c.title} (${got.filter((m) => m.cat === c.id).length})`))));
+      body.appendChild(h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['new', 'Neueste'], ['old', 'Älteste'], ['pts', 'Meiste Punkte']].map(([k, l]) => h('button', {
+        class: trophySort === k ? 'on' : '', onclick: () => { trophySort = k; draw(); },
+      }, l))));
+      body.appendChild(h('div', { class: 'trophies' }, shown.map((m) => h('button', { class: `trophy ${m.elite ? 'elite' : ''}`, onclick: () => showDetail(m) },
+        h('div', { class: 'ticon' }, m.icon),
+        h('b', {}, m.title),
+        h('span', { class: 'dim small' }, `${date(m.at)} · ${m.pts} P.`)))));
+      body.appendChild(h('p', { class: 'dim small' }, 'Antippen zeigt, wann und in welchem Spiel die Trophäe erreicht wurde. ⭐ In die Vitrine legen: erscheint neben deinem Namen.'));
+    };
+
     const draw = () => {
       body.replaceChildren(topbar('Meilensteine', nav));
       if (!ids.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Spiele gespeichert.')); return; }
       body.appendChild(playerPicker(ids, names, player, (v) => { player = v; draw(); }));
       // Spiele (zählen für Rang und Saison) oder Training (eigene Ansicht, zählt nicht für den Rang)
-      body.appendChild(h('div', { class: 'seg two' },
+      // 🏆 Trophäen: nur die erreichten Meilensteine als Schrank (je Kategorie, neueste zuerst)
+      body.appendChild(h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } },
         h('button', { class: scope === 'games' ? 'on' : '', onclick: () => { scope = 'games'; draw(); } }, '🎯 Spiele'),
+        h('button', { class: scope === 'trophies' ? 'on' : '', onclick: () => { scope = 'trophies'; draw(); } }, '🏆 Trophäen'),
         h('button', { class: scope === 'training' ? 'on' : '', onclick: () => { scope = 'training'; draw(); } }, '🏋️ Training')));
       if (scope === 'training') { drawTraining(); return; }
       const ms = milestones(usable, realMatches, player);
@@ -69,6 +97,17 @@ export function render(root, params, nav) {
         return det;
       };
 
+      // Wie erreicht: das Spiel, mit dem der Meilenstein fällig wurde (Zeitpunkt = Beginn dieses Spiels) – antippen öffnet es
+      const achievedIn = (m) => {
+        const mm = finished.find((x) => x.createdAt === m.at && x.players.includes(player));
+        if (!mm) return null;
+        const i = mm.players.indexOf(player);
+        const opp = mm.playerNames.filter((_, k) => k !== i);
+        const won = mm.winner != null ? (mm.winner === i ? 'gewonnen' : 'verloren') : '';
+        return h('button', { class: 'btn ghost msmatch', onclick: () => showMatchDetail(mm) },
+          `🎯 ${opp.length ? `Im Spiel gegen ${opp.join(', ')}` : 'Im Training'}${won ? ` (${won})` : ''} – Spiel ansehen ›`);
+      };
+
       // ---------- Detailansicht eines Meilensteins ----------
       const showDetail = (m) => {
         const hidden = m.secret && !m.at;
@@ -83,7 +122,7 @@ export function render(root, params, nav) {
             h('span', { class: 'pill' }, `${cat ? cat.icon : ''} ${cat ? cat.title : ''}`),
             h('span', { class: `pill ${m.elite ? 'gold' : ''}` }, `${m.pts} Punkte${m.elite ? ' · Elite' : ''}`)),
           m.at
-            ? h('div', { class: 'msdstate done' }, `✅ Erreicht am ${date(m.at)}`)
+            ? [h('div', { class: 'msdstate done' }, `✅ Erreicht am ${date(m.at)}`), achievedIn(m)]
             : hidden ? h('div', { class: 'msdstate dim' }, 'Was hier steckt, verrät sich erst, wenn es passiert.')
               : m.progress
                 ? h('div', { class: 'stack', style: { gap: '6px' } },
@@ -108,6 +147,8 @@ export function render(root, params, nav) {
           h('button', { class: 'btn ghost', onclick: () => s.close() }, 'Schließen'));
         s = sheet(content);
       };
+
+      if (scope === 'trophies') { drawTrophies(ms, showDetail); return; }
 
       // ---------- 1) Kopf: Rang, Fortschritt, Kennzahlen, Serien, Vitrine ----------
       const vitrine = getShowcase(player).map((id) => ms.find((m) => m.id === id)).filter((m) => m && m.at);

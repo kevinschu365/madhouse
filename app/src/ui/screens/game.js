@@ -1,13 +1,14 @@
 // Spielbildschirm: großer Spielstand, aktuelle Aufnahme, Eingabe/Korrektur, Kamera.
 import { h, banner, toast, sheet, confirmDialog } from '../dom.js';
-import { createMatch, throwRows } from '../../game/match.js';
+import { createMatch, throwRows, derive } from '../../game/match.js';
 import { GameSession } from '../../game/session.js';
 import { hitLabel, allHits, dartScore } from '../../core/board.js';
 import { checkoutPath, checkoutPaths, turnPlan } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings, isGuestId } from '../../core/settings.js';
-import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
+import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf, dartText } from '../../audio/speech.js';
+import { shareCard } from '../shareCard.js';
 import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS, RANKS } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
@@ -17,6 +18,9 @@ import { showMatchDetail } from '../matchDetail.js';
 import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
 import { milestoneToast, rankUpScreen } from '../celebrate.js';
 import { startHeartbeat, leaveBoard, liveState, isKicked, deviceId } from '../../core/live.js';
+
+/** Checkout-Kürzel („T20“, „D10“, „BULL“, „13“) als Ansagetext. */
+const dartWord = (x) => (x === 'BULL' ? dartText({ segment: 25, multiplier: 2 }) : dartText({ segment: +x.replace(/^[TD]/, ''), multiplier: x[0] === 'T' ? 3 : x[0] === 'D' ? 2 : 1 }));
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -123,6 +127,14 @@ export function render(root, params, nav) {
     say(speechText().next(name), { interrupt: true });
   }
   // Hochformat: Kamera oben, Eingabe darunter, Knöpfe unten. Querformat: Knöpfe links unter dem Spielstand.
+  // Ruhe-Modus oben rechts: alle Ansagen mit einem Tipp aus und wieder an
+  const quietBtn = h('button', { class: 'iconbtn', 'aria-label': 'Ansagen an/aus', onclick: () => {
+    const q = !getSettings().quiet;
+    updateSettings({ quiet: q });
+    if (q && window.speechSynthesis) window.speechSynthesis.cancel();
+    quietBtn.textContent = q ? '🔇' : '🔊';
+    toast(q ? '🔇 Ruhe – keine Ansagen' : '🔊 Ansagen wieder an', 1500);
+  } }, getSettings().quiet ? '🔇' : '🔊');
   const landscape = window.matchMedia('(orientation: landscape) and (min-width: 640px)');
   const left = h('div', { class: 'left' },
     h('div', { class: training ? 'players solo' : playerCount > 2 ? `players many n${playerCount}` : 'players' }, panels.map((p) => p.el)),
@@ -138,7 +150,7 @@ export function render(root, params, nav) {
     h('div', { class: 'bar' },
       h('button', { class: 'iconbtn', onclick: openMenu, 'aria-label': 'Menü' }, '☰'),
       infoEl,
-      h('div', { class: 'iconbtn spacer-btn', 'aria-hidden': 'true' }),
+      quietBtn,
     ),
     left, right,
   );
@@ -409,6 +421,7 @@ export function render(root, params, nav) {
     // Summen-Eingabe: Zwischenstand eintippen (z. B. 54 nach T18 bei 141) -> Weg für den neuen Rest
     const part = typedPartial(ev.startRemaining);
     if (part) ({ rest, dartsLeft } = part);
+    if (getSettings().checkoutHint === false && st.mode.id === 'x01') { setHint(''); return; } // ☰ › Checkout-Weg anzeigen: aus
     const x01 = !st.finished && !ev.bust && m.options.doubleOut && dartsLeft > 0 && st.mode.id === 'x01';
     const paths = x01 ? checkoutPaths(rest, dartsLeft, 3) : [];
     // Kein Finish möglich, aber in Reichweite: Stellwurf-Plan, der keinen Bogey (169, 159 …) übrig lässt
@@ -563,8 +576,11 @@ export function render(root, params, nav) {
     const st = session.state;
     if (st.finished || st.mode.id !== 'x01' || !session.match.options.doubleOut || !getSettings().announceRequire) return;
     const rest = st.scores[st.current];
-    if (!checkoutPath(rest, 3)) return;
-    const text = speechText().youRequire(rest);
+    const path = checkoutPath(rest, 3);
+    if (!path) return;
+    let text = speechText().youRequire(rest);
+    // ☰ › Checkout-Weg ansagen: „Rest 80 – Triple 20, Doppel 10“
+    if (getSettings().announceCheckout) text += ` – ${path.map((x) => dartWord(x)).join(', ')}`;
     announceUpNext(getSettings().announceRequireName !== false ? `${session.match.playerNames[st.current]}, ${text}` : text);
   }
 
@@ -669,7 +685,7 @@ export function render(root, params, nav) {
       // Turnier: zurück zum Turnierbaum statt Revanche
       m.tournament ? h('button', {
         class: 'btn primary',
-        onclick: () => { s.close(); nav.go(m.liveBoard ? 'board' : 'tournament', { id: m.tournament.id, celebrate: true }); },
+        onclick: () => { s.close(); nav.go(m.liveBoard ? 'board' : 'tournament', { id: m.tournament.id, celebrate: true, doneGame: m.tournament.game }); },
       }, m.liveBoard ? `🎯 Nächstes Spiel auch an Board ${m.liveBoard}` : '🏆 Zurück zum Turnier') : null,
       // Live-Turnier: Handy abmelden, damit ein anderes Handy dieses Board übernehmen kann (PC zeigt sofort den QR-Code)
       m.tournament && m.liveBoard ? h('button', {
@@ -760,7 +776,7 @@ export function render(root, params, nav) {
 
   // ---------- Feier-Momente: neue Meilensteine schon während des Spiels ----------
   // Beim Start wird gemerkt, was jeder schon hat; nach jeder Aufnahme wird neu gerechnet.
-  const live = { ready: false, rows: [], matches: [], reached: {}, rank: {}, shownRank: new Set(), timer: null };
+  const live = { ready: false, rows: [], matches: [], reached: {}, rank: {}, shownRank: new Set(), timer: null, best: {} };
   if (!session.match.players.some(isBotId)) {
     Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
       const real = matches.filter((x) => x.id !== session.match.id && x.status === 'finished' && !x.players.some(isBotId));
@@ -774,6 +790,9 @@ export function render(root, params, nav) {
         const ms = milestones(live.rows, real, pid);
         live.reached[pid] = new Set(ms.filter((x) => x.at).map((x) => x.id));
         live.rank[pid] = playerRank(ms).index;
+        // Bisherige Bestwerte (X01): höchste Aufnahme und höchstes Finish – für „Neuer Bestwert!“ im Spiel
+        const ps = playerStats(live.rows.filter((r) => r.playerId === pid));
+        live.best[pid] = { turn: ps.highest || 0, finish: ps.highestCheckout || 0, has: ps.darts > 0 };
       }
       live.ready = true;
       draw();
@@ -788,6 +807,22 @@ export function render(root, params, nav) {
       const all = [...live.matches, m];
       m.players.forEach((pid, i) => {
         if (isGuestId(pid) || !live.reached[pid]) return; // Gäste: keine Meilensteine
+        // Neuer persönlicher Bestwert schon im Spiel (nur wer schon Spiele hat, sonst wäre alles „neu“)
+        const b = live.best[pid];
+        if (b && b.has && m.mode === 'x01') {
+          const now = playerStats(throwRows(m).filter((r) => r.playerId === pid));
+          const who = m.players.length > 1 ? `${m.playerNames[i]}: ` : '';
+          if (now.highestCheckout > b.finish) {
+            b.finish = now.highestCheckout;
+            b.turn = Math.max(b.turn, now.highest); // nur ein Hinweis je Aufnahme
+            toast(`🏆 ${who}Neues höchstes Finish – ${b.finish}!`, 3500);
+            if (getSettings().quips !== false) say(`Neuer Bestwert! Höchstes Finish, ${b.finish}.`);
+          } else if (now.highest > b.turn) {
+            b.turn = now.highest;
+            toast(`🔥 ${who}Neue höchste Aufnahme – ${b.turn}!`, 3500);
+            if (getSettings().quips !== false) say(`Neuer Bestwert! ${b.turn}.`);
+          }
+        }
         const ms = milestones(rows, all, pid);
         const got = live.reached[pid];
         const fresh = ms.filter((x) => x.at && !got.has(x.id));
@@ -844,31 +879,79 @@ export function render(root, params, nav) {
     }).catch(() => { recordEl.textContent = ''; });
   }
 
+  /**
+   * ☰ Menü: Schalter bleiben offen (wirken sofort), Ansage per Auswahlliste mit Lautstärke und Tempo,
+   * Eingabe wechseln, Statistik und Zwischenstand, Aufnahmen zurücknehmen.
+   */
   function openMenu() {
-    const st = getSettings();
-    const s = sheet(h('div', { class: 'stack' },
-      h('h2', {}, 'Menü'),
-      h('button', { class: 'btn', onclick: () => { updateSettings({ announceDart: !st.announceDart }); s.close(); } }, `Dart-Ansage: ${st.announceDart ? 'an' : 'aus'}`),
-      h('button', { class: 'btn', onclick: () => { updateSettings({ announceTurn: !st.announceTurn }); s.close(); } }, `Summen-Ansage: ${st.announceTurn ? 'an' : 'aus'}`),
-      h('button', {
-        class: 'btn',
-        onclick: (e) => {
-          // Nächster Dialekt derselben Gruppe (Deutsch / mit Akzent / Englisch)
-          const curKey = getSettings().speechLang;
-          const cur = SPEECH_LANGS.find(([k]) => k === curKey) || SPEECH_LANGS[0];
-          const same = SPEECH_LANGS.filter(([, , g]) => g === cur[2]);
-          const [k, label] = same[(same.findIndex(([kk]) => kk === cur[0]) + 1) % same.length];
-          // Stimme nur behalten, wenn die Stimmen-Sprache gleich bleibt
-          updateSettings({ speechLang: k, ...(voiceLangOf(k) === voiceLangOf(cur[0]) ? {} : { voiceURI: null }) });
-          e.target.textContent = `Ansage: ${label} ›`;
-          window.speechSynthesis && window.speechSynthesis.cancel();
-          say(speechText().test);
-        },
-      }, `Ansage: ${(SPEECH_LANGS.find(([k]) => k === st.speechLang) || [0, 'Deutsch'])[1]} ›`),
-      useCamera ? h('button', { class: 'btn', onclick: () => { s.close(); cam && cam.recalibrate(); } }, 'Neu kalibrieren') : null,
-      useCamera ? h('button', { class: 'btn', onclick: () => { s.close(); askManualInput(); } }, 'Kamera aus – Handeingabe') : null,
-      useCamera ? h('button', { class: 'btn', onclick: () => { updateSettings({ autoAdvance: !st.autoAdvance }); s.close(); } }, `Automatisch weiter: ${st.autoAdvance ? 'an' : 'aus'}`) : null,
-      h('button', { class: 'btn', onclick: () => { s.close(); nav.go('home'); } }, 'Pause (Startseite)'),
+    const box = h('div', { class: 'stack gamemenu' });
+    const x01 = session.state.mode.id === 'x01';
+    const toggle = (key, label, note, extra = {}) => {
+      const on = getSettings()[key] !== false && !!(getSettings()[key] ?? true);
+      return h('div', { class: 'list-item' },
+        h('span', { class: 'name' }, label, note ? h('div', { class: 'dim', style: { fontSize: '13px' } }, note) : null),
+        h('button', { class: `chip ${on ? 'on' : ''}`, onclick: () => { updateSettings({ [key]: !on, ...(on ? {} : extra) }); fill(); draw(); } }, on ? 'An' : 'Aus'));
+    };
+    const fill = () => {
+      const st = getSettings();
+      // Eingabe: Pro Dart / Scheibe / Summe (Summe nur bei X01); mit Kamera: Kamera aus – Handeingabe
+      const inputs = [['dart', '🎯 Pro Dart'], ['board', '⭕ Scheibe'], ...(supportsTotal ? [['total', '🔢 Summe']] : [])];
+      const turns = derive(session.match).legs.flatMap((l) => l.turns).slice(-6).reverse();
+      box.replaceChildren(
+        h('h2', {}, 'Menü'),
+        h('div', { class: 'menusec' }, '🔊 Ansage'),
+        toggle('quiet', 'Ruhe-Modus', 'Gar nichts ansagen (auch 🔇 oben rechts)'),
+        h('label', { class: 'field' }, h('span', {}, 'Stimme / Sprache'),
+          h('select', {
+            onchange: (e) => {
+              const k = e.target.value;
+              const cur = SPEECH_LANGS.find(([kk]) => kk === getSettings().speechLang) || SPEECH_LANGS[0];
+              // Stimme nur behalten, wenn die Stimmen-Sprache gleich bleibt
+              updateSettings({ speechLang: k, ...(voiceLangOf(k) === voiceLangOf(cur[0]) ? {} : { voiceURI: null }) });
+              window.speechSynthesis && window.speechSynthesis.cancel();
+              say(speechText().test);
+            },
+          }, [...new Set(SPEECH_LANGS.map(([, , g]) => g))].map((g) => h('optgroup', { label: g || 'Weitere' },
+            SPEECH_LANGS.filter(([, , gg]) => gg === g).map(([k, label]) => h('option', { value: k, selected: k === st.speechLang }, label)))))),
+        h('div', { class: 'list-item' }, h('span', { class: 'name' }, 'Lautstärke'),
+          h('input', { type: 'range', min: 0.1, max: 1, step: 0.1, value: st.speechVolume ?? 1, style: { maxWidth: '180px' }, onchange: (e) => { updateSettings({ speechVolume: +e.target.value }); say(speechText().test, { interrupt: true }); } })),
+        h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [[0.85, '🐢 Langsam'], [1, 'Normal'], [1.2, '🐇 Schnell']].map(([v, label]) => h('button', {
+          class: (st.speechRate || 1) === v ? 'on' : '', onclick: () => { updateSettings({ speechRate: v }); say(speechText().test, { interrupt: true }); fill(); },
+        }, label))),
+        toggle('announceDart', 'Jeden Dart ansagen', '„Triple 20“'),
+        toggle('announceTurn', 'Summe ansagen', '„180“'),
+        x01 ? toggle('announceRest', 'Rest ansagen', '„Rest 141“') : null,
+        x01 ? toggle('announceRequire', 'Rest vor dem Wurf ansagen', 'Nur wenn auscheckbar: „Rest 80“') : null,
+        toggle('quips', 'Witzige Sprüche', 'Bei 180, Überwerfen, 0 Punkten, Game shot'),
+        toggle('taunts', 'Sticheleien bei Formtief'),
+        x01 ? h('div', { class: 'menusec' }, '🎯 Checkout') : null,
+        x01 ? toggle('checkoutHint', 'Checkout-Weg anzeigen', 'z. B. T20 T19 D12 unter der Aufnahme') : null,
+        x01 ? toggle('announceCheckout', 'Checkout-Weg ansagen', '„Rest 80 – Triple 20, Doppel 10“ (schaltet „Rest vor dem Wurf“ mit ein)', { announceRequire: true }) : null,
+        h('div', { class: 'menusec' }, '⌨️ Eingabe'),
+        useCamera
+          ? h('button', { class: 'btn', onclick: () => { s.close(); askManualInput(); } }, '📷 Kamera aus – Handeingabe')
+          : h('div', { class: 'seg', style: { gridTemplateColumns: `repeat(${inputs.length}, 1fr)` } }, inputs.map(([k, label]) => h('button', {
+            class: inputMode === k ? 'on' : '', onclick: () => { if (k !== inputMode) { switchToManual(k); toast(`Eingabe: ${label}`, 1200); } fill(); },
+          }, label))),
+        useCamera ? h('button', { class: 'btn', onclick: () => { s.close(); cam && cam.recalibrate(); } }, 'Neu kalibrieren') : null,
+        useCamera ? toggle('autoAdvance', 'Automatisch weiter, wenn Board leer') : null,
+        h('div', { class: 'menusec' }, '📊 Spiel'),
+        training ? null : h('div', { class: 'grid2' },
+          h('button', { class: 'btn', onclick: () => liveStatsSheet() }, '📊 Statistik'),
+          h('button', { class: 'btn', onclick: () => shareSnapshot() }, '📤 Stand teilen')),
+        turns.length ? h('div', { class: 'small dim' }, '↶ Zurück bis zu einer Aufnahme (danach neu eintragen):') : null,
+        turns.length ? h('div', { class: 'turnlist' }, turns.map((tr) => h('button', {
+          class: 'chip',
+          onclick: async () => {
+            const n = session.match.turns.length - tr.index;
+            if (!(await confirmDialog('Zurücknehmen?', `${n} Aufnahme${n > 1 ? 'n' : ''} werden zurückgenommen – bis einschließlich ${session.match.playerNames[tr.player]} (${turnShort(tr)}).`, { ok: 'Zurücknehmen' }))) return;
+            clearTimeout(botTimer);
+            selected = null;
+            for (let i = 0; i < n; i++) session.undoTurn();
+            s.close();
+          },
+        }, `${session.match.playerNames[tr.player]}: ${turnShort(tr)}`))) : null,
+        h('button', { class: 'btn', onclick: () => { s.close(); nav.go('home'); } }, 'Pause (Startseite)'),
       h('button', {
         class: 'btn danger',
         onclick: async () => {
@@ -878,8 +961,58 @@ export function render(root, params, nav) {
             nav.go('home');
           }
         },
-      }, 'Spiel abbrechen'),
-    ));
+      }, 'Spiel abbrechen'));
+      quietBtn.textContent = st.quiet ? '🔇' : '🔊';
+    };
+    fill();
+    const s = sheet(box);
+  }
+
+  /** Kurztext einer Aufnahme für die Liste im Menü: „60“, „Bust“, „Check 40“. */
+  function turnShort(tr) {
+    const ev = tr.ev || {};
+    if (ev.bust) return 'Überworfen';
+    if (ev.finished) return `Check ${ev.points ?? ''}`.trim();
+    return ev.points != null ? String(ev.points) : tr.darts.map(hitLabel).join(' ');
+  }
+
+  /** 📊 im Menü: Statistik dieses Spiels je Spieler (X01: Average, Leg-Average, First 9, Höchste, 180er, Doppelquote). */
+  function liveStatsSheet() {
+    const m = session.match;
+    const rows = throwRows(m);
+    const legNo = session.state.legOverall;
+    const pct = (v) => `${Math.round(v * 100)} %`;
+    const lines = m.players.map((pid, i) => {
+      const own = rows.filter((r) => r.playerId === pid);
+      if (cricket) { const c = cricketStats(own); return [m.playerNames[i], [['MPR', c.turns ? c.mpr.toFixed(2) : '–'], ['Aufnahmen', c.turns]]]; }
+      const a = playerStats(own);
+      const l = playerStats(own.filter((r) => r.legOverall === legNo));
+      return [m.playerNames[i], [['Ø Spiel', a.darts ? a.average.toFixed(1) : '–'], ['Ø dieses Leg', l.darts ? l.average.toFixed(1) : '–'], ['First 9', a.first9 ? a.first9.toFixed(1) : '–'],
+        ['Höchste', a.highest || '–'], ['180 / 140+ / 100+', `${a.c180} / ${a.c140} / ${a.c100}`], ['Doppelquote', a.checkoutAttempts ? `${pct(a.checkoutRate)} (${a.checkouts}/${a.checkoutAttempts})` : '–'],
+        ['Höchstes Finish', a.highestCheckout || '–'], ['Darts', a.darts]]];
+    });
+    const sh = sheet(h('div', { class: 'stack' },
+      h('h2', {}, '📊 Dieses Spiel'),
+      h('div', { class: 'livestats', style: { gridTemplateColumns: `auto repeat(${m.players.length}, 1fr)` } },
+        h('span', {}), lines.map(([n]) => h('b', { class: 'lsname' }, n)),
+        lines[0][1].map(([label], r) => [h('span', { class: 'dim' }, label), lines.map(([, vals]) => h('span', { class: 'num' }, String(vals[r][1])))])),
+      h('div', { class: 'small dim' }, 'Nur abgeschlossene Aufnahmen.'),
+      h('button', { class: 'btn primary', onclick: () => sh.close() }, 'Zurück zum Spiel')));
+  }
+
+  /** 📤 im Menü: Zwischenstand als Bild teilen (Stand, Legs/Sets, Average). */
+  function shareSnapshot() {
+    const m = session.match;
+    const st = session.state;
+    const sets = m.format.setsBestOf > 1;
+    const rows = throwRows(m);
+    shareCard(m.playerNames.join(' vs. '), `Zwischenstand · ${st.mode.describe(m.options)} · Leg ${st.legInSet}`, [{
+      title: sets ? `Sets ${st.setsWon.join(' : ')} · Legs ${st.legsWon.join(' : ')}` : `Legs ${st.legsWon.join(' : ')}`,
+      lines: m.players.map((pid, i) => {
+        const a = playerStats(rows.filter((r) => r.playerId === pid));
+        return `${m.playerNames[i]}: ${st.mode.id === 'x01' ? `Rest ${st.scores[i]}` : ''}${a.darts ? ` · Ø ${a.average.toFixed(1)}` : ''}`;
+      }),
+    }], 'madhouse-zwischenstand.png').catch((e) => toast(e.message));
   }
 
   // ---------- Kamera (Stufe 3) ----------

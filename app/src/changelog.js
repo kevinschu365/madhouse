@@ -8,6 +8,107 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.42.0',
+    date: '03.11.2026',
+    items: [
+      'Turnierleitung: 📊 Statistik – wie lange die Spiele dauern: gesamt, je Phase (Gruppe, K.-o., Halbfinale, Finale) und je Board, Spiele pro Stunde, Zeit vom Aufruf bis zum Start, längste Spiele',
+      'Turnierleitung: 🔍 Spieler suchen – Namen tippen, sofort sehen, wo er gerade spielt, schreibt oder wann er dran ist; Tipp öffnet sein Profil',
+      'Fokus/Fernseher: Auf Gruppen, K.-o. und Ergebnissen steht die Pause jetzt als freistehende Box oben rechts (wie der QR-Code unten rechts) statt als Balken über die ganze Breite',
+      'Rekorde: 🎯 Fast geschafft – deine Werte knapp neben dem Treppchen, mit Abstand zu 🥉',
+      'Rekorde: 📈 Rekord-Verlauf – wann ein Bestwert gebrochen wurde („120 → 136 → 161“), auch in der Bestenliste',
+      'Rekorde: 🤝 Bestwerte je Gegner – Spiele, bester Average, höchstes Finish und höchste Aufnahme gegen jeden',
+      'Rekorde: Zeitraum „🏆 Nur Turniere“ – Turnier-Bestwerte getrennt',
+      'Helles Fernseher-Schema farbiger: laufende Spiele grün, aufgerufene orange, verspätete rot, freie Boards grau, Pause gelb',
+      'Einstellungen › Ansage: Lautstärke, Checkout-Weg anzeigen/ansagen und Ruhe-Modus jetzt auch hier (bisher nur im Spiel unter ☰); Turnier & Live: die neuen Pausen-Schalter',
+    ],
+  },
+  {
+    version: '1.41.0',
+    date: '03.11.2026',
+    items: [
+      'Anleitung: Inhaltsverzeichnis zum Antippen mit Unterpunkten – springt direkt zum Abschnitt, „↑ Inhalt“ führt zurück',
+      'Anleitung: neue Kapitel Turnier anlegen, Turnierleitung, Pausen & Ablauf, Board-Handy & Fernseher, Rekorde & Trophäen; Startseite, Menü und Ansage auf dem neuesten Stand',
+      'Turnierleitung: „Nächster Aufruf“ sagt jetzt „wartet auf Handy“, wenn ein Board frei ist, dort aber kein Handy angemeldet ist (statt „jetzt“), und „nach der Pause …“ vor einer geplanten Pause',
+      'Turnierleitung: Kacheln wahlweise oben in der Leiste oder groß als eigene Karten darunter (⚙️ › Ansicht)',
+      'Meilensteine › 🏆 Trophäen: alle erreichten auf einen Blick – nach Kategorie filtern, nach Datum oder Punkten sortieren',
+      'Meilenstein-Details: „🎯 Im Spiel gegen …“ zeigt, in welchem Spiel er erreicht wurde – antippen öffnet das Spiel',
+    ],
+  },
+  {
+    version: '1.40.0',
+    date: '03.11.2026',
+    items: [
+      'Vor einer geplanten Pause wird nichts mehr aufgerufen, was nicht mehr davor fertig würde (⚙️ › Ablauf, abschaltbar)',
+      'Turnier anlegen: 🗓️ feste Pause gleich mit festlegen – Uhrzeit, Dauer und Grund (unter „⚙️ Legs je Runde & Zeit“)',
+      'Pausenende: 1 Min. vorher „… Als Erstes: Anna gegen Ben“, danach „Die Pause ist vorbei. Es geht weiter!“ (⚙️ › Ablauf, abschaltbar)',
+      'Turnierleitung: Kacheln oben einzeln ein-/ausblenden – Spiele, Boards, Nächster Aufruf, Pause geplant, Läuft, Gruppen, Finale, Ende (⚙️ › Ansicht)',
+      'Fokus-Einstellungen (Zeiten oben, Farben) stehen jetzt unter 🖥️ Fernseher › „Fokus auf diesem Laptop“',
+      'Board-Handy: in der Pause großer Countdown und die ersten Spiele danach; eine geplante Pause wird vorher angezeigt',
+    ],
+  },
+  {
+    version: '1.39.0',
+    date: '03.11.2026',
+    items: [
+      'Turnierleitung: 🗓️ Pause für später planen – im ☕-Fenster „in 10–90 Min.“ oder „um Uhrzeit“, dazu Dauer und Grund; jederzeit ändern, vorziehen oder streichen',
+      'Die geplante Pause beginnt von selbst zur Uhrzeit (laufende Spiele werden zu Ende gespielt), 5 Minuten vorher kommt eine Ansage',
+      'Fokus und Fernseher zeigen sie vorher auf allen Seiten: „🗓️ Essenspause um 12:49 Uhr · bis 13:19“ mit Countdown',
+      'Turnierleitung: Kachel „☕ Pause geplant 12:49–13:19“ oben, der ☕-Knopf zeigt „um 12:49“; Zeitplan, „Als Nächstes“ und Turnierende rechnen die Pause schon ein',
+      'Turnierleitung: Gruppentabellen rechts nutzen die ganze Breite (vorher brachen die Namen um)',
+      'Turnierleitung: „wirft jetzt“ rutscht in schmalen Board-Kacheln unter den Namen, statt ihn abzuschneiden',
+    ],
+  },
+  {
+    version: '1.38.0',
+    date: '03.11.2026',
+    items: [
+      'Fernseher/Fokus: Die Pause mit Countdown steht jetzt auch über Gruppen, K.-o. und Ergebnissen – beim Durchwechseln immer zu sehen',
+      'Spiel › ☰ Menü neu: Schalter bleiben offen (Dart, Summe, Rest, Rest vor dem Wurf, Sprüche, Sticheleien), Stimme/Sprache als Auswahlliste, Lautstärke und Tempo',
+      'Spiel: Eingabe jederzeit wechseln – Pro Dart, Scheibe oder Summe (☰ › Eingabe)',
+      'Spiel: 🔊/🔇 oben rechts – Ruhe-Modus mit einem Tipp (die Turnierleitung sagt trotzdem an)',
+      'Spiel: Checkout-Weg ein-/ausblenden und auf Wunsch ansagen („Rest 80 – Triple 20, Doppel 10“)',
+      'Spiel: ☰ › 📊 Statistik dieses Spiels (Average, Leg-Average, First 9, 180er, Doppelquote …) und 📤 Zwischenstand als Bild teilen',
+      'Spiel: ☰ › Zurück bis zu einer Aufnahme – die letzten 6 Aufnahmen zum Antippen',
+      'Spiel: „🔥 Neue höchste Aufnahme“ bzw. „🏆 Neues höchstes Finish“ sofort im Spiel, nicht erst am Ende',
+      'Neues Spiel: ⭐ Favoriten – Einstellungen mit Spielern speichern und mit einem Tipp übernehmen',
+      'Training: 🎯 Tagesziel (60–480 Darts) mit Balken',
+      'Board-Handy: nach dem Spiel „✅ Ergebnis ist bei der Turnierleitung“ und wer als Nächstes dran ist',
+      'Board-Handy: 🙋 Turnierleitung rufen – am PC rot oben mit Ansage, „✅ Bin unterwegs“ meldet es dem Handy zurück',
+      'Statistik: neuer Reiter ⚖️ Vergleich – zwei Spieler nebeneinander (besserer Wert grün) und direkte Bilanz',
+    ],
+  },
+  {
+    version: '1.37.0',
+    date: '03.11.2026',
+    items: [
+      'Turnierleitung oben: neue Kacheln „🎯 Spiele 7 / 15“ mit Balken, „🎯 Boards“ (● spielen · ● aufgerufen · ○ frei) und „📣 Nächster Aufruf“',
+      'Neue Knöpfe in der Leiste: ☕ Pause (zeigt während der Pause die Restzeit) und 🔊 Ton an/aus – z. B. während einer Rede',
+      '⚙️ › Ton: eigene Lautstärke, eigenes Tempo und eigene Stimme für die Ansagen der Turnierleitung',
+      '⚙️ › Ablauf: „Board kurz frei lassen“ – nach Spielende 1–3 Min. nichts Neues an dieses Board',
+      'Fernseher und Fokus: helles Farbschema ☀️ für helle Räume oder Beamer (🖥️ › Fernseher steuern bzw. ⚙️ › Ansicht)',
+      'Fernseher und Fokus: Vereinsname und Logo links neben dem Turniernamen (🖥️ › Fernseher steuern › Verein oben)',
+    ],
+  },
+  {
+    version: '1.36.0',
+    date: '03.11.2026',
+    items: [
+      'Zeiten oben einzeln wählen: kleine Punkte für ⏱ Läuft, 👥 Gruppen fertig, 🏆 Finale und 🏁 Ende – antippen blendet nur diese Zeit ein oder aus (🖥️ › Fernseher steuern und ⚙️ › Ansicht)',
+      'Turnierleitung: Die Knöpfe oben sind beschriftet – Boards, Fokus, Steuern, Protokoll, Fernseher, Ansicht',
+      'Auf dem Handy stehen diese Knöpfe ordentlich in drei Spalten',
+    ],
+  },
+  {
+    version: '1.35.0',
+    date: '03.11.2026',
+    items: [
+      'Behoben: Rekorde sahen leer aus – die Treppchen waren seit der Siegerehrung riesig auseinandergezogen. Jetzt wieder kompakt, es fehlte nichts',
+      'Fokus und Fernseher: Zeiten oben (Läuft, Gruppen fertig, Finale, Ende) mit einem Klick an/aus – fürs Fernseher-Fenster unter 🖥️ › Fernseher steuern, für den Fokus unter ⚙️ › Ansicht',
+      'Fokus und Fernseher: Die Kopfleiste steht mittig statt in den Ecken',
+      'Handy erkannt: Wird die Turnierleitung oder der Fernseher-Link auf dem Handy geöffnet, kommt alles untereinander, mit ‹ Zurück – am Fernseher-Link zusätzlich „👀 Zuschauer-Ansicht“. Am PC bleibt alles wie bisher',
+    ],
+  },
+  {
     version: '1.34.0',
     date: '03.11.2026',
     items: [

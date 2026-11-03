@@ -86,6 +86,12 @@ export function render(root, params, nav) {
         toggle('announceRest', 'Rest ansagen', '„Rest 141“'),
         toggle('announceRequire', 'Rest vor dem Wurf ansagen', 'Nur wenn auscheckbar: „Rest 80“'),
         s.announceRequire ? toggle('announceRequireName', 'Dabei den Namen sagen', '„Kevin, Rest 80“ statt nur „Rest 80“') : null,
+        // auch im Spiel unter ☰ (seit 1.38.0) – hier zum Voreinstellen
+        toggle('checkoutHint', 'Checkout-Weg anzeigen', 'z. B. T20 T19 D12 unter der Aufnahme'),
+        toggle('announceCheckout', 'Checkout-Weg ansagen', '„Rest 80 – Triple 20, Doppel 10“ (braucht „Rest vor dem Wurf“)'),
+        toggle('quiet', 'Ruhe-Modus', 'Im Spiel gar nichts ansagen (auch 🔇 oben rechts im Spiel)'),
+        h('label', { class: 'field' }, h('span', {}, `Lautstärke: ${Math.round((s.speechVolume ?? 1) * 100)} %`),
+          h('input', { type: 'range', min: '0.1', max: '1', step: '0.1', value: String(s.speechVolume ?? 1), onchange: (e) => { updateSettings({ speechVolume: parseFloat(e.target.value) }); unlock(); say(t().test); draw(); } })),
         h('label', { class: 'field' }, h('span', {}, `Stimme (${voices.length} auf diesem Gerät gefunden)`),
           (() => {
             const sel = h('select', { onchange: (e) => updateSettings({ voiceURI: e.target.value || null }) },
@@ -156,6 +162,9 @@ export function render(root, params, nav) {
         toggle('tourOnlyConnected', 'Nur Boards mit verbundenem Handy aufrufen', 'Spiele gehen nur an Boards, an denen gerade ein Handy angemeldet ist'),
         toggle('tourSchedule', 'Zeitplan anzeigen', 'Geschätztes Turnierende aus der bisherigen Spieldauer'),
         toggle('tourDelayWarn', 'Warnung bei Verzögerung', 'Aufgerufenes Spiel nach 5 Minuten noch nicht begonnen: gelb markieren und nochmal ansagen'),
+        toggle('tourBeforePause', 'Vor einer geplanten Pause nichts Langes mehr aufrufen', 'Nur Spiele, die nach üblicher Dauer noch vor der Pause fertig werden'),
+        toggle('tourPauseEndCalls', 'Pausenende mit den ersten Spielen ansagen', '1 Min. vorher „… Als Erstes: Anna gegen Ben“, danach „Es geht weiter!“'),
+        h('p', { class: 'dim', style: { margin: '6px 0 0', fontSize: '13px' } }, 'Weitere Einstellungen (Ruhezeit, Board kurz frei lassen, Kacheln, Lautstärke der Ansagen) in der Turnierleitung unter ⚙️ Ansicht.'),
       ),
 
       h('div', { class: 'card stack' },

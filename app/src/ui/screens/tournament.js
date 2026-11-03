@@ -17,6 +17,15 @@ import { planView, champCard, nameOf } from '../tournamentView.js';
 const MODES = [['x01', 'X01'], ['cricket', 'Cricket']];
 const FORMAT_ICONS = { ko: '🌳', rr: '🔄', gko: '👥' };
 
+/** Feste Pause beim Anlegen: „13:00“ -> Zeitpunkt heute (schon vorbei: morgen), leer -> null. */
+function fixedPauseAt(value) {
+  const [hh, mm] = (value || '').split(':').map(Number);
+  if (!value || Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  const d = new Date(); d.setHours(hh, mm, 0, 0);
+  if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+
 export function render(root, params, nav) {
   const body = h('div', { class: 'stack', style: { maxWidth: '720px', margin: '0 auto' } });
   root.appendChild(body);
@@ -138,6 +147,8 @@ export function render(root, params, nav) {
       groups: null, // Gruppen + K.-o.: gewählte Aufteilung (2, 4 oder 8 Gruppen); null = Empfehlung
       rules: { ...(last.rules || {}) }, // Legs je Runde: { group, ko, semi, final, finalSets } – fehlt ein Wert, gilt „Legs“
       timeLimit: last.timeLimit || 0, // Zeit bis Turnierende in Minuten (0 = egal) – steuert die Empfehlung
+      // Feste Pause (optional): Uhrzeit „13:00“, Dauer, Grund – wird beim Auslosen zur geplanten Pause (t.plannedPause)
+      fixedPause: { time: '', min: last.fixedPauseMin || 30, reason: last.fixedPauseReason ?? 'Essenspause' },
     };
     const draw = () => {
       const players = getPlayers();
@@ -197,7 +208,12 @@ export function render(root, params, nav) {
             cfg.format !== 'rr' ? ruleDrop('Finale', 'final', true) : null,
             cfg.format !== 'rr' ? dropdown('Finale in Sätzen', [[1, 'nein'], [3, 'Best of 3 Sätze'], [5, 'Best of 5 Sätze']], cfg.rules.finalSets || 1, (v) => { if (+v > 1) cfg.rules.finalSets = +v; else delete cfg.rules.finalSets; draw(); }) : null,
             dropdown('Zeit bis Turnierende', [[0, 'egal'], [120, 'ca. 2 Std.'], [180, 'ca. 3 Std.'], [240, 'ca. 4 Std.'], [300, 'ca. 5 Std.'], [360, 'ca. 6 Std.'], [480, 'ca. 8 Std.']], cfg.timeLimit, (v) => { cfg.timeLimit = +v; cfg.groups = null; draw(); })),
-          cfg.timeLimit && cfg.format === 'gko' ? h('div', { class: 'small dim' }, 'Die Empfehlung unten ist die Aufteilung mit den meisten Spielen, die noch in die Zeit passt.') : null),
+          cfg.timeLimit && cfg.format === 'gko' ? h('div', { class: 'small dim' }, 'Die Empfehlung unten ist die Aufteilung mit den meisten Spielen, die noch in die Zeit passt.') : null,
+          h('div', { class: 'small dim' }, '🗓️ Feste Pause (optional): beginnt von selbst um die Uhrzeit – vorher wird nichts mehr aufgerufen, was nicht mehr davor fertig würde. In der Turnierleitung unter ☕ änderbar.'),
+          h('div', { class: 'grid3' },
+            h('label', { class: 'field' }, h('span', {}, 'Pause um'), h('input', { type: 'time', value: cfg.fixedPause.time, onchange: (e) => { cfg.fixedPause.time = e.target.value; } })),
+            dropdown('Dauer', [15, 20, 30, 45, 60].map((v) => [v, `${v} Min.`]), cfg.fixedPause.min, (v) => { cfg.fixedPause.min = +v; }),
+            h('label', { class: 'field' }, h('span', {}, 'Grund'), h('input', { type: 'text', value: cfg.fixedPause.reason, maxlength: 40, placeholder: 'z. B. Essenspause', onchange: (e) => { cfg.fixedPause.reason = e.target.value; } })))),
         sec('👥 Spieler', h('span', { class: `num ${ready ? 'accent' : 'dim'}` }, `${n} / ${max}`)),
         h('div', { class: 'chips' },
           players.map((p) => h('button', { class: `chip ${cfg.selected.includes(p.id) ? 'on' : ''}`, onclick: () => toggle(p.id) },
@@ -277,11 +293,13 @@ export function render(root, params, nav) {
                 players: cfg.selected, playerNames: cfg.selected.map((id) => (isGuestId(id) ? cfg.guests.find((g) => g.id === id).name : displayName(players.find((p) => p.id === id), players))),
               });
               if (cfg.timeLimit) t.timeLimit = cfg.timeLimit; // geplante Dauer (Zeitplan-Ampel in der Turnierleitung)
+              const fp = fixedPauseAt(cfg.fixedPause.time);
+              if (fp) t.plannedPause = { at: fp, min: cfg.fixedPause.min, reason: cfg.fixedPause.reason.trim() || null };
             } catch (e) { toast(e.message); return; }
             // Spieler-Nummern mitgeben: so ordnet „Turnier-Spiele übernehmen“ die Spieler auf anderen Handys sicher zu
             t.playerInfo = players.filter((p) => cfg.selected.includes(p.id)).map((p) => ({ id: p.id, name: p.name, code: p.code }));
             saveTournament(t);
-            updateSettings({ lastTournament: { format: cfg.format, mode: cfg.mode, startScore: cfg.startScore, cutThroat: cfg.cutThroat, legsBestOf: cfg.legsBestOf, input: cfg.input, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin, third: cfg.third, rules: cfg.rules, timeLimit: cfg.timeLimit, players: cfg.selected } });
+            updateSettings({ lastTournament: { fixedPauseMin: cfg.fixedPause.min, fixedPauseReason: cfg.fixedPause.reason, format: cfg.format, mode: cfg.mode, startScore: cfg.startScore, cutThroat: cfg.cutThroat, legsBestOf: cfg.legsBestOf, input: cfg.input, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin, third: cfg.third, rules: cfg.rules, timeLimit: cfg.timeLimit, players: cfg.selected } });
             toast('🎲 Ausgelost!');
             nav.go('tournament', { id: t.id });
           },

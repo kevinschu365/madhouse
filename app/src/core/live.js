@@ -201,10 +201,20 @@ async function beat() {
   // Online-Turnier schon beendet (gelöscht)? Dann nicht mehr melden – sonst entstünden dort neue Reste
   if (info.cloud && cloud && cloud.code === info.code && cloud.state && !cloud.state.tournament) return;
   // pending: Spielstände, die wegen Netz-Aussetzern noch nicht beim PC angekommen sind (Turnierleitung zeigt sie an)
-  const p = { board, id: deviceId(), device: deviceName(), at: Date.now(), active: (lsGet('activeMatch', null) || {}).id || null, pending: pendingCount() };
+  // help: Zeitpunkt, zu dem am Board „🙋 Turnierleitung rufen“ getippt wurde (bis die Leitung es bestätigt)
+  const p = { board, id: deviceId(), device: deviceName(), at: Date.now(), active: (lsGet('activeMatch', null) || {}).id || null, pending: pendingCount(), help: lsGet('liveHelp', null) };
   try {
     if (info.cloud) await putPresence(info.code, p); else await call('/api/presence', p);
   } catch { /* nächster Versuch in 5 Sekunden */ }
+}
+
+/**
+ * „🙋 Turnierleitung rufen“ am Board-Handy: on = rufen (sofort gemeldet), sonst zurücknehmen.
+ * Die Leitung bestätigt mit t.helpAck[Board] = Zeitpunkt des Rufs.
+ */
+export function requestHelp(on) {
+  lsSet('liveHelp', on ? Date.now() : null);
+  beat();
 }
 
 /** Herzschlag starten (einmal je App-Start, läuft über alle Bildschirme). */
@@ -222,6 +232,7 @@ export async function leaveBoard() {
   const board = myBoard();
   if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
   setMyBoard(null);
+  lsSet('liveHelp', null);
   if (!board) return;
   const info = await liveServer();
   if (!info) return;

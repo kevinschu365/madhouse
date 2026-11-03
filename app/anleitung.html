@@ -67,10 +67,16 @@
   .logo { width: 30mm; height: 30mm; color: var(--accent); margin: 0 auto 5mm; }
   .cover h1 { font-size: 30pt; }
   .cover .sub { color: var(--dim); font-size: 12pt; margin: 2mm 0 9mm; }
-  .toc { text-align: left; background: var(--surface2); border-radius: 3mm; padding: 3mm 4mm; }
-  .toc div { display: flex; justify-content: space-between; padding: 1.1mm 0; border-bottom: 0.25mm solid var(--line); }
-  .toc div:last-child { border-bottom: 0; }
-  .toc span:last-child { color: var(--accent); font-weight: 700; }
+  .toc { text-align: left; background: var(--surface2); border-radius: 3mm; padding: 2mm 4mm; }
+  .toc > a { display: flex; justify-content: space-between; padding: 0.55mm 0; border-bottom: 0.25mm solid var(--line); color: var(--text); text-decoration: none; font-size: 8.5pt; }
+  .toc > a:last-child { border-bottom: 0; }
+  .toc > a span:last-child { color: var(--accent); font-weight: 700; }
+  .toc .tocgrp { font-size: 7pt; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-top: 1.4mm; }
+  .toc .tocsub { display: none; }
+  .cover .logo { width: 18mm; height: 18mm; margin-bottom: 2mm; }
+  .cover h1 { font-size: 24pt; }
+  .cover .sub { margin: 1mm 0 3mm; }
+  .url { margin-top: 3mm; }
   .url { margin-top: 6mm; font-size: 9pt; color: var(--dim); }
   .url b { color: var(--text); display: block; font-size: 9.5pt; margin-top: 1mm; word-break: break-all; }
 
@@ -100,6 +106,13 @@
     .page:last-child { border-bottom: 0; padding-bottom: 12mm; }
     .pnum { display: none; }
     .cover { height: auto; padding: 4mm 0 2mm; }
+    /* Inhalt am Bildschirm: größere Zeilen zum Antippen, Unterpunkte als kleine Sprung-Chips */
+    .toc > a { padding: 2.2mm 0; font-size: 10.5pt; }
+    .toc .tocgrp { font-size: 8pt; margin-top: 3mm; }
+    .toc .tocsub { display: flex; flex-wrap: wrap; gap: 1.2mm; margin: 0.4mm 0 1.6mm 6mm; }
+    .toc .tocsub a { font-size: 8.5pt; color: var(--dim); text-decoration: none; background: #262626; border-radius: 5mm; padding: 0.6mm 2.4mm; }
+    .toc a:active, .toc .tocsub a:active { color: var(--accent); }
+    section[id], h3[id], div[id] { scroll-margin-top: 4mm; }
   }
 </style>
 </head>
@@ -112,28 +125,48 @@
 
     <h1>Madhouse</h1>
     <div class="sub">Dein Dart-Zähler – kurz erklärt</div>
-    <div class="toc">
-      <div><span>App aufs Handy holen</span><span>2</span></div>
-      <div><span>Die Startseite</span><span>3</span></div>
-      <div><span>Neues Spiel</span><span>4</span></div>
-      <div><span>Spielarten &amp; Computer</span><span>5</span></div>
-      <div><span>Kamera aufbauen</span><span>6</span></div>
-      <div><span>Im Spiel</span><span>7</span></div>
-      <div><span>Eingabe</span><span>8</span></div>
-      <div><span>Training</span><span>9</span></div>
-      <div><span>Ansage &amp; Dialekte</span><span>10</span></div>
-      <div><span>Einstellungen &amp; Daten</span><span>11</span></div>
-      <div><span>Hilfe bei Problemen</span><span>12</span></div>
-    </div>
+    <!-- Inhalt: Kapitel antippen springt hin; die Unterpunkte (nur am Bildschirm) springen direkt zum Abschnitt -->
+    <nav class="toc">
+      <div class="tocgrp">Grundlagen</div>
+      <a href="#installieren"><span>📲 App aufs Handy holen</span><span>2</span></a>
+      <p class="tocsub"><a href="#iphone">iPhone</a><a href="#android">Android</a></p>
+      <a href="#start"><span>🏠 Die Startseite</span><span>3</span></a>
+      <a href="#spiel"><span>▶️ Neues Spiel</span><span>4</span></a>
+      <p class="tocsub"><a href="#spiel">Einstellungen</a><a href="#favoriten">⭐ Favoriten</a></p>
+      <a href="#spielarten"><span>🎲 Spielarten &amp; Computer</span><span>5</span></a>
+      <p class="tocsub"><a href="#halveit">Halve-It</a><a href="#killer">Killer</a><a href="#computer">Computer</a></p>
+      <a href="#kamera"><span>📷 Kamera aufbauen</span><span>6</span></a>
+      <div class="tocgrp">Spielen</div>
+      <a href="#imspiel"><span>🎯 Im Spiel</span><span>7</span></a>
+      <p class="tocsub"><a href="#imspiel">Finish-Weg</a><a href="#menue">☰ Menü</a></p>
+      <a href="#eingabe"><span>⌨️ Eingabe</span><span>8</span></a>
+      <p class="tocsub"><a href="#summe">Summe</a><a href="#prodart">Pro Dart · Scheibe</a></p>
+      <a href="#training"><span>🏋️ Training</span><span>9</span></a>
+      <a href="#ansage"><span>🔊 Ansage &amp; Dialekte</span><span>10</span></a>
+      <a href="#einstellungen"><span>⚙️ Einstellungen &amp; Daten</span><span>11</span></a>
+      <p class="tocsub"><a href="#einstellungen">Ansage</a><a href="#datensichern">💾 Daten sichern</a></p>
+      <div class="tocgrp">Turnier</div>
+      <a href="#turnier"><span>🏆 Turnier anlegen</span><span>12</span></a>
+      <p class="tocsub"><a href="#turnier">Formate</a><a href="#feste-pause">Feste Pause</a><a href="#live">Live schalten</a></p>
+      <a href="#leitung"><span>📺 Die Turnierleitung</span><span>13</span></a>
+      <p class="tocsub"><a href="#leiste">Leiste</a><a href="#kacheln">Kacheln</a><a href="#boards">Boards</a></p>
+      <a href="#pausen"><span>☕ Pausen &amp; Ablauf</span><span>14</span></a>
+      <p class="tocsub"><a href="#pause-jetzt">Pause jetzt</a><a href="#pause-planen">Pause planen</a><a href="#ablauf">Ablauf</a></p>
+      <a href="#boardhandy"><span>📱 Board-Handy &amp; Fernseher</span><span>15</span></a>
+      <p class="tocsub"><a href="#boardhandy">Board-Handy</a><a href="#fernseher">Fernseher</a><a href="#zuschauer">Zuschauer</a></p>
+      <div class="tocgrp">Erfolge</div>
+      <a href="#rekorde"><span>🏅 Rekorde, Meilensteine, Trophäen</span><span>16</span></a>
+      <a href="#hilfe"><span>🛟 Hilfe bei Problemen</span><span>17</span></a>
+    </nav>
     <div class="url">Adresse der App<b>kevinschu365.github.io/madhouse/app/</b></div>
   </div>
 </section>
 
 <!-- 2 · Installieren -->
-<section class="page">
+<section class="page" id="installieren">
   <h2><span class="ico">📲</span>App aufs Handy holen</h2>
   <div class="card">
-    <h3>📱 iPhone (Safari)</h3>
+    <h3 id="iphone">📱 iPhone (Safari)</h3>
     <ol class="steps">
       <li>Adresse in <b>Safari</b> öffnen<br><span class="dim small">nicht Chrome, nicht Google-App</span></li>
       <li><b>Teilen</b> antippen <span class="key">⬆︎</span><br><span class="dim small">unten in der Leiste oder hinter „…“</span></li>
@@ -142,7 +175,7 @@
     </ol>
   </div>
   <div class="card">
-    <h3>🤖 Android (Chrome)</h3>
+    <h3 id="android">🤖 Android (Chrome)</h3>
     <ol class="steps">
       <li>Adresse in <b>Chrome</b> öffnen</li>
       <li>Menü <span class="key">⋮</span> oben rechts</li>
@@ -157,17 +190,17 @@
 </section>
 
 <!-- 3 · Startseite -->
-<section class="page">
+<section class="page" id="start">
   <h2><span class="ico">🏠</span>Die Startseite</h2>
   <div class="list card">
-    <div class="row"><div class="ic">▶️</div><div><b>Neues Spiel</b><br><span class="dim small">X01, Cricket, Halve-It, Killer</span></div></div>
-    <div class="row"><div class="ic">🎯</div><div><b>Training</b><br><span class="dim small">Übungen allein und gegen den Computer</span></div></div>
-    <div class="row"><div class="ic">👥</div><div><b>Spieler</b><br><span class="dim small">anlegen, umbenennen, entfernen</span></div></div>
-    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, Doppel-Quote, Verlauf als Grafik, Match-Details, Rekorde &amp; Meilensteine</span></div></div>
-    <div class="row"><div class="ic">📷</div><div><b>Kamera kalibrieren</b><br><span class="dim small">Board einmessen (Seite 6)</span></div></div>
-    <div class="row"><div class="ic">⚙️</div><div><b>Einstellungen</b><br><span class="dim small">Ansage, Kamera, Daten</span></div></div>
-    <div class="row"><div class="ic">📖</div><div><b>Anleitung</b><br><span class="dim small">diese Anleitung, jederzeit in der App</span></div></div>
+    <div class="row"><div class="ic">▶️</div><div><b>Neues Spiel</b><br><span class="dim small">X01, Cricket, Halve-It, Killer – mit ⭐ Favoriten</span></div></div>
+    <div class="row"><div class="ic">🎯</div><div><b>Training</b><br><span class="dim small">Übungen, gegen den Computer, 🎯 Tagesziel</span></div></div>
+    <div class="row"><div class="ic">🏆</div><div><b>Turnier</b><br><span class="dim small">anlegen, live mit Board-Handys und Fernseher (Seite 12)</span></div></div>
+    <div class="row"><div class="ic">🏅</div><div><b>Rekorde · 🎖️ Meilensteine</b><br><span class="dim small">Bestwerte, Rang, 🏆 Trophäen (Seite 16)</span></div></div>
+    <div class="row"><div class="ic">📊</div><div><b>Statistik</b><br><span class="dim small">Average, Doppel-Quote, Verlauf, Match-Details, ⚖️ Vergleich</span></div></div>
+    <div class="row"><div class="ic">⚙️</div><div><b>Einstellungen</b><br><span class="dim small">Spieler, Ansage, Kamera, Daten, Anleitung</span></div></div>
   </div>
+  <p class="small dim">Läuft die App über den Turnier-Server, stehen oben zusätzlich <b style="color:#fff">🎯 Board-Handy</b> und <b style="color:#fff">📺 Turnierleitung</b>.</p>
   <div class="card tip">
     <p class="small" style="margin:0"><b>Spiel unterbrochen?</b> Oben erscheint <span class="btn p">Weiterspielen</span>.<br><b>🌙 Heute:</b> Siege und Average des Abends (bis 5 Uhr früh).</p>
   </div>
@@ -176,7 +209,7 @@
 </section>
 
 <!-- 4 · Neues Spiel -->
-<section class="page">
+<section class="page" id="spiel">
   <h2><span class="ico">▶️</span>Neues Spiel</h2>
   <p class="dim small">Alles auf einer Seite – einfach die Felder antippen:</p>
   <div class="card">
@@ -186,31 +219,31 @@
       <tr><td>Startwert</td><td>301 · 501 · 701 <span class="dim">(Double-Out)</span></td></tr>
       <tr><td>Variante</td><td>Cricket: Standard / Cut Throat · Killer: 3 / 5 Leben</td></tr>
       <tr><td>Sets · Legs</td><td>Keine · Best of 3 … 11</td></tr>
-      <tr><td>Wer beginnt?</td><td>ein Spieler oder <b>Ausbullen</b> (Kamera, zu zweit)</td></tr>
-      <tr><td>Eingabe</td><td><b>Summe</b> (Standard), <b>Pro Dart</b>, <b>Scheibe</b> oder <b>Kamera</b> – bleibt im Spiel fest</td></tr>
+      <tr><td>Wer beginnt?</td><td>ein Spieler oder <b>Ausbullen</b> (Kamera) – wechselt jedes Leg</td></tr>
+      <tr><td>Eingabe</td><td><b>Summe</b> (Standard), <b>Pro Dart</b>, <b>Scheibe</b> oder <b>Kamera</b> – im Spiel über ☰ wechselbar</td></tr>
+      <tr id="favoriten"><td>⭐ Favoriten</td><td>„☆ als Favorit speichern“ merkt Spiel, Format und Spieler – oben antippen übernimmt alles</td></tr>
     </table>
   </div>
   <p>Dann <span class="btn p">Spiel starten</span></p>
   <div class="card tip">
     <p class="small" style="margin:0">Mit Kamera kommt vorher kurz der <b>Kamera-Check</b>: Liegt das grüne Raster auf den Drähten? → <span class="btn p">Passt – los geht’s</span></p>
   </div>
-  <p class="small dim">Der Anwurf wechselt nach jedem Leg automatisch. Summe gibt es nur bei X01.</p>
   <div class="pnum">4</div>
 </section>
 
 <!-- 5 · Spielarten & Computer -->
-<section class="page">
+<section class="page" id="spielarten">
   <h2><span class="ico">🎲</span>Spielarten &amp; Computer</h2>
   <div class="card">
-    <h3>Halve-It <span class="dim small">· 2–6 Spieler</span></h3>
+    <h3 id="halveit">Halve-It <span class="dim small">· 2–6 Spieler</span></h3>
     <p class="small" style="margin:0">9 Runden mit festem Ziel: 15, 16, Double, 17, 18, Triple, 19, 20, Bull. Start mit 40 Punkten. Treffer aufs Ziel zählen – <b>kein Treffer halbiert</b> deinen Stand. Höchste Punktzahl gewinnt.</p>
   </div>
   <div class="card">
-    <h3>Killer <span class="dim small">· 2–6 Spieler</span></h3>
+    <h3 id="killer">Killer <span class="dim small">· 2–6 Spieler</span></h3>
     <p class="small" style="margin:0">Jeder bekommt eine Zahl. Triff dein <b>eigenes Double</b> → du bist Killer. Dann kostet jeder Treffer auf das Double eines Gegners ihm ein Leben ♥ (dein eigenes kostet dich eins). Wer keine Leben hat, ist raus – der Letzte gewinnt.</p>
   </div>
   <div class="card">
-    <h3>🤖 Computer-Gegner</h3>
+    <h3 id="computer">🤖 Computer-Gegner</h3>
     <p class="small">Im <b>Training</b> ganz oben: X01 oder Cricket, Stärke Ø30 Anfänger bis Ø100 Profi. Er wirft von selbst, Dart für Dart, und spielt echte Finish-Wege. <b>Zählt nicht</b> in deine Statistik gegen echte Spieler – die Bilanz steht unter Statistik › Training.</p>
     <p class="small dim" style="margin:0">Während er wirft, ist die Eingabe gesperrt. <b style="color:#fff">↶ Aufn.</b> überspringt seine Aufnahme und nimmt deine letzte zurück.</p>
   </div>
@@ -218,7 +251,7 @@
 </section>
 
 <!-- 6 · Kamera -->
-<section class="page">
+<section class="page" id="kamera">
   <h2><span class="ico">📷</span>Kamera aufbauen</h2>
   <div class="grid2" style="margin-bottom:2.6mm">
     <div class="tile"><b>📌 Fest hinstellen</b><span>Stativ oder Halterung – darf nicht wackeln</span></div>
@@ -242,7 +275,7 @@
 </section>
 
 <!-- 7 · Im Spiel -->
-<section class="page">
+<section class="page" id="imspiel">
   <h2><span class="ico">🎯</span>Im Spiel</h2>
   <div class="phone">
     <div class="score"><div class="pl on">Kevin<b>141</b><span class="dim">Runde 4 · 9 Darts<br>Ø Leg 120 · Spiel 98</span></div><div class="pl">Nils<b>201</b><span class="dim">Runde 3 · 9 Darts<br>Ø Leg 100 · Spiel 87</span></div></div>
@@ -254,18 +287,17 @@
     <div class="row"><div class="ic">🎯</div><div><b>Finish-Weg</b><br><span class="small dim">ab 170: Standard-Weg groß, 2 Alternativen daneben. Passt sich nach jedem Dart an.</span></div></div>
     <div class="row"><div class="ic">📐</div><div><b>Stellen</b><br><span class="small dim">kein Finish möglich (über 170, 169 …)? Vorschlag wie „T20 T20 25 · bleibt 36“ – auf ein gutes Doppel.</span></div></div>
     <div class="row"><div class="ic">🔊</div><div><b>Rest vor dem Wurf</b><br><span class="small dim">auscheckbar? Dann „Kevin, Rest 141“.</span></div></div>
-    <div class="row"><div class="ic">📊</div><div><b>Unterm Spielstand</b><br><span class="small dim">Runde, Darts, Average Leg / Spiel (Cricket: MPR).</span></div></div>
-    <div class="row"><div class="ic">🏆</div><div><b>Spielende</b><br><span class="small dim">Treppchen-Platz („🥈 Zweitbester Average ever“), neue Meilensteine und neuer Rang. Alles dazu: Statistik › Rekorde.</span></div></div>
-    <div class="row"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Dialekt, Kamera, Pause, Abbruch</span></div></div>
+    <div class="row"><div class="ic">🏆</div><div><b>Spielende</b><br><span class="small dim">Treppchen-Platz, neue Meilensteine, neuer Rang.</span></div></div>
+    <div class="row" id="menue"><div class="ic">☰</div><div><b>Menü</b><br><span class="small dim">Ansage, Stimme, Eingabe wechseln, 📊 Statistik, 📤 teilen, ↶ zurück. 🔊 oben: Ruhe.</span></div></div>
   </div>
   <div class="pnum">7</div>
 </section>
 
 <!-- 8 · Eingabe -->
-<section class="page">
+<section class="page" id="eingabe">
   <h2><span class="ico">⌨️</span>Eingabe</h2>
   <div class="card">
-    <h3>Summe <span class="dim small">· Standard bei X01</span></h3>
+    <h3 id="summe">Summe <span class="dim small">· Standard bei X01</span></h3>
     <p class="small">Aufnahme eintippen. Links und rechts: <b>26 · 41 · 45 · 60 · 85 · 100 · 140 · 180</b> – ein Tipp trägt sofort ein.</p>
     <table>
       <tr><td><span class="btn" style="background:#ef4444;border-color:#ef4444;color:#fff">NO SCORE</span></td><td>nichts eingetippt – trägt 0 ein</td></tr>
@@ -275,7 +307,7 @@
     <p class="small dim" style="margin:1.5mm 0 0"><b style="color:#fff">Zwischenstand:</b> T18 statt T20 bei 141? <b style="color:#fff">54</b> tippen → „Rest danach 87 · noch 2 Darts“ und der neue Weg.</p>
   </div>
   <div class="card">
-    <h3>Pro Dart · Scheibe · Cricket</h3>
+    <h3 id="prodart">Pro Dart · Scheibe · Cricket</h3>
     <p class="small" style="margin:0"><b>Pro Dart:</b> Double/Triple, dann Zahl. <b>Scheibe:</b> aufs Feld tippen. <b>Cricket:</b> auf die Zahl in der Tabelle tippen.</p>
   </div>
   <div class="card list">
@@ -286,7 +318,7 @@
 </section>
 
 <!-- 9 · Training -->
-<section class="page">
+<section class="page" id="training">
   <h2><span class="ico">🎯</span>Training</h2>
   <p class="dim small">Spieler wählen, Übung aussuchen, <span class="btn p">Start</span>. Rekord und letztes Ergebnis stehen dabei.</p>
   <div class="card tip"><p class="small" style="margin:0"><b>💡 Übungs-Vorschlag:</b> Oben steht dein schwächstes Doppel – „Üben“ startet direkt das Doubles-Training darauf.</p></div>
@@ -309,7 +341,7 @@
 </section>
 
 <!-- 10 · Ansage -->
-<section class="page">
+<section class="page" id="ansage">
   <h2><span class="ico">🔊</span>Ansage &amp; Dialekte</h2>
   <p class="dim small">Einstellungen › <b style="color:#fff">Sprache / Dialekt</b> – beim Auswählen hörst du gleich eine Probe.</p>
   <div class="card">
@@ -321,7 +353,7 @@
     <div class="chips" style="margin-bottom:-1mm"><span>Englisch</span><span>TV-Caller</span><span>Cockney</span><span>Schottisch</span><span>Australisch</span><span>Irisch</span><span>Texanisch</span><span>Pirat</span></div>
   </div>
   <div class="card tip">
-    <p class="small" style="margin:0"><b>😄 Witzige Sprüche</b> bei 180, Überwerfen, 0 Punkten und Game shot – an/aus in den Einstellungen.<br><b>Im Spiel:</b> ☰ › „Ansage: …“ schaltet weiter.</p>
+    <p class="small" style="margin:0"><b>😄 Witzige Sprüche</b> bei 180, Überwerfen, 0 Punkten und Game shot – an/aus in den Einstellungen.<br><b>Im Spiel:</b> ☰ › Stimme aus der Liste wählen, dazu Lautstärke und Tempo.</p>
   </div>
   <div class="card">
     <p class="small" style="margin:0"><b>Stimme tiefer?</b> Regler <b>Stimmlage</b>.<br><b>Bessere Stimme:</b> iPhone-Einstellungen › Bedienungshilfen › Gesprochene Inhalte › Stimmen › Deutsch.</p>
@@ -330,7 +362,7 @@
 </section>
 
 <!-- 11 · Einstellungen -->
-<section class="page">
+<section class="page" id="einstellungen">
   <h2><span class="ico">⚙️</span>Einstellungen &amp; Daten</h2>
   <div class="card">
     <h3>Ansage</h3>
@@ -351,14 +383,119 @@
     </table>
   </div>
   <div class="card warn">
-    <h3 style="color:var(--warn)">Daten sichern 💾</h3>
+    <h3 id="datensichern" style="color:var(--warn)">Daten sichern 💾</h3>
     <p class="small" style="margin:0">Alles liegt nur auf dem Handy. Ab und zu <b>„Sicherung exportieren“</b> und z. B. in iCloud Drive ablegen. Wird die App gelöscht, sind die Daten sonst weg.</p>
   </div>
   <div class="pnum">11</div>
 </section>
 
-<!-- 12 · Hilfe -->
-<section class="page">
+<!-- 12 · Turnier anlegen -->
+<section class="page" id="turnier">
+  <h2><span class="ico">🏆</span>Turnier anlegen</h2>
+  <p class="dim small">Startseite › <b style="color:#fff">🏆 Turnier</b> › <span class="btn">＋ Neues Turnier</span></p>
+  <div class="card">
+    <table>
+      <tr><td>Format</td><td>🌳 K.-o. · 🔄 Jeder gegen Jeden · 👥 Gruppen + K.-o.</td></tr>
+      <tr><td>Spiel</td><td>X01 (301 / 501 / 701) oder Cricket, Legs, Eingabe</td></tr>
+      <tr><td>Boards</td><td>so viele, wie Handys an den Boards liegen</td></tr>
+      <tr><td>Legs je Runde</td><td>Gruppe kurz, Finale lang – auch in Sätzen</td></tr>
+      <tr><td>Spieler</td><td>antippen, ＋ Neu oder ＋ Gäste (ohne Statistik), ⭐ gesetzt</td></tr>
+      <tr><td>Aufteilung</td><td>Vorschläge mit Dauer – ★ empfohlen</td></tr>
+    </table>
+  </div>
+  <div class="card tip" id="feste-pause">
+    <p class="small" style="margin:0"><b>🗓️ Feste Pause</b> (unter „⚙️ Legs je Runde &amp; Zeit“): Uhrzeit, Dauer, Grund – z. B. Essenspause um 13:00, 30 Min. Beginnt von selbst.</p>
+  </div>
+  <div class="card" id="live">
+    <h3>Live schalten</h3>
+    <ol class="steps">
+      <li><b>Auslosen</b> – der Turnierplan steht</li>
+      <li><b>WLAN:</b> am PC „Turnier-Server starten“ und <b>localhost:8130/app/</b> öffnen<br><span class="dim small">oder <b>🌐 Online live schalten</b> (mit Code)</span></li>
+      <li><span class="btn p">Zur Turnierleitung</span></li>
+    </ol>
+  </div>
+  <div class="pnum">12</div>
+</section>
+
+<!-- 13 · Turnierleitung -->
+<section class="page" id="leitung">
+  <h2><span class="ico">📺</span>Die Turnierleitung</h2>
+  <p class="dim small">Am PC. Freie Boards bekommen von selbst das nächste Spiel.</p>
+  <div class="card list" id="leiste">
+    <div class="row"><div class="ic">−＋</div><div><b>Boards</b><br><span class="small dim">Board dazu oder weg</span></div></div>
+    <div class="row"><div class="ic">🎯</div><div><b>Fokus</b><br><span class="small dim">nur Uhr, Boards und das Wichtigste – fürs große Bild</span></div></div>
+    <div class="row"><div class="ic">☕</div><div><b>Pause</b><br><span class="small dim">jetzt, planen, verlängern, beenden (Seite 14)</span></div></div>
+    <div class="row"><div class="ic">🔊</div><div><b>Ton</b><br><span class="small dim">Ansagen mit einem Klick aus, z. B. bei einer Rede</span></div></div>
+    <div class="row"><div class="ic">🛠️</div><div><b>Steuern</b> · <b>📜 Protokoll</b><br><span class="small dim">anhalten, Check-in, Durchsage, Aufgabe · alle Ergebnisse mit Rückgängig</span></div></div>
+    <div class="row"><div class="ic">🖥️</div><div><b>Fernseher</b> · <b>⚙️ Ansicht</b><br><span class="small dim">Fernseher-Fenster, Fokus · Kacheln, Ton, Ablauf</span></div></div>
+  </div>
+  <div class="card" id="kacheln">
+    <p class="small" style="margin:0"><b>Kacheln</b> (Spiele, Boards, Nächster Aufruf, Zeiten …): einzeln an/aus, <b>oben</b> oder <b>groß darunter</b> – ⚙️ › Ansicht.</p>
+  </div>
+  <div class="card tip" id="boards">
+    <p class="small" style="margin:0"><b>Board antippen:</b> Aufruf zurücknehmen oder Ergebnis eintragen. <b>„Nächster Aufruf: wartet auf Handy“</b> = Board frei, aber kein Handy angemeldet.</p>
+  </div>
+  <div class="pnum">13</div>
+</section>
+
+<!-- 14 · Pausen -->
+<section class="page" id="pausen">
+  <h2><span class="ico">☕</span>Pausen &amp; Ablauf</h2>
+  <div class="card" id="pause-jetzt">
+    <h3>Pause jetzt</h3>
+    <p class="small" style="margin:0">☕ › 5–60 Min. oder „bis Uhrzeit“, Grund optional. Laufende Spiele werden zu Ende gespielt. Fernseher und Board-Handys zeigen den Countdown.</p>
+  </div>
+  <div class="card" id="pause-planen">
+    <h3>🗓️ Pause planen</h3>
+    <p class="small" style="margin:0">☕ › „Pause für später planen“: in 10–90 Min. oder um Uhrzeit, Dauer wählen. Der Fernseher zeigt sie vorher an, 5 Min. vorher kommt eine Ansage, dann beginnt sie von selbst. Ändern, vorziehen oder streichen jederzeit.</p>
+  </div>
+  <div class="card" id="ablauf">
+    <h3>⚙️ › Ablauf</h3>
+    <div class="list">
+      <div class="row"><div class="ic">⏳</div><div><span class="small">Vor einer geplanten Pause nichts Langes mehr aufrufen</span></div></div>
+      <div class="row"><div class="ic">📣</div><div><span class="small">Pausenende ansagen: „… Als Erstes: Anna gegen Ben“</span></div></div>
+      <div class="row"><div class="ic">😮‍💨</div><div><span class="small">Ruhezeit nach einem Spiel · Board kurz frei lassen</span></div></div>
+      <div class="row"><div class="ic">✍️</div><div><span class="small">Schreiber ansagen · Aufrufe zweimal · nur Boards mit Handy</span></div></div>
+    </div>
+  </div>
+  <div class="pnum">14</div>
+</section>
+
+<!-- 15 · Board-Handy & Fernseher -->
+<section class="page" id="boardhandy">
+  <h2><span class="ico">📱</span>Board-Handy &amp; Fernseher</h2>
+  <div class="card">
+    <h3>Board-Handy</h3>
+    <p class="small" style="margin:0">QR-Code am freien Board scannen (oder „Beitreten“ mit Code). Zeigt den Aufruf, <span class="btn p">Spiel starten</span>, danach „✅ Ergebnis ist bei der Turnierleitung“. In der Pause: Countdown und die ersten Spiele danach. <b>🙋 Turnierleitung rufen</b> bei Problemen.</p>
+  </div>
+  <div class="card" id="fernseher">
+    <h3>📺 Fernseher</h3>
+    <p class="small" style="margin:0">🖥️ › „Fernseher-Fenster öffnen“, aufs TV ziehen, F11. Steuern vom PC: Seite, Größe, Zeiten oben, ☀️ Hell / 🌙 Dunkel, Vereinsname und Logo. Pausen stehen auf jeder Seite.</p>
+  </div>
+  <div class="card" id="zuschauer">
+    <h3>👀 Zuschauer</h3>
+    <p class="small" style="margin:0">🖥️ › Weitere Möglichkeiten › Zuschauer-Link: Jeder sieht am eigenen Handy sein nächstes Spiel, den Live-Stand und die Tabellen.</p>
+  </div>
+  <div class="pnum">15</div>
+</section>
+
+<!-- 16 · Rekorde & Meilensteine -->
+<section class="page" id="rekorde">
+  <h2><span class="ico">🏅</span>Rekorde &amp; Trophäen</h2>
+  <div class="card list">
+    <div class="row"><div class="ic">🏅</div><div><b>Rekorde</b><br><span class="small dim">Treppchen je Bestwert – eigene oder Bestenliste, für immer / Saison / Monat. Abend-Krone, Duelle, Monatsrückblick.</span></div></div>
+    <div class="row"><div class="ic">🎖️</div><div><b>Meilensteine</b><br><span class="small dim">Rang, Saison, Aufgaben, „Als Nächstes“ und alle Meilensteine mit Suche und Filtern.</span></div></div>
+    <div class="row"><div class="ic">🏆</div><div><b>Trophäen</b><br><span class="small dim">Meilensteine › 🏆 Trophäen: alle erreichten, nach Kategorie und Datum. Antippen zeigt, wann und in welchem Spiel.</span></div></div>
+    <div class="row"><div class="ic">⭐</div><div><b>Vitrine</b><br><span class="small dim">Trophäe öffnen › „In die Vitrine legen“ – erscheint neben deinem Namen.</span></div></div>
+  </div>
+  <div class="card tip">
+    <p class="small" style="margin:0"><b>Im Spiel</b> gibt es neue Bestwerte und Meilensteine sofort als Hinweis.</p>
+  </div>
+  <div class="pnum">16</div>
+</section>
+
+<!-- 17 · Hilfe -->
+<section class="page" id="hilfe">
   <h2><span class="ico">🛟</span>Hilfe bei Problemen</h2>
   <div class="card list">
     <div class="row"><div class="ic">📷</div><div><b>Kamera zählt nicht</b><br><span class="small dim">Handy fest? Ganzes Board im Bild? Raster auf den Drähten? Sonst neu kalibrieren. Falsches einfach antippen und korrigieren.</span></div></div>
@@ -370,7 +507,7 @@
   <div class="card tip" style="text-align:center">
     <p style="margin:0"><b>Game on!</b> 🎯</p>
   </div>
-  <div class="pnum">12</div>
+  <div class="pnum">17</div>
 </section>
 
 </body>

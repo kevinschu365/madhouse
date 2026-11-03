@@ -446,11 +446,11 @@ export function availableVoices(forLang = voiceLangOf()) {
   return all.filter((v) => v.lang && v.lang.toLowerCase().startsWith(forLang));
 }
 
-function pickVoice() {
+function pickVoice(uri = null) {
   const s = getSettings();
   const list = availableVoices();
-  if (s.voiceURI) {
-    const v = list.find((x) => x.voiceURI === s.voiceURI);
+  if (uri || s.voiceURI) {
+    const v = list.find((x) => x.voiceURI === (uri || s.voiceURI));
     if (v) return v;
   }
   // Dialekt mit eigener Stimme (z. B. österreichisch), sonst „erweiterte/Premium“-Qualität,
@@ -482,18 +482,25 @@ function foreignVoice(forLang) {
     || list.find((v) => /en-GB/i.test(v.lang)) || list.find((v) => v.default) || list[0] || null;
 }
 
-/** lang: Sprache dieses einen Satzes ('en'), wenn sie von der Ansage-Sprache abweicht. */
-export function say(text, { interrupt = false, lang: forLang = null } = {}) {
+/**
+ * lang: Sprache dieses einen Satzes ('en'), wenn sie von der Ansage-Sprache abweicht.
+ * volume / voiceURI / rate: eigene Werte (Turnierleitung), sonst die der App.
+ * Ruhe-Modus (Einstellung „quiet“, 🔇 im Spiel): nichts ansagen – außer der Turnierleitung (ignoreQuiet).
+ */
+export function say(text, { interrupt = false, lang: forLang = null, volume = null, voiceURI = null, rate = null, ignoreQuiet = false } = {}) {
   if (!speechSupported() || !text) return;
+  if (getSettings().quiet && !ignoreQuiet) return;
+  if (volume == null) volume = getSettings().speechVolume ?? 1;
   const synth = window.speechSynthesis;
   if (interrupt) synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
   const T = t();
   const foreign = forLang && forLang !== T.voiceLang;
-  const v = foreign ? foreignVoice(forLang) : pickVoice();
+  const v = foreign ? foreignVoice(forLang) : pickVoice(voiceURI);
   if (v) u.voice = v;
   u.lang = v ? v.lang : foreign ? (forLang === 'en' ? 'en-GB' : forLang) : (T.bcp || (T.voiceLang === 'en' ? 'en-GB' : 'de-DE'));
-  u.rate = Math.min(2, (getSettings().speechRate || 1) * (foreign ? 1 : (T.rate || 1)));
+  u.rate = Math.min(2, (rate || getSettings().speechRate || 1) * (foreign ? 1 : (T.rate || 1)));
+  u.volume = Math.max(0, Math.min(1, volume));
   u.pitch = Math.min(2, Math.max(0.1, (T.pitch || 1) * (getSettings().speechPitch ?? 1)));
   // iOS bleibt manchmal im Pausenzustand hängen
   if (synth.paused) synth.resume();

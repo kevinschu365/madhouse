@@ -211,6 +211,21 @@ export function render(root, params, nav) {
     );
   };
 
+  // 🎯 Tagesziel: so viele Darts heute (alle Spiele und Trainings des Spielers), mit Balken
+  const goalCard = () => {
+    const goal = getSettings().trainingGoal || 0;
+    const day0 = new Date(); day0.setHours(0, 0, 0, 0);
+    const today = player ? allThrows.filter((r) => r.playerId === player && (r.ts || 0) >= day0.getTime()).length : 0;
+    const done = goal && today >= goal;
+    return h('div', { class: `card goalcard ${done ? 'done' : ''}` },
+      h('div', { class: 'goalhead' }, h('b', {}, done ? '✅ Tagesziel geschafft!' : '🎯 Tagesziel'),
+        goal ? h('span', { class: 'num' }, `${Math.min(today, goal)} / ${goal} Darts`) : h('span', { class: 'dim small' }, `${today} Darts heute`)),
+      goal ? h('div', { class: 'liveprog' }, h('i', { style: { width: `${Math.min(100, Math.round((today / goal) * 100))}%` } })) : null,
+      h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(5, 1fr)' } }, [[0, 'Aus'], [60, '60'], [120, '120'], [240, '240'], [480, '480']].map(([v, label]) => h('button', {
+        class: goal === v ? 'on' : '', onclick: () => { updateSettings({ trainingGoal: v }); draw(); },
+      }, label))));
+  };
+
   const draw = () => {
     const ps = players();
     const hasCal = !!lsGet('calibration', null);
@@ -231,6 +246,7 @@ export function render(root, params, nav) {
         ),
         camera && !hasCal ? h('p', { class: 'dim', style: { margin: '4px 0 0', fontSize: '14px' } }, 'Noch keine Kalibrierung – sie kommt vor dem Training.') : null,
       ),
+      goalCard(),
       tipCard(),
       h('h3', { class: 'cat' }, 'Gegen den Computer'),
       vsCard(),

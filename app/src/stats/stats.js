@@ -273,6 +273,59 @@ export function allPlayersPodiums(rows, matches, n = 3) {
   return top(globalLists(rows, matches), n);
 }
 
+/**
+ * Rekord-Verlauf: je Bestwert die Einträge, mit denen der Rekord gebrochen wurde – ältester zuerst
+ * („Höchstes Finish: 120 → 136 → 161“). playerId = null: über alle Spieler (Bestenliste).
+ */
+export function recordHistory(rows, matches, playerId = null) {
+  const lists = playerId ? recordLists(rows, matches, playerId) : globalLists(rows, matches);
+  const out = {};
+  for (const def of RECORD_DEFS) {
+    const low = def.better === 'low';
+    let best = null;
+    const steps = [];
+    for (const e of (lists[def.key] || []).slice().sort((a, b) => a.at - b.at)) {
+      if (best == null || (low ? e.value < best : e.value > best)) { best = e.value; steps.push(e); }
+    }
+    if (steps.length) out[def.key] = steps;
+  }
+  return out;
+}
+
+/**
+ * Bestwerte je Gegner (nur Spiele zu zweit): [{ name, games, best: { key: Eintrag } }], meiste Spiele zuerst.
+ */
+export function opponentRecords(rows, matches, playerId) {
+  const lists = recordLists(rows, matches, playerId);
+  const byOpp = new Map();
+  for (const [key, list] of Object.entries(lists)) {
+    for (const e of list) {
+      if (e.opponents.length !== 1) continue;
+      const o = byOpp.get(e.opponents[0]) || byOpp.set(e.opponents[0], { name: e.opponents[0], ids: new Set(), best: {} }).get(e.opponents[0]);
+      o.ids.add(e.matchId);
+      if (!o.best[key]) o.best[key] = e; // Listen sind schon sortiert: der erste ist der beste
+    }
+  }
+  return [...byOpp.values()].map((o) => ({ name: o.name, games: o.ids.size, best: o.best })).sort((a, b) => b.games - a.games);
+}
+
+/**
+ * „Fast geschafft“: je Bestwert der beste Wert knapp neben dem Treppchen (Platz 4) und der Abstand zu Platz 3.
+ * [{ def, entry, third, gap }], kleinster relativer Abstand zuerst.
+ */
+export function nearMisses(rows, matches, playerId) {
+  const lists = recordLists(rows, matches, playerId);
+  const out = [];
+  for (const def of RECORD_DEFS) {
+    const l = lists[def.key] || [];
+    if (l.length < 4) continue;
+    const gap = Math.abs(l[2].value - l[3].value);
+    if (!gap) continue; // gleichauf ist kein „knapp verpasst“
+    out.push({ def, entry: l[3], third: l[2], gap, rel: l[2].value ? gap / Math.abs(l[2].value) : 1 });
+  }
+  return out.sort((a, b) => a.rel - b.rel);
+}
+
 /** Persönliche Bestwerte (nur Platz 1): { key: { value, text, at, matchId, mode, opponents } }. */
 export function personalRecords(rows, matches, playerId) {
   return Object.fromEntries(Object.entries(personalPodiums(rows, matches, playerId, 1)).map(([k, l]) => [k, l[0]]));

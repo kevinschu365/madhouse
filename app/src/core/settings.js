@@ -19,6 +19,12 @@ export const DEFAULT_SETTINGS = {
   homeCollapsed: {},         // eingeklappte Karten der Startseite: { week, prog }
   voiceURI: null,            // gewählte Stimme (null = automatisch)
   speechRate: 1.0,
+  speechVolume: 1,           // Lautstärke der Ansagen im Spiel (0,1–1)
+  quiet: false,              // Ruhe-Modus: im Spiel nichts ansagen (🔇 oben im Spiel)
+  checkoutHint: true,        // Spiel: Checkout-Weg anzeigen (z. B. T20 T19 D12)
+  announceCheckout: false,   // … und vor dem Wurf mit ansagen
+  favorites: [],             // Neues Spiel: gespeicherte Einstellungen [{ id, name, setup }]
+  trainingGoal: 0,           // Training: Tagesziel in Darts (0 = aus)
   speechPitch: 1.0,          // Stimmlage: unter 1 = tiefer (männlicher), über 1 = höher
   restPause: 1.0,            // Pause (Sekunden) zwischen Summe und Rest
   beeps: true,               // Warntöne
@@ -43,10 +49,20 @@ export const DEFAULT_SETTINGS = {
   tourAbsentWo: 0,           // so viele Minuten „nicht da“ -> nächstes Spiel kampflos an den Gegner (0 = aus)
   tourWatchQr: false,        // Zuschauer-QR klein im Fokus und auf dem Fernseher zeigen
   tourWatchQrPause: true,    // … in Pausen bzw. wenn kein Spiel läuft unten rechts in der Ecke
-  tourSound: true,           // Ansagen am PC (Aufrufe, Pausen, Highlights); Knopf 🔊 in der Live-Ansicht
+  tourVolume: 1,             // Ansagen der Turnierleitung: Lautstärke 0–1
+  tourVoiceURI: null,        // … eigene Stimme (null = wie in der App)
+  tourRate: null,            // … eigenes Tempo (null = wie in der App)
+  tourBeforePause: true,     // vor einer geplanten Pause nur Spiele aufrufen, die noch davor fertig werden
+  tourPauseEndCalls: true,   // 1 Min. vor Pausenende die ersten Spiele mit ansagen, am Ende „Es geht weiter“
+  tourHeadPlace: 'top',      // Turnierleitung: Kacheln 'top' (in der Leiste) | 'cards' (groß als Karten darunter)
+  tourHeadShow: true,        // Kacheln oben in der Turnierleitung: true = alle, sonst { prog, boards, next, planned, run, groups, final, end }
+  tourBoardGap: 0,           // Board nach Spielende so viele Minuten frei lassen, bevor das nächste Spiel kommt
+  tourTheme: 'dark',         // Fokus: 'dark' | 'light' (Fernseher-Fenster: t.tv.theme)
+  tourSound: true,          // Ansagen am PC (Aufrufe, Pausen, Highlights); Knopf 🔊 in der Live-Ansicht
   tourPlan: 'auto',          // Live-Ansicht: Turnierbaum/Tabellen 'auto' (breit: daneben) | 'below' | 'off'
   tourRotate: true,          // Fokus/Fernseher: in Pausen automatisch Boards → Gruppen → K.-o. wechseln
   tourRotateSec: 20,         // … alle so viele Sekunden
+  tourFocusTimes: true,      // Fokus: Zeiten oben – true = alle, sonst { run, groups, final, end } (false = keine) – Fernseher: t.tv.times
   tourZoomTv: 1,             // Fernseher-Fenster: eigene Größe (A− / A+)
   tourPlanZoomTv: 1,         // Fernseher-Fenster: eigene Größe der Bereiche
   tourZoom: 1,               // Live-Ansicht: Größe von allem (A− / A+, 0,8–1,6)

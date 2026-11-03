@@ -1154,8 +1154,8 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 
 /* ===== ab 1.27.0: Siegerehrung, Aufgabe, Anwurf ===== */
 .podiumpage { justify-content: space-evenly; text-align: center; }
-.podtitle { font-size: 34px; font-weight: 900; color: #f5c542; letter-spacing: .02em; }
-.podium { display: flex; justify-content: center; align-items: flex-end; gap: 18px; flex: 1; min-height: 340px; }
+.podiumpage .podtitle { font-size: 34px; font-weight: 900; color: #f5c542; letter-spacing: .02em; }
+.podiumpage .podium { display: flex; justify-content: center; align-items: flex-end; gap: 18px; flex: 1; min-height: 340px; }
 .pod { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(28vw, 380px); }
 .podnames { display: flex; flex-direction: column; gap: 4px; }
 .podname { font-size: 32px; font-weight: 900; }
@@ -1454,3 +1454,170 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .hilitebox.kceremony { border-color: #f5c542; }
 .hilitebox.kceremony .hilitetitle { color: #f5c542; font-size: clamp(24px, 3.4vw, 60px); }
 .hilitebox.kceremony .hilitetext { font-size: clamp(40px, 7vw, 130px); }
+
+/* ===== ab 1.35.0: Fokus/Fernseher-Kopfleiste zentriert statt in den Ecken ===== */
+.livescreen.focus .livehead { justify-content: center; column-gap: clamp(16px, 3vw, 64px); padding: 0 clamp(0px, 3vw, 80px); }
+.livescreen.focus .livetitle { flex: 0 1 auto; }
+.livescreen.focus .infochips { justify-content: center; }
+
+/* ===== ab 1.36.0: Zeiten einzeln wählen (Punkte), Leiste der Turnierleitung mit Beschriftung ===== */
+.timesrow { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid #1f1f1f; }
+.timedots { display: flex; flex-wrap: wrap; gap: 6px; }
+.timedot { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 9px; border-radius: 999px; background: var(--surface2); border: 1px solid #2a2a2a; color: var(--text-dim); font-size: 14px; font-weight: 700; }
+.timedot i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid #555; box-sizing: border-box; }
+.timedot.on { color: var(--text); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.timedot.on i { background: var(--accent); border-color: var(--accent); }
+.livehead .toolbar { gap: 6px; align-items: stretch; }
+.ltool, .boardctl.labeled { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 64px; padding: 5px 8px 4px; border-radius: 12px; background: var(--surface2); border: 1px solid #2a2a2a; color: var(--text); }
+.ltool:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.ltool .licon { font-size: 19px; line-height: 1.1; }
+.tlabel { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: .02em; white-space: nowrap; }
+.toolbar .boardctl.labeled { padding: 4px 6px 4px; gap: 2px; }
+.boardctl.labeled .bcrow { display: flex; align-items: center; gap: 6px; }
+.toolbar .boardctl.labeled .toolbtn { min-width: 28px; height: 26px; padding: 0 6px; font-size: 15px; }
+.boardctl.labeled .num { font-weight: 900; font-size: 16px; min-width: 16px; text-align: center; }
+@media (max-width: 1700px) { .ltool, .boardctl.labeled { min-width: 56px; } .ltool .licon { font-size: 17px; } }
+@media (max-width: 760px) { .livehead .toolbar { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); } .ltool, .boardctl.labeled { min-width: 0; } }
+
+/* ===== ab 1.37.0: Kopfzeile mit Fortschritt, Board-Status, nächstem Aufruf; Pause/Ton; Vereinslogo; helles Schema ===== */
+.ichip.prog .liveprog { width: 100%; min-width: 70px; height: 4px; margin-top: 3px; }
+.bstat { display: inline-flex; gap: 8px; }
+.bs.play { color: var(--accent); } .bs.call { color: var(--warn); } .bs.free { color: var(--text-dim); }
+.ltool.on { border-color: var(--warn); }
+.ltool.on .tlabel { color: var(--warn); }
+.brandlogo { height: 1.6em; max-width: 4em; object-fit: contain; border-radius: 6px; flex: none; }
+.titlerow .brandlogo { height: clamp(28px, 2.6vw, 56px); }
+.brandname { font-weight: 800; color: var(--text-dim); white-space: nowrap; font-size: clamp(14px, 1.2vw, 24px); }
+.timesrow .chips .brandlogo { height: 40px; }
+/* Helles Schema für Fokus und Fernseher (helle Räume, Beamer) */
+/* Die App setzt die Farben per JavaScript direkt am html-Element – darum !important */
+html.tvlight { --bg: #f3f4f1 !important; --surface: #ffffff !important; --surface2: #e9ebe6 !important; --text: #111 !important; --text-dim: #555b52 !important; --accent: #15803d !important; --warn: #c2410c !important; color-scheme: light; }
+html.tvlight .boardtile, html.tvlight .ichip, html.tvlight .nextcard, html.tvlight .card, html.tvlight .bestcard, html.tvlight .toolbtn { border-color: #d6d8d2; }
+html.tvlight .boardtile.running { background: radial-gradient(120% 90% at 50% 0%, rgba(34,197,94,.18), rgba(34,197,94,0) 60%), #fff; box-shadow: 0 8px 22px rgba(0,0,0,.12), 0 0 0 1px rgba(21,128,61,.25); }
+html.tvlight .boardtile.called:not(.late), html.tvlight .boardtile.late { background: radial-gradient(120% 90% at 50% 0%, rgba(245,158,11,.18), rgba(245,158,11,0) 60%), #fff; box-shadow: 0 8px 22px rgba(0,0,0,.12); }
+html.tvlight .boardtile.free { background: #fafaf8; border-color: #cfd2ca; }
+html.tvlight .boardtile .bside, html.tvlight .boardtile.running .bside, html.tvlight .boardtile.called .bside { background: rgba(0,0,0,.05); }
+html.tvlight .boardtile.running .bside.on { background: linear-gradient(180deg, rgba(34,197,94,.22), rgba(34,197,94,.06)); }
+html.tvlight .liveprog { background: #dfe2da; }
+html.tvlight .cornerqr, html.tvlight .watchqr { background: rgba(255,255,255,.95); border-color: #d6d8d2; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+html.tvlight .busytag.write { background: #e2e4de; }
+html.tvlight .pausebanner { background: linear-gradient(180deg, #fff7e6, #fff); }
+
+/* ===== ab 1.38.0: Pause-Banner schmal über Gruppen, K.-o. und Ergebnissen ===== */
+.livescreen.focus .pausebanner.slim { padding: clamp(6px, 1vh, 16px) clamp(14px, 1.6vw, 32px); margin-bottom: 1vh; }
+.livescreen.focus .pausebanner.slim .pbicon { font-size: clamp(22px, 3.4vh, 52px); }
+.livescreen.focus .pausebanner.slim .pbtitle { font-size: clamp(18px, 2.8vh, 42px); }
+.livescreen.focus .pausebanner.slim .pbsub { font-size: clamp(13px, 1.7vh, 24px); }
+.livescreen.focus .pausebanner.slim .pbcount { font-size: clamp(28px, 4.6vh, 72px); }
+.livescreen.focus:has(.pausebanner.slim) .pagegrid .focuspage { min-height: calc((100vh - 110px - clamp(60px, 9vh, 140px)) / var(--z, 1)); }
+
+/* ===== ab 1.38.0: Spiel-Menü, Live-Statistik, Favoriten, Tagesziel, Board-Handy, Ruf an die Leitung, Vergleich ===== */
+.gamemenu .menusec { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-top: 6px; }
+.gamemenu .list-item { padding: 8px 0; }
+.turnlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.livestats { display: grid; gap: 6px 14px; align-items: center; font-size: 15px; }
+.livestats .lsname { text-align: center; }
+.livestats .num { text-align: center; font-weight: 800; }
+.favrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.favchip { display: inline-flex; align-items: stretch; border-radius: 999px; background: var(--surface2); border: 1px solid color-mix(in srgb, #f5c542 45%, transparent); overflow: hidden; }
+.favchip .favgo { padding: 8px 6px 8px 14px; font-weight: 700; font-size: 15px; color: var(--text); }
+.favchip .favdel { padding: 0 12px; color: var(--text-dim); font-size: 13px; }
+.goalcard { display: flex; flex-direction: column; gap: 8px; }
+.goalcard .goalhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.goalcard.done { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.goalcard .seg { margin: 0; }
+.resultok { border-color: color-mix(in srgb, var(--warn) 50%, transparent); display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.resultok.ok { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.resultok .num { font-size: 20px; font-weight: 800; }
+.nextup { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #222; }
+.btn.helpon { border: 2px solid var(--danger); color: var(--danger); animation: callpulse 1.6s ease-in-out infinite; }
+.helpbar { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 16px; border: 2px solid var(--danger); background: color-mix(in srgb, var(--danger) 16%, var(--surface)); animation: callpulse 1.6s ease-in-out infinite; }
+.helpbar .hbicon { font-size: 30px; }
+.helpbar .hbtext { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.helpbar .hbtext b { font-size: 19px; }
+table.hist.cmp th { text-align: center; font-size: 14px; padding: 6px 4px; }
+table.hist.cmp td.num { text-align: center; font-weight: 800; }
+.tabs { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+
+/* ===== ab 1.39.0: geplante Pause ===== */
+.pausebanner.planned { border-style: dashed; border-color: #60a5fa; background: linear-gradient(90deg, color-mix(in srgb, #60a5fa 16%, var(--surface)), color-mix(in srgb, #60a5fa 4%, var(--surface))); box-shadow: none; }
+.pausebanner.planned .pbtitle, .pausebanner.planned .pbcount { color: #60a5fa; }
+.pausebanner .pbin { font-size: .45em; font-weight: 700; opacity: .8; }
+html.tvlight .pausebanner.planned .pbtitle, html.tvlight .pausebanner.planned .pbcount { color: #1d4ed8; }
+.pausepanel .planned, .planbox .planned { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; padding: 8px 10px; border-radius: 12px; border: 1px dashed #60a5fa; }
+.pausepanel .planned span, .planbox .planned span { flex: 1; min-width: 180px; }
+.planbox .chips input[type=time] { width: auto; padding: 6px 10px; }
+.ichip.planchip { border-color: color-mix(in srgb, #60a5fa 55%, transparent); }
+.ichip.planchip .ival { color: #60a5fa; }
+/* Turnierleitung: Gruppen in der rechten Spalte nach verfügbarer Breite (vorher 3 feste Spalten – Namen brachen um) */
+.liveside .groupgrid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+/* Turnierleitung (schmale Kacheln): „wirft jetzt“ rutscht unter den Namen, statt ihn abzuschneiden */
+.livescreen:not(.focus) .bside .bstop { flex-wrap: wrap; row-gap: 2px; }
+
+/* ===== ab 1.40.0: Board-Handy in der Pause, geplante Pause am Board ===== */
+.callcard.pausecard { border-color: #f5c542; }
+.callcard .pcount { font-size: 56px; font-weight: 900; color: #f5c542; line-height: 1.1; }
+.nextup > div { font-size: 15px; }
+.plannedinfo { border: 1px dashed #60a5fa; color: #93c5fd; font-size: 15px; text-align: center; }
+
+/* ===== ab 1.41.0: Trophäenschrank, „Erreicht im Spiel“ ===== */
+.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.trophy { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; border-radius: 14px; background: var(--surface); border: 1px solid #2a2a2a; color: var(--text); text-align: center; }
+.trophy .ticon { font-size: 34px; line-height: 1.1; }
+.trophy b { font-size: 14px; line-height: 1.2; }
+.trophy.elite { border-color: #f5c542; box-shadow: 0 0 14px rgba(245,197,66,.18); }
+.btn.msmatch { font-size: 15px; }
+/* Turnierleitung: Kacheln groß als Karten unter der Leiste (⚙️ › Ansicht › „Groß als Karten darunter“) */
+.infochips.headcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; order: initial; }
+.infochips.headcards .ichip { padding: 12px 16px; border-radius: 16px; gap: 4px; }
+.infochips.headcards .ichip .ilabel { font-size: 13px; }
+.infochips.headcards .ichip .ival { font-size: clamp(20px, 1.8vw, 30px); }
+.infochips.headcards .ichip.prog .liveprog { height: 6px; }
+/* Anleitung: „↑ Inhalt“ unten rechts, springt zum Inhaltsverzeichnis */
+.tocjump { position: fixed; right: calc(var(--safe-right) + 14px); bottom: calc(var(--safe-bottom) + 16px); z-index: 30; padding: 10px 16px; border-radius: 999px; background: var(--accent); color: #000; font-weight: 800; font-size: 15px; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.trophycats .chip { padding: 6px 12px; font-size: 14px; min-height: 0; }
+.infochips.headcards .ichip .ival { white-space: normal; line-height: 1.15; }
+
+/* ===== ab 1.42.0: Rekorde (Fast geschafft, Verlauf, je Gegner), Turnier-Statistik, Spielersuche ===== */
+.nearrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid #2a2a2a; color: var(--text); }
+.nearrow .nearlabel { font-weight: 700; }
+.nearrow b { font-size: 18px; color: #cd7f32; }
+.nearrow .dim { grid-column: 1 / -1; }
+.histfold summary { cursor: pointer; }
+table.hist.oppstats th { font-size: 13px; text-align: left; padding: 6px 4px; color: var(--text-dim); }
+table.hist.oppstats td.num { text-align: right; }
+.tstat { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 14px; align-items: center; font-size: 15px; }
+.tstat .num { text-align: right; font-weight: 800; }
+.searchlist { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow: auto; }
+.searchrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid #2a2a2a; color: var(--text); }
+.searchrow .dim { font-size: 13px; }
+
+/* Fokus/Fernseher: Pause (und geplante Pause) auf Gruppen, K.-o. und Ergebnissen als freistehende Box oben rechts –
+   wie der Zuschauer-QR unten rechts; die Seite hält rechts Platz frei (ersetzt den durchgezogenen Balken) */
+.livescreen.focus .pagegrid > .pausebanner.slim { position: fixed; top: clamp(64px, 9vh, 130px); right: clamp(10px, 1.6vw, 36px); z-index: 40; width: min(360px, 26vw); margin: 0;
+  flex-wrap: wrap; gap: 4px 12px; padding: clamp(10px, 1.4vh, 18px) clamp(12px, 1.2vw, 20px); box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+.livescreen.focus .pagegrid > .pausebanner.slim .pbtext { flex: 1 1 0; }
+.livescreen.focus .pagegrid > .pausebanner.slim .pbtitle { white-space: normal; }
+.livescreen.focus .pagegrid > .pausebanner.slim .pbsub { font-size: clamp(12px, 1.4vh, 17px); }
+.livescreen.focus .pagegrid > .pausebanner.slim .pbcount { width: 100%; text-align: center; font-size: clamp(34px, 6vh, 80px); line-height: 1.05; }
+.livescreen.focus:has(.pagegrid > .pausebanner.slim) .pagegrid .focuspage { padding-right: min(390px, 27vw); min-height: calc((100vh - 110px) / var(--z, 1)); }
+html.tvlight .livescreen.focus .pagegrid > .pausebanner.slim { box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+
+/* Helles Schema mit Farbe statt fast nur Weiß (ab 1.42.0): läuft = grün, aufgerufen = orange, zu spät = rot, frei = grau */
+html.tvlight { --bg: #e9ece6 !important; --surface: #f8f9f6 !important; --surface2: #dfe3dc !important; }
+html.tvlight .boardtile.running { background: linear-gradient(180deg, #d6f5e0, #bfeccf) !important; border-color: #16a34a !important; box-shadow: 0 8px 22px rgba(22,163,74,.22) !important; }
+html.tvlight .boardtile.running .bside { background: rgba(255,255,255,.72) !important; }
+html.tvlight .boardtile.running .bside.on { background: linear-gradient(180deg, #86efac, #4ade80) !important; box-shadow: 0 0 0 2px #16a34a inset, 0 0 16px rgba(22,163,74,.35) !important; }
+html.tvlight .boardtile.called:not(.late) { background: linear-gradient(180deg, #ffedc9, #ffd99a) !important; border-color: #ea580c !important; box-shadow: 0 8px 22px rgba(234,88,12,.22) !important; }
+html.tvlight .boardtile.called .bside { background: rgba(255,255,255,.7) !important; }
+html.tvlight .boardtile.late { background: linear-gradient(180deg, #ffe0e0, #ffc9c9) !important; border-color: #dc2626 !important; }
+html.tvlight .boardtile.free { background: #dfe2db !important; border-color: #a9aea4 !important; }
+html.tvlight .livenext > .nextcard { background: #fff; border-color: #cfd3cb; }
+html.tvlight .livenext > .nextcard:first-child { background: linear-gradient(180deg, #e2f7e9, #d0f0dc); border-color: #16a34a; }
+html.tvlight .ichip { background: #fff; border-color: #cfd3cb; }
+html.tvlight .ichip.end { background: #e2f7e9; border-color: #16a34a; }
+html.tvlight .pausebanner:not(.planned) { background: linear-gradient(90deg, #ffe7a8, #fff3d1); border-color: #d97706; box-shadow: 0 6px 20px rgba(217,119,6,.2); }
+html.tvlight .pausebanner:not(.planned) .pbtitle, html.tvlight .pausebanner:not(.planned) .pbcount { color: #b45309; }
+html.tvlight .pausebanner.planned { background: linear-gradient(90deg, #dbeafe, #eff6ff); }
+html.tvlight .groupcard, html.tvlight .bestcard { background: #fff; }
+html.tvlight .phasepill { background: #d1fae5; }

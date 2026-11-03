@@ -9,7 +9,7 @@ import { lineChart } from '../chart.js';
 import { getMode, isTraining } from '../../rules/index.js';
 import { trainingTips } from '../../stats/coach.js';
 
-const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training']]; // Rekorde und Meilensteine haben eigene Bereiche (records.js, milestones.js)
+const TABS = [['x01', 'X01'], ['cricket', 'Cricket'], ['training', 'Training'], ['compare', '⚖️ Vergleich']]; // Rekorde und Meilensteine haben eigene Bereiche (records.js, milestones.js)
 
 export function render(root, params, nav) {
   // Früher war „Rekorde“ ein Reiter hier – jetzt eigener Bereich
@@ -209,6 +209,48 @@ export function render(root, params, nav) {
       body.appendChild(info('Jede beendete Übung zählt und bleibt in der Liste; abgebrochene zählen nicht. Spiele gegen den Computer stehen getrennt und zählen nicht in die Statistik gegen echte Spieler.'));
     };
 
+    // ⚖️ Vergleich: zwei Spieler nebeneinander (X01-Kennzahlen, besserer Wert grün) und direkte Bilanz
+    let rival = null;
+    const drawCompare = () => {
+      const others = ids.filter((id) => id !== selectedPlayer);
+      if (!others.length) { body.appendChild(h('p', { class: 'dim' }, 'Für einen Vergleich braucht es mindestens zwei Spieler.')); return; }
+      if (!others.includes(rival)) rival = others[0];
+      body.appendChild(h('label', { class: 'field' }, h('span', {}, 'Vergleichen mit'),
+        h('select', { onchange: (e) => { rival = e.target.value; draw(); } }, others.map((id) => h('option', { value: id, selected: id === rival }, names.get(id) || '?')))));
+      const a = playerStats(usable.filter((r) => r.playerId === selectedPlayer && r.mode === 'x01'));
+      const b = playerStats(usable.filter((r) => r.playerId === rival && r.mode === 'x01'));
+      const one = (v, d = 1) => (v ? v.toFixed(d).replace('.', ',') : '–');
+      const pct = (v, n) => (n ? `${Math.round(v * 100)} %` : '–');
+      // [Bezeichnung, Wert A, Wert B, Anzeige A, Anzeige B, höher ist besser?]
+      const rowsCmp = [
+        ['Ø Average', a.average, b.average, one(a.average), one(b.average), true],
+        ['First 9', a.first9, b.first9, one(a.first9), one(b.first9), true],
+        ['Doppelquote', a.checkoutRate, b.checkoutRate, pct(a.checkoutRate, a.checkoutAttempts), pct(b.checkoutRate, b.checkoutAttempts), true],
+        ['Höchste Aufnahme', a.highest, b.highest, a.highest || '–', b.highest || '–', true],
+        ['Höchstes Finish', a.highestCheckout, b.highestCheckout, a.highestCheckout || '–', b.highestCheckout || '–', true],
+        ['180er', a.c180, b.c180, a.c180, b.c180, true],
+        ['Bestes Leg (Darts)', a.bestLeg || 0, b.bestLeg || 0, a.bestLeg || '–', b.bestLeg || '–', false],
+        ['Legs gewonnen', a.legsWon, b.legsWon, a.legsWon, b.legsWon, true],
+      ];
+      const better = (x, y, high) => (x && y && x !== y ? (high ? x > y : x < y) : false);
+      body.appendChild(sec('⚖️ X01 im Vergleich'));
+      body.appendChild(h('table', { class: 'hist cmp' },
+        h('tr', {}, h('th', {}, ''), h('th', {}, names.get(selectedPlayer) || '?'), h('th', {}, names.get(rival) || '?')),
+        rowsCmp.map(([label, x, y, dx, dy, high]) => h('tr', {},
+          h('td', { class: 'dim' }, label),
+          h('td', { class: `num ${better(x, y, high) ? 'accent' : ''}` }, String(dx)),
+          h('td', { class: `num ${better(y, x, high) ? 'accent' : ''}` }, String(dy))))));
+      // Direkte Bilanz: beendete Spiele zu zweit gegeneinander (alle Spielarten außer Training)
+      const duel = finished.filter((m) => !vsBot(m) && !isTraining(m.mode) && m.players.length === 2 && m.players.includes(selectedPlayer) && m.players.includes(rival));
+      const wins = duel.filter((m) => m.players[m.winner] === selectedPlayer).length;
+      body.appendChild(sec('🤝 Direkte Bilanz'));
+      body.appendChild(duel.length
+        ? h('div', { class: 'kpis' }, kpi(`${wins} : ${duel.length - wins}`, 'Siege : Niederlagen', wins > duel.length - wins ? 'accent' : ''), kpi(duel.length, 'Spiele'),
+          kpi(date(Math.max(...duel.map((m) => m.createdAt))), 'Zuletzt'))
+        : h('p', { class: 'dim' }, 'Noch kein Spiel gegeneinander.'));
+      body.appendChild(info('Kennzahlen aus beendeten X01-Spielen gegen echte Spieler (wie im Reiter X01). Grün = der bessere Wert.'));
+    };
+
     const draw = () => {
       body.replaceChildren(
         h('div', { class: 'topbar' }, h('button', { class: 'iconbtn', onclick: () => nav.go('home') }, '‹'), h('h1', {}, 'Statistik')),
@@ -221,6 +263,7 @@ export function render(root, params, nav) {
       body.appendChild(h('div', { class: 'tabs' }, TABS.map(([k, label]) =>
         h('button', { class: `tab ${tab === k ? 'on' : ''}`, onclick: () => { tab = k; draw(); } }, label))));
       if (tab === 'training') { drawTraining(); return; }
+      if (tab === 'compare') { drawCompare(); return; }
       const pr = usable.filter((r) => r.playerId === selectedPlayer && r.mode === tab);
       const myMatches = finished
         .filter((m) => m.mode === tab && !isTraining(m.mode) && !vsBot(m) && m.players.length > 1 && m.players.includes(selectedPlayer))
