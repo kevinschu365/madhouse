@@ -1168,3 +1168,289 @@ button.cardhead { width: 100%; padding: 0; text-align: left; font: inherit; colo
 .outtag { color: var(--danger); font-size: .75em; font-weight: 700; }
 /* Großer Knopf vor dem ersten Dart: „⇄ ANWURF WECHSELN“ (danach NO SCORE) */
 .btn.next.starterswitch { background: var(--surface2); color: var(--accent); border: 2px solid var(--accent); font-size: 18px; }
+/* ab 1.28.0: Spiel um Platz 3 im Baum */
+.thirdwrap { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.bsub { font-size: 12px; font-weight: 800; color: #cd7f32; text-align: center; letter-spacing: .04em; }
+.focuspage .bsub { font-size: 15px; }
+
+/* ===== ab 1.29.0: Aufteilungs-Vorschläge beim Anlegen ===== */
+.groupopts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.groupopt { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 2px solid #262626; color: var(--text); font-size: 14px; }
+.groupopt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.gohead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gohead b { font-size: 18px; }
+.gotag { font-size: 12px; font-weight: 800; color: #f5c542; }
+.gototal { font-weight: 800; margin-top: 2px; }
+
+/* ===== ab 1.30.0: Legs je Runde beim Anlegen ===== */
+.rulescard > summary { cursor: pointer; list-style: none; }
+.rulescard > summary::-webkit-details-marker { display: none; }
+.rulescard[open] > summary { margin-bottom: 8px; }
+.rulescard .grid3 { margin-top: 6px; }
+.gowarn { color: var(--warn); font-weight: 700; font-size: 13px; }
+
+/* ===== ab 1.31.0: Turnierleitung übergeben ===== */
+.handover { align-items: stretch; text-align: center; }
+.hoaddr { font-size: 22px; font-weight: 900; word-break: break-all; color: var(--text); padding: 10px; border-radius: 12px; background: var(--surface2); }
+.hocode { font-size: 40px; font-weight: 900; letter-spacing: .12em; color: var(--accent); }
+.hoqr { align-self: center; }
+.hoqr svg { width: 240px; height: 240px; }
+.passivebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--warn); color: var(--warn); font-weight: 700; }
+.passivebar .btn.small { width: auto; flex: none; }
+.phone.tap { cursor: pointer; text-decoration: underline dotted; }
+
+/* 1.32.0: hängende Spiele, Gruppenstatus, Profil, Ticker, Protokoll, Abwesenheit, Zuschauer */
+.boardtile.stale, .livescreen .boardtile.running.stale { border-color: #fb923c; box-shadow: 0 0 0 2px color-mix(in srgb, #fb923c 45%, transparent), 0 0 28px color-mix(in srgb, #fb923c 30%, transparent); }
+.boardtile.stale .bstate { color: #fb923c; font-weight: 800; }
+.namelink { cursor: pointer; }
+.namelink:hover { text-decoration: underline dotted; }
+.safetag { color: var(--accent); font-size: .75em; font-weight: 700; }
+.dimtag { opacity: .8; }
+.awaytag { color: var(--warn); font-size: .75em; font-weight: 700; }
+.ttable tr.outrow td { opacity: .45; }
+.forecastline { margin-top: 2px; }
+.nextcard.away { border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
+.nexttext .warn { display: block; }
+.awaycard { border-color: var(--warn); }
+.ticker { overflow: hidden; border-radius: 12px; background: var(--surface); border: 1px solid #262626; padding: 10px 0; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.tickertrack { display: flex; gap: 28px; width: max-content; padding: 0 14px; flex-wrap: nowrap; }
+.tickertrack.run { animation: tickerrun linear infinite; }
+.ticker:hover .tickertrack { animation-play-state: paused; }
+@keyframes tickerrun { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.tickeritem { white-space: nowrap; font-weight: 700; }
+.tickeritem.k180 { color: #f5c542; } .tickeritem.knine { color: #c084fc; } .tickeritem.kfinish { color: var(--accent); }
+.hilitebox.kmsg .hilitetext { font-size: clamp(28px, 5vw, 72px); }
+.loglist { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow-y: auto; }
+.logrow { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; background: var(--surface); }
+.logrow.undone .logtext { text-decoration: line-through; opacity: .6; }
+.logrow.kresult .logtext { color: var(--text); } .logrow.kundo { opacity: .75; }
+.logrow .btn.small { width: auto; }
+.profile .pstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pstat { background: var(--surface); border-radius: 12px; padding: 10px; text-align: center; }
+.pstatv { font-size: 22px; font-weight: 800; }
+.nowcard { border-color: var(--accent); }
+.watchqr { display: flex; align-items: center; gap: 14px; justify-content: center; padding: 8px; }
+.watchqr .qrimg svg { width: 110px; height: 110px; }
+.watchscreen .mecard { border-width: 2px; }
+.watchscreen .mecard.on { border-color: var(--accent); }
+.watchscreen .mecard.call { border-color: var(--warn); animation: callpulse 1.6s ease-in-out infinite; }
+.watchscreen .mebig { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.watchscreen .list-item.mine { border: 1px solid var(--accent); }
+@media (max-width: 520px) { .profile .pstats { grid-template-columns: repeat(2, 1fr); } }
+
+/* 1.32.1: Bestwerte & Highlights in einem Bereich, Fokus-Seite Ergebnisse */
+.liveinfo .ticker { max-width: 1200px; margin: 10px auto 0; width: 100%; }
+.ticker.still { mask-image: none; }
+.ticker.still .tickertrack { width: auto; justify-content: center; flex-wrap: wrap; row-gap: 6px; }
+.resultscols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.resultlist.big .resultrow { grid-template-columns: 52px minmax(0, 1fr) auto minmax(0, 1fr) auto; font-size: 20px; }
+.resultlist.big .resultrow > span:first-child { text-align: left; }
+.resultlist.big .resultrow > span:nth-child(2) { text-align: right; }
+.hllist { gap: 6px; }
+.hllist .tickeritem { padding: 8px 12px; border-radius: 10px; background: var(--surface); white-space: normal; font-size: 18px; }
+@media (max-width: 900px) { .resultscols { grid-template-columns: 1fr; } }
+
+/* 1.32.1: Kopfzeile neu – Titel mit Phase, Laufzeit/Prognose als Kacheln, Uhr; Fokus füllt den ganzen Bildschirm */
+.livehead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; row-gap: 8px; }
+.livetitle { flex: 1 1 220px; min-width: 0; }
+.titlerow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.titlerow h1 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phasepill { flex: none; font-size: 13px; font-weight: 800; padding: 3px 10px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); white-space: nowrap; }
+.progrow { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.progrow .liveprog { flex: 0 1 360px; margin-top: 0; }
+.infochips { display: flex; gap: 6px; flex-wrap: wrap; align-items: stretch; }
+.ichip { display: flex; flex-direction: column; justify-content: center; padding: 5px 12px; border-radius: 12px; background: var(--surface); border: 1px solid #222; line-height: 1.15; }
+.ichip .ilabel { font-size: 11px; color: var(--text-dim); font-weight: 700; white-space: nowrap; }
+.ichip .ival { font-size: 17px; white-space: nowrap; }
+.ichip.end { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.ichip.end .ival { color: var(--accent); }
+.liveclockbox { align-items: center; }
+.livescreen.focus .liveclock { font-size: clamp(32px, 3.4vw, 64px); }
+.livescreen.focus .livetitle h1 { font-size: clamp(20px, 1.8vw, 34px); }
+.livescreen.focus .phasepill { font-size: clamp(12px, 1vw, 18px); }
+.livescreen.focus .ichip .ilabel { font-size: clamp(10px, .75vw, 15px); }
+.livescreen.focus .ichip .ival { font-size: clamp(15px, 1.3vw, 26px); }
+/* Fokus und Fernseher: ganze Breite, Boards nehmen den Platz, den die Bereiche darunter übrig lassen */
+.livescreen.focus { max-width: none; }
+.livescreen.focus.onerow .boardgrid { flex: 1 1 0; height: auto; min-height: calc(45vh / var(--z, 1)); }
+.livescreen.focus.onerow .liveinfo { flex: 0 0 auto; justify-content: flex-start; gap: 1.2vh; padding: 1.2vh 0 0; }
+.livescreen.focus .liveinfo .ticker { margin-top: .8vh; }
+@media (max-width: 700px) { .infochips { order: 3; width: 100%; } }
+.livescreen.focus .livemain, .livescreen.focus .boardgrid, .livescreen.focus .liveinfo { min-width: 0; max-width: 100%; }
+.livescreen.focus .boardtile.free .bfreebody { min-width: 0; flex-wrap: wrap; }
+/* Fokus: Bestwerte und „Als Nächstes“ je eine Reihe, die Karten teilen sich die Breite – so passt alles auf einen Bildschirm */
+.livescreen.focus .bestgrid, .livescreen.focus .livenext { flex-wrap: nowrap; }
+.livescreen.focus .bestgrid > .bestcard, .livescreen.focus .livenext > .nextcard { flex: 1 1 0; min-width: 0; max-width: 420px; }
+.livescreen.focus .bestcard .besttext, .livescreen.focus .nexttext { min-width: 0; }
+.livescreen.focus .bestcard .bestwho, .livescreen.focus .nexttext b, .livescreen.focus .nexttext .dim { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.livescreen.focus .bestcard .bestval { font-size: clamp(22px, 2.4vw, 46px); }
+.livescreen.focus .nexttext b { font-size: clamp(15px, 1.5vw, 28px); }
+.livescreen.focus .liveinfo .sechead { margin: .6vh 0 .4vh; }
+/* Fokus-Bereiche wachsen mit der Bildschirmhöhe (Fernseher groß, Laptop kompakt) */
+.livescreen.focus .bestgrid > .bestcard, .livescreen.focus .livenext > .nextcard { padding: clamp(6px, 1.2vh, 20px) clamp(10px, 1.2vw, 24px); }
+.livescreen.focus .bestcard .bestval { font-size: clamp(20px, min(2.4vw, 4.4vh), 52px); }
+.livescreen.focus .bestcard .besticon { font-size: clamp(18px, min(2vw, 3.6vh), 36px); }
+.livescreen.focus .bestcard .bestlabel { font-size: clamp(10px, min(.85vw, 1.6vh), 16px); }
+.livescreen.focus .bestcard .bestwho { font-size: clamp(13px, min(1.1vw, 2.1vh), 22px); }
+.livescreen.focus .nexttext b { font-size: clamp(14px, min(1.5vw, 2.8vh), 30px); }
+.livescreen.focus .nexttext .dim { font-size: clamp(11px, min(.95vw, 1.8vh), 18px); }
+.livescreen.focus .nextno { width: clamp(26px, 4vh, 48px); height: clamp(26px, 4vh, 48px); font-size: clamp(13px, 2vh, 22px); }
+.livescreen.focus .liveinfo .sechead { font-size: clamp(12px, 1.6vh, 18px); }
+.livescreen.focus.onerow .boardgrid { min-height: calc(40vh / var(--z, 1)); }
+.livescreen.focus .liveinfo.stack { gap: clamp(4px, .8vh, 14px); }
+.livescreen.focus.onerow .liveinfo { padding: .6vh 0 0; gap: clamp(4px, .8vh, 14px); }
+.livescreen.focus .livehead { row-gap: 4px; }
+@media (max-height: 820px) { .livescreen.focus.onerow .boardgrid { min-height: calc(34vh / var(--z, 1)); } }
+.chip.dangerchip { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.nextcard.tap { cursor: pointer; } .nextcard.tap:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+
+/* 1.32.3: Pausen-Banner über den Boards (Fokus und Fernseher groß) */
+.pausebanner { display: flex; align-items: center; gap: 18px; padding: 14px 22px; border-radius: 18px; border: 2px solid #f5c542;
+  background: linear-gradient(90deg, color-mix(in srgb, #f5c542 22%, var(--surface)), color-mix(in srgb, #f5c542 6%, var(--surface))); box-shadow: 0 0 30px color-mix(in srgb, #f5c542 25%, transparent); }
+.pausebanner.tap { cursor: pointer; }
+.pausebanner .pbicon { font-size: 40px; }
+.pausebanner .pbtext { flex: 1; min-width: 0; }
+.pausebanner .pbtitle { font-size: 26px; font-weight: 900; color: #f5c542; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pausebanner .pbsub { font-size: 17px; color: var(--text); }
+.pausebanner .pbcount { font-size: 46px; font-weight: 900; color: #f5c542; letter-spacing: .02em; }
+.livescreen.focus .pausebanner { flex: none; padding: clamp(10px, 1.8vh, 28px) clamp(16px, 2vw, 40px); margin-bottom: .8vh; }
+.livescreen.focus .pausebanner .pbicon { font-size: clamp(32px, 6vh, 90px); }
+.livescreen.focus .pausebanner .pbtitle { font-size: clamp(24px, 4.6vh, 72px); }
+.livescreen.focus .pausebanner .pbsub { font-size: clamp(15px, 2.4vh, 34px); }
+.livescreen.focus .pausebanner .pbcount { font-size: clamp(40px, 8vh, 130px); }
+@media (max-width: 600px) { .pausebanner { flex-wrap: wrap; } .pausebanner .pbcount { font-size: 34px; } }
+.livescreen.focus .nexttext b { white-space: normal; overflow: visible; }
+
+/* 1.32.4: eine Kartenreihe „Bestwerte & Highlights“ (Durchlauf), kompakte Kopfzeile auf kleinen Laptops */
+.bestcard.fadein { animation: bestin .6s ease-out; }
+@keyframes bestin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.bestdots { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
+.bestdots i { width: 7px; height: 7px; border-radius: 50%; background: #333; }
+.bestdots i.on { background: #f5c542; }
+/* Kopfzeile: Knöpfe, Kacheln und Uhr wachsen mit der Bildschirmbreite (kleiner Laptop kompakt, großer Bildschirm wie bisher) */
+@media (max-width: 1700px) {
+  .livehead { gap: 8px; }
+  .livehead .toolbar { gap: 4px; }
+  .livehead .toolbar .toolbtn { min-width: clamp(30px, 2.3vw, 40px); height: clamp(30px, 2.3vw, 40px); font-size: clamp(13px, .95vw, 17px); padding: 0 clamp(6px, .6vw, 12px); }
+  .livehead .toolbar .boardctl { padding: 2px 6px 2px 2px; gap: 4px; }
+  .livehead .toolbar .boardctl .toolbtn { min-width: clamp(28px, 2.1vw, 36px); height: clamp(28px, 2.1vw, 36px); }
+  .livehead .toolbar .boardctl .small, .livehead .toolbar .boardctl .num { font-size: clamp(11px, .8vw, 14px); min-width: 0; }
+  .livehead .ichip { padding: 3px 9px; }
+  .livehead .ichip .ival { font-size: clamp(13px, 1vw, 17px); }
+  .livehead .ichip .ilabel { font-size: clamp(9px, .65vw, 11px); }
+  .livehead .liveclock { font-size: clamp(24px, 2.2vw, 40px); }
+  .livehead .livetitle h1 { font-size: clamp(18px, 1.5vw, 26px); }
+  .livehead .phasepill { font-size: clamp(11px, .8vw, 13px); padding: 2px 8px; }
+  .livehead .progrow .liveprog { flex-basis: 220px; }
+  .livescreen.focus .liveclock { font-size: clamp(28px, 2.8vw, 64px); }
+}
+/* Fokus mit Pausen-Banner: Boards dürfen kleiner werden, damit alles auf eine Seite passt */
+.livescreen.focus:has(.pausebanner) .boardgrid { min-height: calc(26vh / var(--z, 1)) !important; }
+.sechead .pausechip { margin-left: 12px; font-size: 13px; padding: 4px 12px; text-transform: none; letter-spacing: 0; }
+.sechead .pausechip.on { border-color: #f5c542; color: #f5c542; }
+
+/* 1.32.6: Pause-Karte auf der Seite der Turnierleitung, 🖥️ mit Steuerung oben */
+.pausepanel { display: flex; flex-direction: column; gap: 8px; border-color: color-mix(in srgb, #f5c542 35%, #222); }
+.pausepanel.on { border-color: #f5c542; background: color-mix(in srgb, #f5c542 10%, var(--surface)); }
+.pausepanel .pphead { display: flex; flex-direction: column; gap: 2px; }
+.pausepanel.on .pphead b { color: #f5c542; }
+.pausepanel .pprow { display: flex; flex-direction: column; gap: 8px; }
+.pausepanel .chips { gap: 6px; }
+.pausepanel .chip { padding: 6px 12px; }
+.pausepanel .ppuntil { display: flex; align-items: center; gap: 8px; }
+.pausepanel .ppuntil input { flex: 1; min-width: 0; }
+.livemain > .pausepanel .pprow { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.livemain > .pausepanel .pprow > input { flex: 1 1 220px; }
+.tvopen { border-color: var(--accent); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tvpanel .sechead { margin-top: 6px; }
+
+/* 1.32.7: Fokus und Fernseher mit mehr Luft – Rand außen, Abstand zwischen den Karten, Boards nicht ganz so hoch */
+.livescreen.focus { box-sizing: border-box; padding: clamp(6px, 1.2vh, 22px) clamp(10px, 1.8vw, 40px); }
+.livescreen.focus .boardgrid { gap: clamp(12px, 1.8vw, 36px); }
+.livescreen.focus .livemain { gap: clamp(10px, 2vh, 32px); }
+.livescreen.focus .livehead { margin-bottom: clamp(4px, 1vh, 16px); }
+/* Eine Reihe Boards (z. B. 2): feste, etwas geringere Höhe – der übrige Platz verteilt sich als Luft */
+.livescreen.focus.onerow .livemain { justify-content: space-evenly; }
+.livescreen.focus.onerow .boardgrid { flex: 0 0 auto; height: calc(clamp(300px, 46vh, 760px) / var(--z, 1)); min-height: 0; margin-top: 0; }
+.livescreen.focus.onerow:has(.pausebanner) .boardgrid { height: calc(clamp(260px, 38vh, 640px) / var(--z, 1)); min-height: 0 !important; }
+.livescreen.focus.onerow .liveinfo { padding: 0; }
+.livescreen.focus .livenext, .livescreen.focus .bestgrid { gap: clamp(10px, 1.4vw, 28px); }
+.livescreen.focus .pausebanner { margin-bottom: 0; }
+
+/* „Weitere Möglichkeiten“ (🖥️ Fernseher) als deutlicher Aufklapp-Knopf */
+.infofold.morefold { margin-top: 4px; }
+.infofold.morefold > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: 14px;
+  border: 1px solid #333; background: var(--surface2); color: var(--text); font-size: 16px; font-weight: 700; }
+.infofold.morefold > summary::after { content: '▾'; font-size: 18px; color: var(--text-dim); transition: transform .2s; }
+.infofold.morefold[open] > summary::after { transform: rotate(180deg); }
+.infofold.morefold > summary:hover { border-color: var(--accent); }
+.infofold.morefold > .stack { padding: 12px 4px 4px; }
+@media (max-height: 820px) { .livescreen.focus.onerow .boardgrid { height: calc(42vh / var(--z, 1)); } .livescreen.focus.onerow:has(.pausebanner) .boardgrid { height: calc(34vh / var(--z, 1)); } }
+
+/* 1.33.0: Kacheln Handys / Gleich geht's los / Pause / Aufruf, Aufruf groß, Zuschauer-QR in der Ecke, Startseite */
+.panelwrap { display: flex; flex-direction: column; gap: 8px; }
+.panelrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.panelhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; padding: 10px 14px; margin: 0; color: var(--text); font: inherit; }
+.panelhead b { font-size: 16px; }
+.panelhead .pharrow { color: var(--text-dim); font-size: 16px; }
+.panelhead:hover { border-color: #444; }
+.panelhead.open { border-color: var(--accent); }
+.panelhead.hot .small { color: #f5c542; }
+.callpanel { display: flex; flex-direction: column; gap: 8px; }
+.cprow { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.cprow select, .cprow input { width: 100%; min-width: 0; }
+.cprow .btn.small { width: auto; white-space: nowrap; }
+.cplabel { font-weight: 700; }
+.hilitebox .hilitetitle { font-size: clamp(18px, 2.4vw, 40px); font-weight: 800; color: var(--warn); margin-bottom: 8px; }
+.hilitebox.kcall { border-color: var(--warn); }
+.hilitebox.kcall .hilitetext { font-size: clamp(36px, 6vw, 110px); }
+.hilitebox.kcall .hilitesub { font-size: clamp(16px, 2vw, 34px); }
+.cornerqr { position: fixed; right: clamp(10px, 1.6vw, 36px); bottom: clamp(10px, 1.6vh, 30px); z-index: 40; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 16px; background: rgba(10,10,10,.92); border: 1px solid #2a2a2a; box-shadow: 0 8px 30px rgba(0,0,0,.6); max-width: 360px; }
+.cornerqr .qrimg { background: #fff; border-radius: 10px; padding: 6px; }
+.cornerqr .qrimg svg { width: clamp(80px, 9vh, 140px); height: clamp(80px, 9vh, 140px); display: block; }
+.cornerqr .cqtext { display: flex; flex-direction: column; gap: 4px; font-size: clamp(12px, 1.4vh, 18px); color: var(--text-dim); }
+.cornerqr .cqtext b { color: var(--text); font-size: clamp(14px, 1.8vh, 22px); }
+.startpage { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: clamp(16px, 3vw, 60px); align-items: center; min-height: calc((100vh - 140px) / var(--z, 1)); }
+.startpage .spmain { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1.4vh; }
+.startpage .spkicker { color: var(--text-dim); font-size: clamp(14px, 2vh, 26px); font-weight: 700; }
+.startpage .sptitle { font-size: clamp(36px, 7vh, 110px); font-weight: 900; line-height: 1.05; }
+.startpage .spgo { font-size: clamp(24px, 4.5vh, 64px); font-weight: 800; color: var(--accent); }
+.startpage .spcount { font-size: clamp(64px, 17vh, 260px); font-weight: 900; color: #f5c542; line-height: 1; letter-spacing: .02em; }
+.startpage .spat { font-size: clamp(16px, 2.6vh, 34px); color: var(--text-dim); }
+.startpage .spside { display: flex; flex-direction: column; gap: 2vh; }
+.startpage .spfirst { display: flex; flex-direction: column; gap: 1.2vh; font-size: clamp(14px, 2.2vh, 28px); }
+.startpage .spgame { display: flex; align-items: center; gap: 12px; }
+.startpage .spqr { display: flex; align-items: center; gap: 16px; }
+.startpage .spqr .qrimg { background: #fff; border-radius: 12px; padding: 8px; }
+.startpage .spqr .qrimg svg { width: clamp(110px, 16vh, 220px); height: clamp(110px, 16vh, 220px); display: block; }
+@media (max-width: 900px) { .startpage { grid-template-columns: 1fr; } .cprow { grid-template-columns: 1fr; } }
+.livescreen.focus .pagegrid .focuspage.startpage { display: grid; flex-direction: initial; }
+@media (max-width: 900px) { .livescreen.focus .pagegrid .focuspage.startpage { grid-template-columns: 1fr; } }
+.livescreen.focus:has(.cornerqr) .liveinfo { padding-right: min(390px, 27vw); }
+.livescreen.focus:has(.cornerqr) .pagegrid .focuspage { padding-right: min(390px, 27vw); }
+
+/* 1.34.0: Zeitplan-Ampel, Spieler am Board in Tabellen, Handy weg, Siegerehrung */
+.panelhead.tl-ok { border-color: color-mix(in srgb, var(--accent) 45%, #222); }
+.panelhead.tl-tight { border-color: #f5c542; }
+.panelhead.tl-tight .small { color: #f5c542; }
+.panelhead.tl-late { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.panelhead.tl-late .small { color: var(--danger); }
+.timepanel { display: flex; flex-direction: column; gap: 10px; }
+.timepanel .tphead { display: flex; align-items: center; gap: 12px; }
+.timepanel .tplight { font-size: 34px; line-height: 1; }
+.timepanel.late { border-color: var(--danger); }
+.timepanel.tight { border-color: #f5c542; }
+.timepanel .ppuntil input { max-width: 160px; }
+.timepanel .list-item .chip { flex: none; }
+.busytag { margin-left: 6px; font-size: .72em; font-weight: 800; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+.busytag.play { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.busytag.called { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+.busytag.write { background: #262626; color: var(--text-dim); }
+.ttable tr.busy-play td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.ttable tr.busy-called td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.boardtile.phoneaway { border-color: var(--danger) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 50%, transparent), 0 0 30px color-mix(in srgb, var(--danger) 30%, transparent) !important; }
+.awaybar { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--danger) 18%, var(--surface)); color: #fff; font-weight: 700; font-size: 14px; }
+.ceremonybtn { min-height: 56px; font-size: 18px; }
+.hilitebox.kceremony { border-color: #f5c542; }
+.hilitebox.kceremony .hilitetitle { color: #f5c542; font-size: clamp(24px, 3.4vw, 60px); }
+.hilitebox.kceremony .hilitetext { font-size: clamp(40px, 7vw, 130px); }

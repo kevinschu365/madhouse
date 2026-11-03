@@ -5,12 +5,13 @@ import { h, toast, promptDialog, confirmDialog } from '../dom.js';
 import { getPlayers, addPlayer, getSettings, updateSettings, displayName, newGuest, isGuestId } from '../../core/settings.js';
 import { dbGetAll, lsGet } from '../../core/storage.js';
 import { unlock } from '../../audio/speech.js';
-import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, canEditDraw, swapDraw, redraw, groupName, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
+import { getTournaments, getTournament, saveTournament, deleteTournament, createTournament, tournamentState, matchTag, groupCount, groupOptions, formatFor, rulesText, resolvedRules, estimateMinutes, canEditDraw, swapDraw, redraw, groupName, TOURNAMENT_FORMATS, LIMITS, MAX_PLAYERS } from '../../core/tournament.js';
 import { liveServer, postTournament, setCloudCode, setMyBoard, liveActive, endLive } from '../../core/live.js';
 import { cloudEnabled, newCode, normCode, showCode, fetchState } from '../../core/cloud.js';
 import { confetti } from '../celebrate.js';
 import { scanQR } from '../qrScan.js';
 import { showMatchDetail } from '../matchDetail.js';
+import { handoverSheet } from '../handover.js';
 import { planView, champCard, nameOf } from '../tournamentView.js';
 
 const MODES = [['x01', 'X01'], ['cricket', 'Cricket']];
@@ -56,6 +57,19 @@ export function render(root, params, nav) {
     } catch (e) { toast(e.message); }
   }
 
+  /** Turnierleitung eines Online-Turniers übernehmen (z. B. am PC): Code oder Adresse aus dem Übergabe-QR. */
+  async function takeOver(text) {
+    const t = String(text || '').trim();
+    const m = /[?&](?:leitung|live)=([A-Za-z0-9-]+)/.exec(t);
+    const code = normCode(m ? m[1] : t.replace(/^MADHOUSE:/i, ''));
+    if (!code) { toast('Kein gültiger Turnier-Code (8 Zeichen, Buchstaben und Ziffern).'); return; }
+    try {
+      const s = await fetchState(code);
+      if (!s.tournament) { toast('Kein Turnier mit diesem Code gefunden.'); return; }
+      setCloudCode(code); setMyBoard(null); nav.go('live', { takeover: true });
+    } catch (e) { toast(e.message); }
+  }
+
   // ---------- Übersicht ----------
   function drawList(matches, live) {
     const list = getTournaments();
@@ -75,6 +89,14 @@ export function render(root, params, nav) {
             if (input != null) { unlock(); join(input); }
           },
         }, '⌨️ Code eintippen')) : null,
+      // Am PC: die Turnierleitung eines Online-Turniers übernehmen (Code vom iPhone, „An PC übergeben“)
+      cloudEnabled() ? h('button', {
+        class: 'btn ghost',
+        onclick: async () => {
+          const input = await promptDialog('Turnierleitung übernehmen', '', { ok: 'Übernehmen', placeholder: 'Code vom iPhone, z. B. K7P2-QX9M' });
+          if (input != null) { unlock(); takeOver(input); }
+        },
+      }, '🖥️ Turnierleitung übernehmen (Code vom iPhone)') : null,
       liveActive(live) ? h('div', { class: 'card stack' },
         h('b', {}, live.cloud ? `🌐 Online-Turnier · Code ${showCode(live.code)}` : '🏟️ Live-Turnier im WLAN läuft'),
         h('div', { class: 'small dim' }, live.cloud ? 'Dieses Gerät ist mit einem Online-Turnier verbunden.' : 'Der Turnier-Server auf dem PC hat ein laufendes Turnier. Beenden: in der Live-Ansicht unten „Live-Turnier beenden“.'),
@@ -109,10 +131,13 @@ export function render(root, params, nav) {
       name: `Turnier ${new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`,
       format: last.format || 'ko', mode: last.mode || 'x01', startScore: last.startScore || 501, cutThroat: !!last.cutThroat,
       legsBestOf: last.legsBestOf || 3, input: last.input || 'total', groupSize: last.groupSize || 5,
-      boards: last.boards || 2, pauseMin: last.pauseMin ?? 0,
+      boards: last.boards || 2, pauseMin: last.pauseMin ?? 0, third: last.third ?? true, // third: Spiel um Platz 3
       selected: (last.players || []).filter((id) => getPlayers().some((p) => p.id === id)),
       guests: [], // Gäste dieses Turniers (ohne Statistik)
       seeded: [], // gesetzte Spieler ⭐, bester zuerst
+      groups: null, // Gruppen + K.-o.: gewählte Aufteilung (2, 4 oder 8 Gruppen); null = Empfehlung
+      rules: { ...(last.rules || {}) }, // Legs je Runde: { group, ko, semi, final, finalSets } – fehlt ein Wert, gilt „Legs“
+      timeLimit: last.timeLimit || 0, // Zeit bis Turnierende in Minuten (0 = egal) – steuert die Empfehlung
     };
     const draw = () => {
       const players = getPlayers();
@@ -126,16 +151,23 @@ export function render(root, params, nav) {
         draw();
       };
       const nameInput = h('input', { value: cfg.name, oninput: (e) => { cfg.name = e.target.value; } });
+      // Auswahl für eine Runde: „wie oben“ (erbt) oder Best of 1–9
+      const ruleDrop = (label, key, long = false) => dropdown(label, [['', 'wie oben'], ...[1, 3, 5, 7, ...(long ? [9] : [])].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`])], cfg.rules[key] || '',
+        (v) => { if (v) cfg.rules[key] = +v; else delete cfg.rules[key]; draw(); });
       const size = (k) => { let x = 4; while (x < k) x *= 2; return x; };
       let info = `Mindestens ${min}, höchstens ${max} Spieler.`;
-      if (ready && cfg.format === 'ko') info = `${n - 1} Spiele${size(n) > n ? `, ${size(n) - n} Freilos${size(n) - n > 1 ? 'e' : ''} in Runde 1` : ''}.`;
+      if (ready && cfg.format === 'ko') info = `${n - 1 + (cfg.third ? 1 : 0)} Spiele${cfg.third ? ' (mit Spiel um Platz 3)' : ''}${size(n) > n ? `, ${size(n) - n} Freilos${size(n) - n > 1 ? 'e' : ''} in Runde 1` : ''}.`;
       if (ready && cfg.format === 'rr') info = `${(n * (n - 1)) / 2} Spiele, jeder spielt ${n - 1}×.`;
-      if (ready && cfg.format === 'gko') {
-        const g = groupCount(n, cfg.groupSize);
-        const sizes = Array.from({ length: g }, (_, i) => Math.floor(n / g) + (i < n % g ? 1 : 0));
-        const groupGames = sizes.reduce((a, k) => a + (k * (k - 1)) / 2, 0);
-        info = `${g} Gruppen (${[...new Set(sizes)].join(' bzw. ')} Spieler), ${groupGames} Gruppenspiele, dann K.-o. mit ${2 * g} Spielern (${2 * g - 1} Spiele).`;
-      }
+      // Gruppen + K.-o.: passende Aufteilungen für diese Spielerzahl als Vorschläge (2, 4 oder 8 Gruppen)
+      const gOpts = ready && cfg.format === 'gko' ? groupOptions(n, { legsBestOf: cfg.legsBestOf, boards: cfg.boards, third: cfg.third, rules: cfg.rules, timeLimit: cfg.timeLimit }) : [];
+      const gPick = gOpts.find((o) => o.groups === cfg.groups) || gOpts.find((o) => o.recommended) || gOpts[0] || null;
+      const dur = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Std.`;
+      const span = (a, b) => (a === b ? `${a}` : `${a}–${b}`);
+      // Grobe Dauer auch für K.-o. und Jeder gegen Jeden (Gruppen + K.-o.: steht auf den Vorschlags-Karten)
+      const estim = ready && cfg.format === 'ko' ? estimateMinutes({ koPlayers: size(n), third: cfg.third, rules: cfg.rules, legsBestOf: cfg.legsBestOf, boards: cfg.boards })
+        : ready && cfg.format === 'rr' ? estimateMinutes({ groupGames: (n * (n - 1)) / 2, rules: cfg.rules, legsBestOf: cfg.legsBestOf, boards: cfg.boards }) : 0;
+      if (estim) info = info.replace(/.$/, `, ca. ${dur(estim)} bei ${cfg.boards} Board${cfg.boards > 1 ? 's' : ''}.`);
+      if (gPick) info = `${gPick.groups} Gruppen, ${gPick.groupGames} Gruppenspiele, dann K.-o. mit ${gPick.koPlayers} Spielern (${gPick.koGames} Spiele${cfg.third ? ', mit Spiel um Platz 3' : ''}).`;
       body.replaceChildren(
         topbar('Neues Turnier', () => nav.go('tournament')),
         h('div', { class: 'card stack' },
@@ -147,13 +179,25 @@ export function render(root, params, nav) {
             cfg.mode === 'x01'
               ? dropdown('Startwert', [301, 501, 701].map((v) => [v, String(v)]), cfg.startScore, (v) => { cfg.startScore = +v; })
               : dropdown('Variante', [['0', 'Standard'], ['1', 'Cut Throat']], cfg.cutThroat ? '1' : '0', (v) => { cfg.cutThroat = v === '1'; }),
-            dropdown('Legs', [1, 3, 5, 7].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`]), cfg.legsBestOf, (v) => { cfg.legsBestOf = +v; }),
+            dropdown('Legs', [1, 3, 5, 7].map((v) => [v, v === 1 ? '1 Leg' : `Best of ${v}`]), cfg.legsBestOf, (v) => { cfg.legsBestOf = +v; draw(); }),
             dropdown('Eingabe', [['total', 'Summe'], ['dart', 'Pro Dart'], ['board', 'Scheibe']].filter(([k]) => k !== 'total' || cfg.mode === 'x01'), cfg.input, (v) => { cfg.input = v; }),
-            cfg.format === 'gko' ? dropdown('Gruppengröße', [[4, 'etwa 4'], [5, 'etwa 5'], [6, 'etwa 6']], cfg.groupSize, (v) => { cfg.groupSize = +v; draw(); }) : null,
-            dropdown('Boards (= Handys)', [1, 2, 3, 4, 5, 6].map((v) => [v, String(v)]), cfg.boards, (v) => { cfg.boards = +v; }),
+            dropdown('Boards (= Handys)', [1, 2, 3, 4, 5, 6].map((v) => [v, String(v)]), cfg.boards, (v) => { cfg.boards = +v; draw(); }),
             cfg.format !== 'rr' ? dropdown('Pause vor K.-o.-Runden', [[0, 'keine'], [5, '5 Minuten'], [10, '10 Minuten'], [15, '15 Minuten']], cfg.pauseMin, (v) => { cfg.pauseMin = +v; }) : null,
+            cfg.format !== 'rr' ? dropdown('Spiel um Platz 3', [[1, 'ja'], [0, 'nein']], cfg.third ? 1 : 0, (v) => { cfg.third = v === '1'; draw(); }) : null,
           ),
         ),
+        // Legs je Runde (Gruppe kurz, Finale lang, Finale auch in Sätzen) und Zeit bis Turnierende
+        h('details', { class: 'card rulescard', open: cfg.rulesOpen ?? (Object.keys(cfg.rules).length > 0 || !!cfg.timeLimit) },
+          h('summary', { onclick: (e) => { e.preventDefault(); cfg.rulesOpen = !(cfg.rulesOpen ?? (Object.keys(cfg.rules).length > 0 || !!cfg.timeLimit)); draw(); } }, h('b', {}, '⚙️ Legs je Runde & Zeit'), h('span', { class: 'dim small' }, ` · ${rulesText({ format: cfg.format, legsBestOf: cfg.legsBestOf, rules: cfg.rules, ko: cfg.format === 'rr' ? null : { rounds: 4 } })}`)),
+          h('div', { class: 'small dim' }, '„wie oben“ = der Wert bei „Legs“. Halbfinale gilt auch fürs Spiel um Platz 3.'),
+          h('div', { class: 'grid3' },
+            cfg.format !== 'ko' ? ruleDrop('Gruppenphase', 'group') : null,
+            cfg.format !== 'rr' ? ruleDrop('K.-o.-Runden', 'ko') : null,
+            cfg.format !== 'rr' ? ruleDrop('Halbfinale', 'semi') : null,
+            cfg.format !== 'rr' ? ruleDrop('Finale', 'final', true) : null,
+            cfg.format !== 'rr' ? dropdown('Finale in Sätzen', [[1, 'nein'], [3, 'Best of 3 Sätze'], [5, 'Best of 5 Sätze']], cfg.rules.finalSets || 1, (v) => { if (+v > 1) cfg.rules.finalSets = +v; else delete cfg.rules.finalSets; draw(); }) : null,
+            dropdown('Zeit bis Turnierende', [[0, 'egal'], [120, 'ca. 2 Std.'], [180, 'ca. 3 Std.'], [240, 'ca. 4 Std.'], [300, 'ca. 5 Std.'], [360, 'ca. 6 Std.'], [480, 'ca. 8 Std.']], cfg.timeLimit, (v) => { cfg.timeLimit = +v; cfg.groups = null; draw(); })),
+          cfg.timeLimit && cfg.format === 'gko' ? h('div', { class: 'small dim' }, 'Die Empfehlung unten ist die Aufteilung mit den meisten Spielen, die noch in die Zeit passt.') : null),
         sec('👥 Spieler', h('span', { class: `num ${ready ? 'accent' : 'dim'}` }, `${n} / ${max}`)),
         h('div', { class: 'chips' },
           players.map((p) => h('button', { class: `chip ${cfg.selected.includes(p.id) ? 'on' : ''}`, onclick: () => toggle(p.id) },
@@ -190,6 +234,20 @@ export function render(root, params, nav) {
           }, '＋ Gäste'),
           players.length > 8 ? h('button', { class: 'chip', onclick: () => { cfg.selected = cfg.selected.length ? [] : players.slice(0, MAX_PLAYERS).map((p) => p.id); cfg.guests = []; draw(); } }, cfg.selected.length ? 'Keinen' : 'Alle') : null),
         cfg.guests.length ? h('p', { class: 'dim small', style: { margin: 0 } }, '👤 Gäste spielen mit, bekommen aber keine Statistik und keine Meilensteine. Für ihre Gegner zählt das Match normal.') : null,
+        // Vorschläge für die Aufteilung (Gruppen + K.-o.): antippen zum Auswählen, die empfohlene ist markiert
+        gOpts.length ? [
+          sec('🧩 Aufteilung', h('span', { class: 'dim small' }, `${n} Spieler · Dauer grob geschätzt`)),
+          h('div', { class: 'groupopts' }, gOpts.map((o) => h('button', {
+            class: `groupopt ${gPick && gPick.groups === o.groups ? 'on' : ''}`,
+            onclick: () => { cfg.groups = o.groups; draw(); },
+          },
+          h('div', { class: 'gohead' }, h('b', {}, `${o.groups} Gruppen`), o.recommended ? h('span', { class: 'gotag' }, '★ empfohlen') : null),
+          h('div', {}, `je ${span(o.minSize, o.maxSize)} Spieler · ${span(o.gamesPerPlayer[0], o.gamesPerPlayer[1])} Spiele pro Spieler`),
+          h('div', { class: 'dim' }, `${o.groupGames} Gruppenspiele + ${o.koGames} im K.-o. (ab ${o.koRound})`),
+          h('div', { class: 'gototal' }, `${o.total} Spiele · ca. ${dur(o.minutes)}`, h('span', { class: 'dim' }, ` bei ${cfg.boards} Board${cfg.boards > 1 ? 's' : ''}`)),
+          cfg.timeLimit && !o.fits ? h('div', { class: 'gowarn' }, `⚠️ länger als ${dur(cfg.timeLimit)} – mehr Boards oder weniger Legs`) : null))),
+          h('p', { class: 'dim small', style: { margin: 0 } }, 'Platz 1 und 2 jeder Gruppe kommen weiter – so geht der K.-o. immer ohne Freilose auf. Die Dauer ist ein Erfahrungswert (ca. 15 Min. je Best-of-3-Spiel); während des Turniers rechnet die App mit den echten Spielzeiten.'),
+        ] : null,
         // Setzliste: die Stärksten antippen (bester zuerst), damit sie sich nicht schon in Runde 1 rauswerfen
         cfg.format !== 'rr' && n ? [
           sec('⭐ Gesetzt (optional)', cfg.seeded.length ? h('button', { class: 'chip', onclick: () => { cfg.seeded = []; draw(); } }, 'Keinen') : null),
@@ -203,7 +261,7 @@ export function render(root, params, nav) {
           })),
           h('p', { class: 'dim small', style: { margin: 0 } }, cfg.format === 'ko'
             ? `Die Stärksten antippen, den besten zuerst. Gesetzte treffen sich erst spät: ⭐1 und ⭐2 frühestens im Finale, ⭐1–4 frühestens im Halbfinale.${size(n) > n ? ` Die ${size(n) - n} Freilos${size(n) - n > 1 ? 'e' : ''} bekommen die Gesetzten.` : ''} Alle anderen werden zugelost.`
-            : `Die Stärksten antippen, den besten zuerst. Jeder Gesetzte kommt in eine andere Gruppe (bei ${groupCount(n, cfg.groupSize)} Gruppen also bis zu ${groupCount(n, cfg.groupSize)} Gesetzte). Alle anderen werden zugelost.`),
+            : `Die Stärksten antippen, den besten zuerst. Jeder Gesetzte kommt in eine andere Gruppe (bei ${gPick ? gPick.groups : groupCount(n, cfg.groupSize)} Gruppen also bis zu ${gPick ? gPick.groups : groupCount(n, cfg.groupSize)} Gesetzte). Alle anderen werden zugelost.`),
         ] : null,
         h('p', { class: 'dim small', style: { margin: 0 } }, info),
         h('button', {
@@ -215,14 +273,15 @@ export function render(root, params, nav) {
                 name: cfg.name.trim() || 'Turnier', format: cfg.format, mode: cfg.mode,
                 options: cfg.mode === 'x01' ? { startScore: cfg.startScore, doubleOut: true } : { cutThroat: cfg.cutThroat },
                 legsBestOf: cfg.legsBestOf, input: cfg.input, camera: false, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin,
-                seeded: cfg.format === 'rr' ? [] : cfg.seeded.filter((id) => cfg.selected.includes(id)),
+                seeded: cfg.format === 'rr' ? [] : cfg.seeded.filter((id) => cfg.selected.includes(id)), third: cfg.third, groups: gPick ? gPick.groups : 0, rules: Object.keys(cfg.rules).length ? { ...cfg.rules } : null,
                 players: cfg.selected, playerNames: cfg.selected.map((id) => (isGuestId(id) ? cfg.guests.find((g) => g.id === id).name : displayName(players.find((p) => p.id === id), players))),
               });
+              if (cfg.timeLimit) t.timeLimit = cfg.timeLimit; // geplante Dauer (Zeitplan-Ampel in der Turnierleitung)
             } catch (e) { toast(e.message); return; }
             // Spieler-Nummern mitgeben: so ordnet „Turnier-Spiele übernehmen“ die Spieler auf anderen Handys sicher zu
             t.playerInfo = players.filter((p) => cfg.selected.includes(p.id)).map((p) => ({ id: p.id, name: p.name, code: p.code }));
             saveTournament(t);
-            updateSettings({ lastTournament: { format: cfg.format, mode: cfg.mode, startScore: cfg.startScore, cutThroat: cfg.cutThroat, legsBestOf: cfg.legsBestOf, input: cfg.input, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin, players: cfg.selected } });
+            updateSettings({ lastTournament: { format: cfg.format, mode: cfg.mode, startScore: cfg.startScore, cutThroat: cfg.cutThroat, legsBestOf: cfg.legsBestOf, input: cfg.input, groupSize: cfg.groupSize, boards: cfg.boards, pauseMin: cfg.pauseMin, third: cfg.third, rules: cfg.rules, timeLimit: cfg.timeLimit, players: cfg.selected } });
             toast('🎲 Ausgelost!');
             nav.go('tournament', { id: t.id });
           },
@@ -299,19 +358,20 @@ export function render(root, params, nav) {
       const active = lsGet('activeMatch', null);
       if (active && active.status === 'running') { toast('Es läuft noch ein anderes Spiel – erst beenden.'); return; }
       nav.go('game', {
-        setup: { mode: t.mode, options: t.options, players: [g.a, g.b], playerNames: [nameOf(t, g.a), nameOf(t, g.b)], setsBestOf: 1, legsBestOf: t.legsBestOf, firstStarter: 0, starterMethod: 'tap' },
+        setup: { mode: t.mode, options: t.options, players: [g.a, g.b], playerNames: [nameOf(t, g.a), nameOf(t, g.b)], setsBestOf: formatFor(t, g).setsBestOf, legsBestOf: formatFor(t, g).legsBestOf, firstStarter: 0, starterMethod: 'tap' },
         camera: false, inputMode: t.input, tournament: matchTag(t, g),
       });
     };
     const head = st.champion && st.done
       ? champCard(t, st)
       : isLive ? h('div', { class: 'card stack' },
-        h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${t.legsBestOf === 1 ? '1 Leg' : `Best of ${t.legsBestOf} Legs`} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
+        h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${rulesText(t)} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
         h('b', {}, live.cloud ? `🌐 Läuft online · Code ${showCode(live.code)}` : '📶 Läuft live im WLAN'),
         h('button', { class: 'btn primary big', onclick: () => nav.go('live') }, '🖥️ Zur Turnierleitung'),
+        live.cloud ? h('button', { class: 'btn', onclick: () => handoverSheet(live.code) }, '🖥️ Turnierleitung an PC übergeben') : null,
         h('div', { class: 'small dim' }, 'Die Turnierleitung ruft die Spiele automatisch an den Boards auf. Hier siehst du nur den Turnierplan.'))
       : h('div', { class: 'card stack' },
-        h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${t.legsBestOf === 1 ? '1 Leg' : `Best of ${t.legsBestOf} Legs`} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
+        h('div', { class: 'small dim' }, `${TOURNAMENT_FORMATS[t.format]} · ${t.mode === 'x01' ? `${t.options.startScore}` : 'Cricket'} · ${rulesText(t)} · ${t.players.length} Spieler · ${t.boards} Board${t.boards > 1 ? 's' : ''}`),
         live && !live.cloud ? h('button', {
           class: 'btn primary',
           onclick: async () => {

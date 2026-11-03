@@ -8,7 +8,7 @@ import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { getSettings, updateSettings, isGuestId } from '../../core/settings.js';
 import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf } from '../../audio/speech.js';
-import { lsGet, dbGetAll } from '../../core/storage.js';
+import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS, RANKS } from '../../stats/stats.js';
 import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
@@ -16,7 +16,7 @@ import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 import { showMatchDetail } from '../matchDetail.js';
 import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
 import { milestoneToast, rankUpScreen } from '../celebrate.js';
-import { startHeartbeat, leaveBoard } from '../../core/live.js';
+import { startHeartbeat, leaveBoard, liveState, isKicked, deviceId } from '../../core/live.js';
 
 // Summen, die mit 1 bzw. 2 Darts möglich sind (für den Zwischenstand bei der Summen-Eingabe)
 const ONE_DART = new Set(allHits().map(dartScore));
@@ -952,9 +952,38 @@ export function render(root, params, nav) {
   // Match sofort lokal sichern
   session.set(session.match, 'init', {});
 
+  // Live-Turnier: Hat die Turnierleitung dieses Handy abgemeldet (z. B. weil ein neues Handy das Spiel weiterführt),
+  // das Spiel hier beenden – sonst würde dieses Handy den Stand des neuen überschreiben. Prüfung alle 10 Sekunden.
+  const kickTimer = session.match.liveBoard && session.match.tournament ? setInterval(async () => {
+    try {
+      const st = await liveState();
+      if (disposed) return;
+      const t = st.tournament;
+      // Turnierleitung hat das Spiel gestoppt („Neu starten“, „Später spielen“, Ergebnis am PC) oder an ein anderes
+      // Board verlegt: hier beenden, Board behalten (das Handy zeigt dann den nächsten Aufruf)
+      const call = t && t.calls && session.match.tournament ? t.calls[session.match.tournament.game] : null;
+      const stopped = !!(t && t.stopped && t.stopped[session.match.id]);
+      const moved = !!(call && call.board && call.board !== session.match.liveBoard);
+      if (stopped || moved) {
+        clearInterval(kickTimer);
+        lsSet('activeMatch', null);
+        toast(stopped ? '⏹ Die Turnierleitung hat dieses Spiel beendet bzw. neu angesetzt.' : `↔ Das Spiel wurde an Board ${call.board} verlegt – dort mit „Weiterspielen“ fortsetzen.`, 5000);
+        nav.go('board');
+        return;
+      }
+      if (!isKicked(t, { board: session.match.liveBoard, id: deviceId() })) return;
+      clearInterval(kickTimer);
+      lsSet('activeMatch', null);
+      await leaveBoard();
+      toast('📴 Die Turnierleitung hat dieses Handy abgemeldet – das Spiel läuft auf einem anderen Handy weiter.', 5000);
+      nav.go('home');
+    } catch { /* keine Verbindung: später erneut */ }
+  }, 5000) : null;
+
   return () => {
     disposed = true;
     clearTimeout(botTimer);
+    clearInterval(kickTimer);
     landscape.removeEventListener?.('change', placeActions);
     keepAwake(false);
     if (cam) cam.stop();

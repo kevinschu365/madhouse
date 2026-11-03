@@ -37,6 +37,12 @@ export const DEFAULT_SETTINGS = {
   tourOnlyConnected: true,   // nur Boards aufrufen, an denen ein Handy verbunden ist
   tourSchedule: true,        // geschätztes Turnierende anzeigen
   tourDelayWarn: true,       // warnen, wenn ein aufgerufenes Spiel nach 5 Minuten nicht begonnen hat
+  tourRest: 5,               // Ruhezeit in Minuten: wer gerade gespielt hat, kommt möglichst erst danach wieder dran (0 = aus)
+  tourStaleMin: 'auto',      // Spiel läuft ungewöhnlich lange: 'auto' (doppelte übliche Dauer) | Minuten | 0 = aus
+  tourCallTwice: false,      // Aufrufe zweimal ansagen (laute Räume)
+  tourAbsentWo: 0,           // so viele Minuten „nicht da“ -> nächstes Spiel kampflos an den Gegner (0 = aus)
+  tourWatchQr: false,        // Zuschauer-QR klein im Fokus und auf dem Fernseher zeigen
+  tourWatchQrPause: true,    // … in Pausen bzw. wenn kein Spiel läuft unten rechts in der Ecke
   tourSound: true,           // Ansagen am PC (Aufrufe, Pausen, Highlights); Knopf 🔊 in der Live-Ansicht
   tourPlan: 'auto',          // Live-Ansicht: Turnierbaum/Tabellen 'auto' (breit: daneben) | 'below' | 'off'
   tourRotate: true,          // Fokus/Fernseher: in Pausen automatisch Boards → Gruppen → K.-o. wechseln

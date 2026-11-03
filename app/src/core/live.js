@@ -189,7 +189,8 @@ export function withoutKicked(presence, t) {
 }
 
 export function deviceName() {
-  return lsGet('liveDevice', null) || (/iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : 'Handy');
+  const ua = navigator.userAgent;
+  return lsGet('liveDevice', null) || (/iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Handy' : /Windows|Macintosh|Linux|CrOS/.test(ua) ? 'PC' : 'Handy');
 }
 
 async function beat() {
@@ -224,7 +225,7 @@ export async function leaveBoard() {
   if (!board) return;
   const info = await liveServer();
   if (!info) return;
-  const p = { board, device: deviceName(), at: Date.now(), left: true };
+  const p = { board, id: deviceId(), device: deviceName(), at: Date.now(), left: true };
   try {
     if (info.cloud) await putPresence(info.code, p); else await call('/api/presence', p);
   } catch { /* dann gilt das Board nach 30 Sekunden ohne Meldung als frei */ }

@@ -4,7 +4,7 @@
 import { h, toast } from '../dom.js';
 import { lsGet, lsSet } from '../../core/storage.js';
 import { unlock, say } from '../../audio/speech.js';
-import { tournamentState, boardStatus, planCalls, matchTag } from '../../core/tournament.js';
+import { tournamentState, boardStatus, planCalls, matchTag, formatFor, formatText } from '../../core/tournament.js';
 import { liveServer, liveState, myBoard, setMyBoard, pendingCount, setCloudCode, startHeartbeat, connectedBoards, leaveBoard, isKicked, withoutKicked, deviceId } from '../../core/live.js';
 import { keepAwake } from '../../core/wakelock.js';
 import { showCode } from '../../core/cloud.js';
@@ -85,6 +85,8 @@ export function render(root, params, nav) {
     if (active && active.tournament && active.tournament.id === t.id) {
       const done = st.games.find((x) => x.key === active.tournament.game);
       if (done && done.status === 'done' && done.match && done.match.id !== active.id) { lsSet('activeMatch', null); active = null; }
+      // Von der Turnierleitung gestoppt („Neu starten“ / „Später spielen“): altes Spiel hier vergessen
+      else if ((t.stopped || {})[active.id]) { lsSet('activeMatch', null); active = null; }
     }
     const content = [];
     if (st.done && st.champion) {
@@ -100,7 +102,7 @@ export function render(root, params, nav) {
       content.push(h('div', { class: 'card callcard' },
         h('div', { class: 'callhead' }, running ? '⏵ Läuft' : '📣 Aufruf'),
         h('div', { class: 'callnames' }, nameOf(t, g.a), h('span', { class: 'vs' }, 'gegen'), nameOf(t, g.b)),
-        h('div', { class: 'dim' }, `${g.roundName}${running ? ` · ${liveScore(g.match)}` : ''}`),
+        h('div', { class: 'dim' }, `${g.roundName} · ${formatText(formatFor(t, g))}${running ? ` · ${liveScore(g.match)}` : ''}`),
         mine.writer ? h('div', { class: 'writer' }, `✍️ Schreiber: ${nameOf(t, mine.writer)}`) : null,
         running
           ? (here || !active
@@ -112,7 +114,8 @@ export function render(root, params, nav) {
               unlock();
               if (active && active.status === 'running') { toast('Auf diesem Handy läuft noch ein Spiel.'); return; }
               nav.go('game', {
-                setup: { mode: t.mode, options: t.options, players: [g.a, g.b], playerNames: [nameOf(t, g.a), nameOf(t, g.b)], setsBestOf: 1, legsBestOf: t.legsBestOf, firstStarter: 0, starterMethod: 'tap' },
+                // Format je Runde (z. B. Gruppe Best of 1, Finale in Sätzen)
+                setup: { mode: t.mode, options: t.options, players: [g.a, g.b], playerNames: [nameOf(t, g.a), nameOf(t, g.b)], setsBestOf: formatFor(t, g).setsBestOf, legsBestOf: formatFor(t, g).legsBestOf, firstStarter: 0, starterMethod: 'tap' },
                 camera: false, inputMode: t.input, tournament: matchTag(t, g), liveBoard: board,
               });
             },

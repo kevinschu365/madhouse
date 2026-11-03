@@ -14,11 +14,12 @@ import * as help from './ui/screens/help.js';
 import * as tournament from './ui/screens/tournament.js';
 import * as board from './ui/screens/board.js';
 import * as live from './ui/screens/live.js';
+import * as watch from './ui/screens/watch.js';
 import * as records from './ui/screens/records.js';
 import * as milestones from './ui/screens/milestones.js';
 import { camera } from './vision/camera.js';
 
-const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament, board, live, records, milestones };
+const SCREENS = { home, players, setup, game, stats, settings, calibrate, training, help, tournament, board, live, watch, records, milestones };
 
 function applyBrand() {
   const r = document.documentElement.style;
@@ -66,8 +67,14 @@ requestPersistence();
 const qs = new URLSearchParams(location.search);
 const qrBoard = parseInt(qs.get('board'), 10);
 if (qs.get('live')) lsSet('liveCloud', qs.get('live').toUpperCase()); // Online-Turnier (QR-Code mit Code)
+// Turnierleitung übernehmen („?leitung=CODE“, QR-Code vom iPhone): dieses Gerät führt das Online-Turnier
+const takeover = (qs.get('leitung') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+if (takeover) { lsSet('liveCloud', takeover); lsSet('liveBoard', null); }
 // Fernseher („?tv=1“, optional mit „&live=CODE“): nur die Fokus-Ansicht anzeigen, ohne Board und ohne Aufrufe
-if (qs.get('tv')) nav.go('live', { viewer: true });
+if (takeover) nav.go('live', { takeover: true });
+else if (qs.get('tv')) nav.go('live', { viewer: true });
+// Zuschauer („?zuschauer=1“, optional mit „&live=CODE“): eigenes nächstes Spiel, Live-Stand, Tabellen – nur lesen
+else if (qs.get('zuschauer')) { lsSet('liveBoard', null); nav.go('watch'); }
 else if (qrBoard > 0) { lsSet('liveBoard', qrBoard); nav.go('board'); }
 else if (qs.get('live')) { lsSet('liveBoard', null); nav.go('board'); } // Beitreten ohne Board: erstes freies Board
 else nav.go('home');
