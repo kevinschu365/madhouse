@@ -55,11 +55,16 @@ export function planMerge(localPlayers, localMatches, data) {
         if (p.code && (!mine.code || p.code < mine.code)) mine.code = p.code;
       }
     }
-    if (mine) { idMap.set(p.id, mine.id); taken.add(mine.id); continue; }
+    if (mine) {
+      // Kampfname: der zuletzt geänderte gewinnt (auch ein gelöschter)
+      if (p.nickAt && p.nickAt > (mine.nickAt || 0)) { mine.nick = String(p.nick || '').slice(0, 24); mine.nickAt = p.nickAt; }
+      idMap.set(p.id, mine.id); taken.add(mine.id); continue;
+    }
     // 3. Unbekannt: neu anlegen (Nummer übernehmen, wenn sie hier frei ist)
     const id = players.some((x) => x.id === p.id) ? `${p.id}_${Date.now().toString(36)}` : p.id;
     const code = p.code && !players.some((x) => x.code === p.code) ? p.code : newPlayerCode(players);
     const np = { id, code, name: String(p.name).slice(0, 24), createdAt: p.createdAt || Date.now() };
+    if (p.nickAt) { np.nick = String(p.nick || '').slice(0, 24); np.nickAt = p.nickAt; }
     players.push(np);
     taken.add(id);
     idMap.set(p.id, id);

@@ -1,6 +1,7 @@
 import { h, toast, confirmDialog } from '../dom.js';
 import { getSettings, updateSettings, reloadSettings, getPlayers, displayName } from '../../core/settings.js';
-import { availableVoices, unlock, speechSupported, announceTurn, say, t, voiceLangOf, SPEECH_LANGS } from '../../audio/speech.js';
+import { availableVoices, unlock, speechSupported, announceTurn, say, t, voiceLangOf, SPEECH_LANGS, QUIP_RATES, TAUNT_LEVELS } from '../../audio/speech.js';
+import { INTRO_MODES } from '../../audio/intro.js';
 import { exportAll, importAll, wipeAll, offerFile, dbGetAll } from '../../core/storage.js';
 import { wakeLockSupported } from '../../core/wakelock.js';
 import { BRAND, APP_VERSION } from '../../config.js';
@@ -79,8 +80,25 @@ export function render(root, params, nav) {
           }, [...new Set(SPEECH_LANGS.map(([, , g]) => g))].map((g) => h('optgroup', { label: g },
             SPEECH_LANGS.filter(([, , gg]) => gg === g).map(([k, label]) => h('option', { value: k, selected: k === s.speechLang }, label)))))),
         toggle('quips', 'Witzige Sprüche', 'z. B. bei 180, Überwerfen, 0 Punkten und Game shot'),
-        toggle('taunts', 'Sticheleien bei Formtief', 'Ab 3 Aufnahmen in Folge unter 40 gibt es einen frechen Kommentar'),
-        toggle('say26', '„Twenty fucking six“ bei 26', 'Statt „26“ – auf Englisch, auch bei deutscher Ansage'),
+        toggle('quipUnlocks', 'Freischaltbare Sprüche', 'Jeder Spieler schaltet mit Rang, Meilensteinen und Wochen-Medaillen eigene Sprüche frei (Meilensteine › 🗣️ Sprüche). Aus: nur die Standard-Sprüche'),
+        h('div', { class: 'field' }, h('span', {}, 'Wie oft kommen Sprüche?'),
+          h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['rare', 'Selten'], ['normal', 'Normal'], ['often', 'Oft']].map(([k, label]) => h('button', {
+            class: (QUIP_RATES.includes(s.quipRate) ? s.quipRate : 'normal') === k ? 'on' : '', onclick: () => { updateSettings({ quipRate: k }); draw(); },
+          }, label))),
+          h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Normal: beim Checkout etwa jedes dritte Mal, beim Match-Gewinn öfter. Nie zwei Sprüche in Folge für denselben Spieler.')),
+        toggle('taunts', 'Sticheleien bei Formtief', 'Ab 3 Aufnahmen in Folge unter 40 gibt es einen frechen Kommentar. Aus: gar keine Sticheleien'),
+        s.taunts ? toggle('tauntSmart', 'Sticheleien mit Rang und Rivalen', '„Für einen Landesmeister ist das dünn“ oder „Anna führt heute vier zu eins“ – nur für Spieler mit Rang, Rivalen nur im Spiel zu zweit (Meilensteine › 🗣️ Sprüche). Aus: nur die allgemeinen Sticheleien') : null,
+        s.taunts ? h('div', { class: 'field' }, h('span', {}, 'Wie hart dürfen Sticheleien sein?'),
+          h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['mild', 'Mild'], ['normal', 'Normal'], ['brutal', 'Brutal']].map(([k, label]) => h('button', {
+            class: (TAUNT_LEVELS.includes(s.tauntLevel) ? s.tauntLevel : 'normal') === k ? 'on' : '', onclick: () => { updateSettings({ tauntLevel: k }); draw(); },
+          }, label))),
+          h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Mild: nur harmlose. Normal: wie bisher (ab 5 Aufnahmen in Folge härter). Brutal: ab 7 Aufnahmen in Folge richtig frech – nur bei Spielern, die das mit ihrem Rang freigeschaltet haben. Es kommen nie mehr Sticheleien als bisher; bei „Sprüche: selten“ nur etwa jede zweite.')) : null,
+        h('div', { class: 'field' }, h('span', {}, 'Einlauf beim Spielstart'),
+          h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['off', 'Aus'], ['short', 'Kurz'], ['full', 'Voll']].map(([k, label]) => h('button', {
+            class: (INTRO_MODES.includes(s.intro) ? s.intro : 'short') === k ? 'on' : '', onclick: () => { updateSettings({ intro: k }); draw(); },
+          }, label))),
+          h('div', { class: 'dim', style: { fontSize: '13px' } }, 'Stellt die Spieler einmal ganz am Anfang eines neuen Spiels vor (2 bis 4 Spieler, nicht im Training). Kurz: „Stammtisch-Ass Kevin gegen Ligaspieler Anna“. Voll: mit Einleitung, Kampfname und Abend-Krone. Beim zweiten Spiel am selben Abend mit denselben Spielern kommt bei „Voll“ nur noch die Kurzform, bei „Kurz“ nichts mehr. Der erste Dart oder die erste Eingabe bricht den Einlauf sofort ab. Kampfname: Spieler oder Meilensteine.')),
+        toggle('say26','„Twenty fucking six“ bei 26', 'Statt „26“ – auf Englisch, auch bei deutscher Ansage'),
         toggle('announceDart', 'Jeden Dart ansagen', '„Triple 20“'),
         toggle('announceTurn', 'Summe der Aufnahme ansagen', '„180“'),
         toggle('announceRest', 'Rest ansagen', '„Rest 141“'),

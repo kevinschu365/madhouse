@@ -297,6 +297,26 @@ export function rivalries(matches, playerId) {
   return [...map.values()].sort((a, b) => (b.wins + b.losses) - (a.wins + a.losses));
 }
 
+/**
+ * Duell-Angabe für die Sticheleien (audio/dissPacks.js), aus Sicht von playerId gegen oppId:
+ * { opp (Name), today: [eigene Siege, Siege des Gegners] seit 5 Uhr früh, wins, losses, lossStreak }.
+ * matches: beendete Spiele gegen echte Spieler. null, wenn die beiden noch nie zu zweit gespielt haben
+ * oder einer ein Gast ist. Wird beim Spielstart einmal berechnet.
+ */
+export function duelFacts(matches, playerId, oppId, oppName = '', now = Date.now()) {
+  if (isGuestId(playerId) || isGuestId(oppId)) return null;
+  const r = rivalries(matches, playerId).find((x) => x.id === oppId);
+  if (!r) return null;
+  const start = playDayStart(now);
+  const today = [0, 0];
+  for (const m of matches) {
+    if (m.status !== 'finished' || m.players.length !== 2 || m.winner == null || m.createdAt < start) continue;
+    if (!m.players.includes(playerId) || !m.players.includes(oppId)) continue;
+    today[m.players[m.winner] === playerId ? 0 : 1]++;
+  }
+  return { opp: oppName || r.name, today, wins: r.wins, losses: r.losses, lossStreak: r.streak < 0 ? -r.streak : 0 };
+}
+
 // ---------- Tages-Serie ----------
 
 /**

@@ -5,13 +5,18 @@ import { newId } from '../game/match.js';
 export const DEFAULT_SETTINGS = {
   speechLang: 'de',          // 'de' | 'en' | Dialekt (siehe audio/speech.js)
   quips: true,               // witzige Sprüche nach der Aufnahme (180, Überworfen …)
+  quipUnlocks: true,         // freischaltbare Sprüche je Spieler (Rang, Meilensteine, Medaillen); aus = nur die Standard-Sprüche
+  quipRate: 'normal',        // wie oft Sprüche kommen: 'rare' (selten) | 'normal' | 'often' (oft)
   announceDart: true,        // jeden Dart ansagen
   announceTurn: true,        // Summe der Aufnahme ansagen
   announceRest: true,        // Rest nach der Aufnahme ansagen
   announceRequire: true,     // Rest vor dem Wurf ansagen, wenn auscheckbar (X01)
   announceRequireName: true, // dabei den Namen dazusagen („Kevin, Rest 80“ statt „Rest 80“)
   taunts: true,              // Sticheleien, wenn jemand mehrere Aufnahmen in Folge unter 40 bleibt
-  say26: true,               // bei 26 „Twenty fucking six“ statt „26“
+  tauntSmart: true,          // Sticheleien, die Rang und Rivalen kennen (audio/dissPacks.js); aus = nur die allgemeinen
+  tauntLevel: 'normal',      // Härte der Sticheleien: 'mild' | 'normal' (mild + hart) | 'brutal' (muss der Spieler freigeschaltet haben)
+  intro: 'short',            // Einlauf-Ansage beim Spielstart: 'off' | 'short' (Rang + Name) | 'full' (mit Einleitung, Kampfname, Abend-Krone)
+  say26: true,            // bei 26 „Twenty fucking six“ statt „26“
   ownerId: null,             // Wem gehört dieses Handy? (Spieler-Kennung) – Startseite zeigt dann nur ihn
   homeAllPlayers: false,     // Startseite: trotzdem alle Spieler zeigen
   homeShowWeek: true,        // Startseite: Karte „Wochenaufgaben“
@@ -136,6 +141,16 @@ export function renamePlayer(id, name) {
   const clean = String(name || '').trim().slice(0, 24);
   if (!clean) throw new Error('Bitte einen Namen eingeben.');
   savePlayers(getPlayers().map((p) => (p.id === id ? { ...p, name: clean } : p)));
+}
+/**
+ * Kampfname eines Spielers setzen (leer = entfernen), höchstens 24 Zeichen. Er wird nur im Einlauf angesagt
+ * (audio/intro.js) und erst ab einem bestimmten Rang – das prüfen die Oberfläche und die Ansage.
+ * nickAt: Zeitpunkt der Änderung, damit beim Abgleich zwischen Handys der neuere Kampfname gewinnt.
+ */
+export function setPlayerNick(id, nick, now = Date.now()) {
+  const clean = String(nick || '').replace(/\s+/g, ' ').trim().slice(0, 24).trim();
+  savePlayers(getPlayers().map((p) => (p.id === id ? { ...p, nick: clean, nickAt: now } : p)));
+  return clean;
 }
 export function removePlayer(id) {
   // Spieler wird nur aus der Auswahl entfernt; alte Statistiken behalten den Namen im Match.

@@ -8,6 +8,53 @@ import { lsGet, lsSet } from './core/storage.js';
 
 export const CHANGELOG = [
   {
+    version: '1.45.0',
+    date: '10.11.2026',
+    items: [
+      'Neu: 🎤 Einlauf beim Spielstart – die App stellt die Spieler einmal kurz vor, z. B. „Stammtisch-Ass Kevin gegen Ligaspieler Anna“. Nur ganz am Anfang eines neu gestarteten Spiels mit 2 bis 4 Spielern – nicht im Training, nicht beim Weiterspielen, nicht bei jedem Leg und nicht am Board-Handy im Live-Turnier',
+      'Neue Einstellung „Einlauf: aus / kurz / voll“ (Einstellungen › Ansagen & Töne und im Spiel unter ☰), Standard: kurz. Kurz = Rang und Name in einem Satz. Voll = mit Einleitung („Am Oche:“, „Game on!“ …), Kampfname und „Träger der Abend-Krone“',
+      'Der Einlauf hält nichts auf: Er ist auf einen kurzen Satz begrenzt (etwa 5 Sekunden) – wird er mit Kampfname und Krone zu lang, fallen erst die Einleitung und dann die Ränge weg. Und der erste Dart, die erste getippte Zahl oder „Anwurf wechseln“ bricht ihn sofort ab. Der Ruhe-Modus 🔇 schaltet ihn mit aus',
+      'Nicht bei jedem Spiel dasselbe: Beim zweiten und jedem weiteren Spiel am selben Abend mit denselben Spielern kommt bei „voll“ nur noch die Kurzform, bei „kurz“ gar nichts mehr',
+      'Ab 3 Spielern werden nur die Namen genannt (bei „voll“ zusätzlich, wer die Abend-Krone trägt); ab 5 Spielern gibt es keinen Einlauf',
+      'Gäste und der Computer werden nur mit Namen genannt, ohne Rang. Beginnt der Computer, wartet er den Einlauf kurz ab',
+      'Neu: 🥊 Kampfname (z. B. „The Hammer“, höchstens 24 Zeichen) – jeder Spieler kann sich einen geben, sobald er den Rang Stammtisch-Ass erreicht hat. Davor steht dort ein Schloss mit „ab Stammtisch-Ass“. Eingeben unter Spieler oder oben auf der Meilenstein-Seite',
+      'Der Kampfname wird nur im Einlauf („voll“) angesagt und steht klein auf der Meilenstein-Seite – nicht in den Rest-Ansagen',
+      'Meilensteine: neuer Knopf „🔊 Einlauf anhören“ spielt die eigene Ansage vor',
+      'Abgleich zwischen Handys: Der Kampfname wandert mit „Spiele senden / einlesen“ mit – der zuletzt geänderte gewinnt',
+    ],
+  },
+  {
+    version: '1.44.0',
+    date: '10.11.2026',
+    items: [
+      'Neu: 😈 Sticheleien, die den Rang kennen – bei Formtief heißt es jetzt auch mal „Für einen Landesmeister ist das dünn, Kevin“. Nur für Spieler mit Rang (ab Kneipenwerfer), nicht für Gäste und nicht gegen den Computer',
+      'Neu: Sticheleien, die den Rivalen kennen (nur im Spiel zu zweit): Stand von heute Abend („Anna führt heute vier zu eins, nur so“), Gesamtbilanz („Das wäre dann die achte Niederlage gegen Anna“) oder Niederlagen in Folge – nur, wenn die Zahlen es hergeben, und höchstens eine je Leg und Spieler',
+      'Neu: dritte Stufe „brutal“ – deutlich frecher, kommt erst ab 7 Aufnahmen in Folge unter 40. Man muss sie in den Einstellungen wählen UND der Spieler, der sie abbekommt, muss sie freigeschaltet haben (ab Rang Vereinsspieler): Wer oben steht, muss mehr aushalten',
+      'Insgesamt 49 neue Sticheleien; einige milde und harte schaltet man ebenfalls mit Rang, Meilensteinen und Wochen-Medaillen frei',
+      'Meilensteine › 🗣️ Sprüche: neue Gruppe „😈 Sticheleien bei Formtief“ – freigeschaltete zum Antippen (wird vorgesprochen), gesperrte mit Schloss und Bedingung',
+      'Neuer Schalter „Sticheleien mit Rang und Rivalen“ (Einstellungen › Ansage und im Spiel unter ☰): aus = nur die bisherigen allgemeinen Sticheleien',
+      'Neue Auswahl „Wie hart dürfen Sticheleien sein?“: mild / normal / brutal. Normal ist wie bisher; mild bleibt immer harmlos. „Sticheleien bei Formtief“ aus schaltet weiterhin alle ab',
+      'Nicht mehr Gerede als vorher: Sticheleien kommen genau so selten wie bisher (bei 3, 5, 7, 9 … Aufnahmen in Folge unter 40), nur mit anderen Texten. Dieselbe Stichelei kommt nicht kurz hintereinander, lange Sätze nur selten, nie zusammen mit einem Spruch und nie beim Checkout',
+      'Bei „Sprüche: selten“ kommt jetzt auch nur noch etwa jede zweite Stichelei',
+    ],
+  },
+  {
+    version: '1.43.0',
+    date: '10.11.2026',
+    items: [
+      'Neu: 🗣️ Sprüche-Sammlung – über 100 neue Sprüche, die jeder Spieler für sich freischaltet: mit höherem Rang, für bestimmte Meilensteine (z. B. 10× Madhouse, Big Fish) und für Wochen-Medaillen. Die bisherigen Sprüche bleiben für alle frei',
+      'Im Spiel kommen die neuen Sprüche nur bei dem Spieler, der sie freigeschaltet hat; Gäste und Spiele gegen den Computer bekommen die Standard-Sprüche. Auch bei der Ansage „Deutsch“ und „Englisch“ gibt es damit jetzt Sprüche',
+      'Meilensteine: neuer Reiter 🗣️ Sprüche – Zähler, freigeschaltete Sprüche zum Antippen (wird vorgesprochen), gesperrte mit Schloss und Bedingung („ab Stammtisch-Ass“, „für 10× Madhouse“)',
+      'Wird im Spiel etwas freigeschaltet, steht kurz „🗣️ 2 neue Sprüche“ oben und im Endbild – angesagt wird das nicht',
+      'Neuer Schalter „Freischaltbare Sprüche“ (Einstellungen › Ansagen & Töne und im Spiel unter ☰): aus = nur die bisherigen Sprüche',
+      'Neue Einstellung „Wie oft kommen Sprüche?“: selten / normal / oft – gilt für alle Sprüche',
+      'Weniger Gerede beim Checkout: nach „Game shot und das Leg“ kommt höchstens noch eine kurze Ansage. Der Spruch kommt nicht mehr jedes Mal (bei „normal“ etwa jedes dritte Mal, beim Match-Gewinn öfter)',
+      'Fallen neuer Rang, Meilenstein und Bestwert zusammen, wird nur das Wichtigste angesagt (Rang vor Meilenstein vor Bestwert) – der Rest ist als Einblendung zu sehen, und der Spruch entfällt',
+      'Die Ansage für den nächsten Spieler („Kevin, Rest 80“) wartet nicht mehr hinter einem Spruch: ein noch nicht begonnener Spruch wird dafür weggelassen',
+      'Nie zwei Sprüche in Folge für denselben Spieler, kein Spruch doppelt kurz hintereinander; lange Sprüche nur selten und nie beim Leg-Checkout mitten im Match. Bei Überworfen und 0 Punkten kommt bei „normal“ nicht mehr jedes Mal ein Spruch',
+    ],
+  },
+  {
     version: '1.42.0',
     date: '03.11.2026',
     items: [

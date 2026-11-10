@@ -6,8 +6,10 @@ import { hitLabel, allHits, dartScore } from '../../core/board.js';
 import { checkoutPath, checkoutPaths, turnPlan } from '../../rules/checkout.js';
 import { boardSvg, hitFromSvgEvent } from '../boardSvg.js';
 import { keepAwake } from '../../core/wakelock.js';
-import { getSettings, updateSettings, isGuestId } from '../../core/settings.js';
-import { say, unlock, announceUpNext, t as speechText, SPEECH_LANGS, voiceLangOf, dartText } from '../../audio/speech.js';
+import { getSettings, updateSettings, isGuestId, getPlayers } from '../../core/settings.js';
+import { say, sayIntro, introBusy, stopIntro, unlock, announceUpNext, announceEvent, unlockedQuips, resetQuipMemory, QUIP_RATES, TAUNT_LEVELS, t as speechText, SPEECH_LANGS, voiceLangOf, dartText } from '../../audio/speech.js';
+import { standFrom } from '../../audio/quipPacks.js';
+import { INTRO_MODES, introWanted, introLevel, introText, introSeen, rememberIntro, pairKey, nickFor } from '../../audio/intro.js';
 import { shareCard } from '../shareCard.js';
 import { lsGet, lsSet, dbGetAll } from '../../core/storage.js';
 import { playerStats, cricketStats, trainingRecords, trainingKey, matchPlaces, globalMatchPlaces, milestones, playerRank, rankIndex, MEDALS, RANKS } from '../../stats/stats.js';
@@ -15,7 +17,7 @@ import { CRICKET_NUMBERS } from '../../rules/cricket.js';
 import { getMode } from '../../rules/index.js';
 import { isBotId, botLevel, botThrow } from '../../game/bot.js';
 import { showMatchDetail } from '../matchDetail.js';
-import { rivalries, weekStatus, crownHolder, showcaseIcons } from '../../stats/progress.js';
+import { rivalries, duelFacts, weekStatus, crownHolder, showcaseIcons, playDayStart } from '../../stats/progress.js';
 import { milestoneToast, rankUpScreen } from '../celebrate.js';
 import { startHeartbeat, leaveBoard, liveState, isKicked, deviceId } from '../../core/live.js';
 
@@ -56,6 +58,15 @@ export function render(root, params, nav) {
   let disposed = false;
   let statsCache = {};
   let crownId = null;        // Abend-Krone (bester Average am letzten Spieltag)
+  // Einlauf-Ansage (audio/intro.js): nur einmal, ganz am Anfang eines neu gestarteten Spiels mit 2 bis 4 Spielern –
+  // nicht im Training, nicht beim Weiterspielen (params.match) und nicht am Board-Handy im Live-Turnier
+  // (dort ruft die Turnierleitung auf). introOpen: der Einlauf steht noch aus (Rang und Krone werden erst geladen).
+  const INTRO_WAIT_MS = 1500; // kommt der Stand später, entfällt der Einlauf – er soll nie in die erste Aufnahme platzen
+  const introT0 = Date.now();
+  let introOpen = introWanted({ resumed: !!params.match, training, players: playerCount, liveBoard: !!session.match.liveBoard, turns: session.match.turns.length });
+  if (introOpen) setTimeout(() => { introOpen = false; }, INTRO_WAIT_MS);
+  /** Noch nichts geworfen und nichts eingetippt? */
+  const untouched = () => session.match.turns.length === 0 && !session.state.turnDarts.length && !typed;
   // Name mit Krone und Abzeichen-Vitrine („👑 Kevin 🚀🐟“)
   const nameLabel = (i) => {
     const id = session.match.players[i];
@@ -117,6 +128,7 @@ export function render(root, params, nav) {
     const m = session.match;
     if (m.turns.length || m.players.length < 2) return;
     unlock();
+    introOpen = false; stopIntro();
     starterSwitched = true;
     m.firstStarter = (m.firstStarter + 1) % m.players.length;
     m.updatedAt = Date.now();
@@ -131,6 +143,7 @@ export function render(root, params, nav) {
   const quietBtn = h('button', { class: 'iconbtn', 'aria-label': 'Ansagen an/aus', onclick: () => {
     const q = !getSettings().quiet;
     updateSettings({ quiet: q });
+    if (q) { introOpen = false; stopIntro(); }
     if (q && window.speechSynthesis) window.speechSynthesis.cancel();
     quietBtn.textContent = q ? '🔇' : '🔊';
     toast(q ? '🔇 Ruhe – keine Ansagen' : '🔊 Ansagen wieder an', 1500);
@@ -177,6 +190,7 @@ export function render(root, params, nav) {
 
   function enter(hit, source = 'manual', extra = {}) {
     unlock();
+    introOpen = false; stopIntro(); // der erste Dart bricht den Einlauf ab
     const st = session.state;
     if (st.finished) return;
     if (botTurn()) { toast('Der Computer ist dran.'); return; }
@@ -264,7 +278,7 @@ export function render(root, params, nav) {
       }
     }
     const display = h('div', { class: 'totaldisplay num' }, h('div', { class: 'tv' }, typed || '–'), h('div', { class: 'ti' }, info));
-    const digit = (d) => h('button', { class: 'key num', onclick: () => { if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); draw(); } }, d);
+    const digit = (d) => h('button', { class: 'key num', onclick: () => { introOpen = false; stopIntro(); if (typed.length < 3) typed = (typed + d).replace(/^0+(?=\d)/, ''); drawPad(); draw(); } }, d);
     const quick = (q) => h('button', { class: 'key num quick', onclick: () => submitTotal(q) }, q);
     const digitRows = [
       [digit(1), digit(2), digit(3)],
@@ -290,6 +304,7 @@ export function render(root, params, nav) {
 
   async function submitTotal(points) {
     unlock();
+    introOpen = false; stopIntro(); // eine Summe bricht den Einlauf ab
     if (points == null || Number.isNaN(points)) { toast('Bitte eine Zahl eintippen.'); return; }
     const st = session.state;
     if (st.finished) return;
@@ -636,6 +651,8 @@ export function render(root, params, nav) {
   function scheduleBot() {
     clearTimeout(botTimer);
     if (disposed || !botTurn()) return;
+    // Beginnt der Computer, wartet er den Einlauf ab (höchstens ein paar Sekunden)
+    if (untouched() && (introOpen || introBusy())) { botTimer = setTimeout(scheduleBot, 300); return; }
     const st = session.state;
     const delay = st.turnEval.closed ? 1100 : st.turnDarts.length ? 900 : 1500;
     botTimer = setTimeout(botStep, delay);
@@ -713,6 +730,8 @@ export function render(root, params, nav) {
    * neu erreichte Meilensteine und ein neuer Rang. Nur menschliche Spieler, nicht gegen den Computer.
    * Verglichen wird mit allen beendeten Spielen gegen echte Spieler (wie Statistik › Rekorde).
    */
+  const quipsOn = () => getSettings().quips !== false && getSettings().quipUnlocks !== false;
+  const newQuipsText = (n) => (n === 1 ? '1 neuer Spruch' : `${n} neue Sprüche`);
   async function showRecords(m, el) {
     if (m.players.some(isBotId)) return; // gegen den Computer: Training, keine Rekorde
     try {
@@ -757,6 +776,14 @@ export function render(root, params, nav) {
         const wkNow = weekStatus(usable, real, pid);
         const wkBefore = weekStatus(usable.filter((r) => r.matchId !== m.id), real.filter((x) => x.id !== m.id), pid);
         if (wkNow.done > wkBefore.done) parts.push(h('div', {}, `🗓️ ${who}Wochenaufgabe erledigt (${wkNow.done} / 3)${wkNow.medal ? ' – 🏅 Wochen-Medaille!' : ''}`));
+        // Sprüche-Sammlung: in diesem Spiel neu freigeschaltet (nur zu sehen, wird nicht angesagt)
+        if (quipsOn()) {
+          const standNow = standFrom(ms);
+          const standBefore = standFrom(ms.map((x) => (x.at === m.createdAt ? { ...x, at: null } : x)));
+          standBefore.medals = standNow.medals - (wkNow.medal && !wkBefore.medal ? 1 : 0);
+          const nq = unlockedQuips(standNow).length - unlockedQuips(standBefore).length;
+          if (nq > 0) parts.push(h('div', {}, `🗣️ ${who}${newQuipsText(nq)} freigeschaltet`));
+        }
         if (!fresh.length) return;
         const pts = fresh.reduce((a, x) => a + x.pts, 0);
         parts.push(h('div', { class: 'recordsub' }, `🎖️ ${who}${fresh.length === 1 ? 'Neuer Meilenstein' : `${fresh.length} neue Meilensteine`} (+${pts} Punkte)`));
@@ -776,7 +803,36 @@ export function render(root, params, nav) {
 
   // ---------- Feier-Momente: neue Meilensteine schon während des Spiels ----------
   // Beim Start wird gemerkt, was jeder schon hat; nach jeder Aufnahme wird neu gerechnet.
-  const live = { ready: false, rows: [], matches: [], reached: {}, rank: {}, shownRank: new Set(), timer: null, best: {} };
+  // stand: Freischalt-Stand je Spieler für die Sprüche-Sammlung (audio/quipPacks.js) – Rang, Meilensteine, Medaillen
+  const live = { ready: false, rows: [], matches: [], reached: {}, rank: {}, shownRank: new Set(), timer: null, best: {}, stand: {}, quips: {}, rival: {} };
+  resetQuipMemory();
+  // Ansage: Sprüche aus dem Pool des Spielers, der geworfen hat. Gäste und Spiele gegen den Computer: nur Standard.
+  session.quipStand = (i) => (live.ready ? live.stand[session.match.players[i]] || null : null);
+  // Sticheleien mit Rivalen: Duell-Angabe je Spieler (nur zu zweit zwischen echten Spielern), einmal beim Start berechnet
+  session.tauntRival = (i) => (live.ready ? live.rival[session.match.players[i]] || null : null);
+  /**
+   * Einlauf sprechen, sobald Rang und Krone bekannt sind. standOf(pid): Freischalt-Stand oder null.
+   * Entfällt, wenn der Stand zu spät kommt, schon geworfen oder getippt wurde, im Ruhe-Modus oder wenn die
+   * Einstellung „Einlauf“ es so will (aus; heute schon gehört: „voll“ -> Kurzform, „kurz“ -> nichts).
+   */
+  function playIntro(standOf, crown = crownId) {
+    if (!introOpen || disposed) return;
+    introOpen = false;
+    const s = getSettings();
+    if (s.quiet || Date.now() - introT0 > INTRO_WAIT_MS || !untouched()) return;
+    const m = session.match;
+    const day = playDayStart(Date.now());
+    const key = pairKey(m.players);
+    const mem = lsGet('introSeen', null);
+    const level = introLevel(s.intro, introSeen(mem, key, day), playerCount);
+    if (!level) return;
+    const known = getPlayers();
+    const text = introText(m.players.map((pid, i) => {
+      const stand = isBotId(pid) || isGuestId(pid) ? null : standOf(pid); // Gäste und Computer: nur der Name
+      return { name: m.playerNames[i], rank: stand ? stand.rank : null, nick: nickFor(known.find((p) => p.id === pid), stand), crown: pid === crown };
+    }), level, { lang: speechText().voiceLang, langKey: s.speechLang });
+    if (text && sayIntro(text)) lsSet('introSeen', rememberIntro(mem, key, day));
+  }
   if (!session.match.players.some(isBotId)) {
     Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
       const real = matches.filter((x) => x.id !== session.match.id && x.status === 'finished' && !x.players.some(isBotId));
@@ -785,19 +841,36 @@ export function render(root, params, nav) {
       live.matches = real;
       const crown = crownHolder(live.rows, real);
       crownId = crown ? crown.playerId : null;
+      const pl = session.match.players;
+      if (pl.length === 2) pl.forEach((pid, i) => { live.rival[pid] = duelFacts(real, pid, pl[1 - i], session.match.playerNames[1 - i]); });
       for (const pid of session.match.players) {
         if (isGuestId(pid)) continue;
         const ms = milestones(live.rows, real, pid);
-        live.reached[pid] = new Set(ms.filter((x) => x.at).map((x) => x.id));
-        live.rank[pid] = playerRank(ms).index;
+        const stand = standFrom(ms);
+        live.stand[pid] = stand;
+        live.reached[pid] = stand.reached; // dieselbe Menge: neue Meilensteine gelten sofort auch für die Sprüche
+        live.rank[pid] = stand.rank;
+        live.quips[pid] = unlockedQuips(stand).length;
         // Bisherige Bestwerte (X01): höchste Aufnahme und höchstes Finish – für „Neuer Bestwert!“ im Spiel
         const ps = playerStats(live.rows.filter((r) => r.playerId === pid));
         live.best[pid] = { turn: ps.highest || 0, finish: ps.highestCheckout || 0, has: ps.darts > 0 };
       }
       live.ready = true;
       draw();
+      playIntro((pid) => live.stand[pid] || null);
     }).catch((e) => console.warn('Meilensteine nicht ladbar', e));
-  }
+  } else if (introOpen && getSettings().intro !== 'off' && !getSettings().quiet) {
+    // Gegen den Computer zählt nichts für Meilensteine und Sprüche – der Stand wird hier nur für den Einlauf gelesen
+    Promise.all([dbGetAll('throws'), dbGetAll('matches')]).then(([rows, matches]) => {
+      const real = matches.filter((x) => x.status === 'finished' && !x.players.some(isBotId));
+      const ids = new Set(real.map((x) => x.id));
+      const own = rows.filter((r) => ids.has(r.matchId));
+      const crown = crownHolder(own, real);
+      const stands = {};
+      for (const pid of session.match.players) if (!isBotId(pid) && !isGuestId(pid)) stands[pid] = standFrom(milestones(own, real, pid));
+      playIntro((pid) => stands[pid] || null, crown ? crown.playerId : null);
+    }).catch(() => { introOpen = false; });
+  } else introOpen = false;
   function checkLiveMilestones() {
     if (!live.ready || disposed) return;
     clearTimeout(live.timer);
@@ -805,6 +878,8 @@ export function render(root, params, nav) {
       const m = session.match;
       const rows = [...live.rows, ...throwRows(m)];
       const all = [...live.matches, m];
+      // Gesprochen wird je Aufnahme nur das Wichtigste (Rang vor Meilenstein vor Bestwert) – der Rest ist nur zu sehen
+      const speak = [];
       m.players.forEach((pid, i) => {
         if (isGuestId(pid) || !live.reached[pid]) return; // Gäste: keine Meilensteine
         // Neuer persönlicher Bestwert schon im Spiel (nur wer schon Spiele hat, sonst wäre alles „neu“)
@@ -816,30 +891,39 @@ export function render(root, params, nav) {
             b.finish = now.highestCheckout;
             b.turn = Math.max(b.turn, now.highest); // nur ein Hinweis je Aufnahme
             toast(`🏆 ${who}Neues höchstes Finish – ${b.finish}!`, 3500);
-            if (getSettings().quips !== false) say(`Neuer Bestwert! Höchstes Finish, ${b.finish}.`);
+            if (getSettings().quips !== false) speak.push([1, `Neuer Bestwert! Höchstes Finish, ${b.finish}.`]);
           } else if (now.highest > b.turn) {
             b.turn = now.highest;
             toast(`🔥 ${who}Neue höchste Aufnahme – ${b.turn}!`, 3500);
-            if (getSettings().quips !== false) say(`Neuer Bestwert! ${b.turn}.`);
+            if (getSettings().quips !== false) speak.push([1, `Neuer Bestwert! ${b.turn}.`]);
           }
         }
         const ms = milestones(rows, all, pid);
         const got = live.reached[pid];
         const fresh = ms.filter((x) => x.at && !got.has(x.id));
-        if (!fresh.length) return;
         fresh.forEach((x) => got.add(x.id));
         const who = m.players.length > 1 ? m.playerNames[i] : '';
         for (const x of fresh.slice(0, 3)) milestoneToast(x, who);
-        if (getSettings().quips !== false) say(`${who ? `${who}, ` : ''}Meilenstein: ${fresh[0].title}`);
-        const idx = playerRank(ms).index;
-        if (idx > live.rank[pid]) {
-          live.rank[pid] = idx;
-          live.shownRank.add(`${pid}:${idx}`);
-          const r = RANKS[idx];
-          say(`${who ? `${who}, ` : ''}neuer Rang: ${r.title}`);
+        if (fresh.length && getSettings().quips !== false) speak.push([2, `${who ? `${who}, ` : ''}Meilenstein: ${fresh[0].title}`]);
+        const now = standFrom(ms);
+        if (now.rank > live.rank[pid]) {
+          live.rank[pid] = now.rank;
+          live.shownRank.add(`${pid}:${now.rank}`);
+          const r = RANKS[now.rank];
+          speak.push([3, `${who ? `${who}, ` : ''}neuer Rang: ${r.title}`]);
           rankUpScreen(r, who);
         }
+        // Sprüche-Sammlung: neuer Stand gilt sofort; neu Freigeschaltetes wird nur eingeblendet, nicht angesagt
+        const stand = live.stand[pid];
+        if (stand) {
+          stand.rank = Math.max(stand.rank, now.rank);
+          stand.medals = Math.max(stand.medals, now.medals);
+          const n = unlockedQuips(stand).length;
+          if (n > live.quips[pid] && quipsOn()) toast(`🗣️ ${who ? `${who}: ` : ''}${newQuipsText(n - live.quips[pid])}`, 3000);
+          live.quips[pid] = n;
+        }
       });
+      if (speak.length) announceEvent(speak.sort((x, y) => y[0] - x[0])[0][1]);
     }, 60);
   }
 
@@ -923,7 +1007,19 @@ export function render(root, params, nav) {
         x01 ? toggle('announceRest', 'Rest ansagen', '„Rest 141“') : null,
         x01 ? toggle('announceRequire', 'Rest vor dem Wurf ansagen', 'Nur wenn auscheckbar: „Rest 80“') : null,
         toggle('quips', 'Witzige Sprüche', 'Bei 180, Überwerfen, 0 Punkten, Game shot'),
+        st.quips !== false ? toggle('quipUnlocks', 'Freischaltbare Sprüche', 'Eigene Sprüche je Spieler nach Rang und Meilensteinen – aus: nur die Standard-Sprüche') : null,
+        st.quips !== false ? h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['rare', 'Sprüche selten'], ['normal', 'normal'], ['often', 'oft']].map(([k, label]) => h('button', {
+          class: (QUIP_RATES.includes(st.quipRate) ? st.quipRate : 'normal') === k ? 'on' : '', onclick: () => { updateSettings({ quipRate: k }); fill(); },
+        }, label))) : null,
         toggle('taunts', 'Sticheleien bei Formtief'),
+        st.taunts !== false ? toggle('tauntSmart', 'Sticheleien mit Rang und Rivalen', 'Kennen Rang und Duell-Bilanz – aus: nur die allgemeinen Sticheleien') : null,
+        st.taunts !== false ? h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['mild', 'Härte: mild'], ['normal', 'normal'], ['brutal', 'brutal']].map(([k, label]) => h('button', {
+          class: (TAUNT_LEVELS.includes(st.tauntLevel) ? st.tauntLevel : 'normal') === k ? 'on' : '', onclick: () => { updateSettings({ tauntLevel: k }); fill(); },
+        }, label))) : null,
+        // Einlauf-Ansage beim Spielstart (gilt ab dem nächsten Spiel)
+        h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } }, [['off', 'Einlauf: aus'], ['short', 'kurz'], ['full', 'voll']].map(([k, label]) => h('button', {
+          class: (INTRO_MODES.includes(st.intro) ? st.intro : 'short') === k ? 'on' : '', onclick: () => { updateSettings({ intro: k }); fill(); },
+        }, label))),
         x01 ? h('div', { class: 'menusec' }, '🎯 Checkout') : null,
         x01 ? toggle('checkoutHint', 'Checkout-Weg anzeigen', 'z. B. T20 T19 D12 unter der Aufnahme') : null,
         x01 ? toggle('announceCheckout', 'Checkout-Weg ansagen', '„Rest 80 – Triple 20, Doppel 10“ (schaltet „Rest vor dem Wurf“ mit ein)', { announceRequire: true }) : null,
@@ -1115,6 +1211,7 @@ export function render(root, params, nav) {
 
   return () => {
     disposed = true;
+    introOpen = false; stopIntro();
     clearTimeout(botTimer);
     clearInterval(kickTimer);
     landscape.removeEventListener?.('change', placeActions);

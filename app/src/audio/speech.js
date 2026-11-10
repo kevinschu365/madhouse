@@ -3,6 +3,8 @@
 // -> unlock() bei einem Tipp aufrufen (z. B. „Spiel starten“).
 
 import { getSettings } from '../core/settings.js';
+import { unlockedFor, quipText, isLongQuip } from './quipPacks.js';
+import { DISS_PACK, dissText, dissFits, fillDiss, isRivalKind, isLongDiss } from './dissPacks.js';
 
 const DE = {
   label: 'Deutsch', voiceLang: 'de',
@@ -14,8 +16,9 @@ const DE = {
   marks: (n) => (n === 1 ? 'Ein Mark' : `${n} Marks`), hits: (n) => (n === 1 ? 'Ein Treffer' : `${n} Treffer`),
   target: (x) => `Ziel ${x}`, darts: (n) => `${n} Darts`, points: (n) => `${n} Punkte`,
   trainingDone: 'Training beendet', failed: 'Nicht geschafft', out: 'Ausgeschieden', shanghai: 'Shanghai!',
-  // Sticheleien bei Formtief (Aufnahmen in Folge unter 40): mild ab 3, hart ab 5.
+  // Allgemeine Sticheleien bei Formtief (Aufnahmen in Folge unter 40): mild ab 3, hart ab 5 – für alle frei.
   // Dialekte und Akzente erben sie, solange sie keine eigenen haben.
+  // Sticheleien mit Rang und Rivalen und die Stufe „brutal“ stehen in audio/dissPacks.js.
   taunts: {
     mild: [
       (n) => `${n}, schon wieder unter vierzig. Alles okay bei dir?`,
@@ -410,20 +413,135 @@ export function voiceLangOf(l = lang()) {
   return (TEXT[l] || DE).voiceLang;
 }
 
-/** Zufälliger Spruch zum Anlass (oder null, wenn aus/keiner vorhanden). */
-function quip(kind) {
-  const list = getSettings().quips !== false && t().quips && t().quips[kind];
-  return list && list.length ? list[Math.floor(Math.random() * list.length)] : null;
+// ---------- Sprüche: Auswahl, Häufigkeit, Wiederholungen ----------
+
+/** Freigeschaltete Sprüche eines Spielers, die es in der Sprache der aktuellen Stimme gibt. */
+export function unlockedQuips(stand, T = t()) {
+  return unlockedFor(stand).filter((q) => quipText(q, T.voiceLang));
+}
+
+/** Standard-Sprüche des aktuellen Dialekts (für alle frei), je Anlass. */
+export function standardQuips(T = t()) {
+  return T.quips || {};
 }
 
 /**
- * Stichelei bei Formtief: bei 3 Aufnahmen in Folge unter 40 mild, bei 5 hart,
- * danach alle zwei Aufnahmen wieder hart (sonst nervt es). Ohne Anlass: null.
+ * Sprüche, aus denen zum Anlass gewählt wird: die Standard-Sprüche des Dialekts plus die freigeschalteten
+ * des Spielers (stand, siehe audio/quipPacks.js). Ohne Stand (Gast, Spiel gegen den Computer) oder mit
+ * Schalter „Freischaltbare Sprüche“ aus: nur die Standard-Sprüche. Schalter „Witzige Sprüche“ aus: keine.
  */
-function taunt(slump, name) {
-  if (getSettings().taunts === false || !slump || slump < 3 || slump === 4 || (slump > 5 && slump % 2 === 0)) return null;
-  const list = t().taunts && t().taunts[slump === 3 ? 'mild' : 'hard'];
-  return list && list.length ? list[Math.floor(Math.random() * list.length)](name || '') : null;
+export function quipPool(kind, stand = null, s = getSettings(), T = t()) {
+  if (s.quips === false) return [];
+  const std = (T.quips && T.quips[kind]) || [];
+  if (s.quipUnlocks === false || !stand) return std.slice();
+  return [...std, ...unlockedQuips(stand, T).filter((q) => q.kind === kind).map((q) => quipText(q, T.voiceLang))];
+}
+
+// Wie oft ein Spruch kommt, je Einstellung „Sprüche: selten / normal / oft“ (Wahrscheinlichkeit je Anlass).
+// game = Checkout eines Legs oder Sets mitten im Match, match = Checkout zum Match-Gewinn.
+export const QUIP_RATES = ['rare', 'normal', 'often'];
+const QUIP_CHANCE = {
+  //      selten normal oft
+  s180:  [0.6, 1, 1],
+  bust:  [0.35, 0.7, 1],
+  zero:  [0.35, 0.7, 1],
+  ton:   [0.2, 0.4, 0.6],
+  low:   [0.2, 0.4, 0.6],
+  game:  [0.15, 0.34, 0.6],
+  match: [0.5, 0.8, 1],
+};
+const RECENT_TURNS = 6;  // so viele Aufnahmen lang kommt derselbe Spruch nicht noch einmal
+const LONG_CHANCE = 0.3; // lange Sprüche (mehr als 8 Wörter) nur selten
+
+// Gedächtnis: Aufnahme-Zähler, wer bei seiner letzten Aufnahme schon einen Spruch hatte, was zuletzt gesagt wurde
+// dissLog: zuletzt benutzte Sticheleien-Vorlagen, rivalLeg: in welchem Leg ein Spieler schon eine Rivalen-Stichelei bekam
+const quipMem = { turn: 0, last: new Map(), recent: new Map(), dissLog: [], rivalLeg: new Map() };
+/** Gedächtnis leeren (neues Spiel, Tests). */
+export function resetQuipMemory() {
+  quipMem.turn = 0;
+  quipMem.last.clear();
+  quipMem.recent.clear();
+  quipMem.dissLog.length = 0;
+  quipMem.rivalLeg.clear();
+}
+const isRecent = (text) => quipMem.recent.has(text) && quipMem.turn - quipMem.recent.get(text) < RECENT_TURNS;
+
+/** Zufälliger Spruch zum Anlass (oder null): nichts kürzlich Gesagtes, lange nur selten, bei short gar keine langen. */
+function pickQuip(kind, { stand = null, short = false } = {}, s = getSettings(), rnd = Math.random) {
+  let pool = quipPool(kind, stand, s).filter((x) => !isRecent(x));
+  if (short) pool = pool.filter((x) => !isLongQuip(x));
+  if (!pool.length) return null;
+  const any = (list) => list[Math.floor(rnd() * list.length)] || null;
+  const q = any(pool);
+  if (!isLongQuip(q) || rnd() < LONG_CHANCE) return q;
+  return any(pool.filter((x) => !isLongQuip(x)));
+}
+
+// ---------- Sticheleien bei Formtief ----------
+// Wann: bei 3 Aufnahmen in Folge unter 40, bei 5, danach bei jeder zweiten (7, 9 …) – nie öfter (sonst nervt es).
+// Was: Stufe je nach Länge des Formtiefs und Einstellung „Härte“ (tauntLevel: 'mild' | 'normal' | 'brutal').
+// Mit dem Schalter „Sticheleien mit Rang und Rivalen“ (tauntSmart) kommen die Vorlagen aus audio/dissPacks.js dazu.
+export const TAUNT_LEVELS = ['mild', 'normal', 'brutal'];
+const BRUTAL_FROM = 7;       // „brutal“ erst ab so vielen Aufnahmen in Folge unter 40
+const RARE_TAUNT_CHANCE = 0.5; // Sprüche „selten“: nur etwa jede zweite Stichelei
+const DISS_MEMORY = 8;       // so viele Sticheleien lang kommt dieselbe Vorlage nicht noch einmal
+const RIVAL_SHARE = 0.3;     // Anteil Rivalen-Sticheleien, wenn eine passt (höchstens eine je Leg und Spieler)
+const RANK_SHARE = 0.35;     // Anteil Rang-Sticheleien, wenn eine passt
+
+/** Welche Stufen hat dieser Spieler freigeschaltet? „brutal“ gibt es nur mit Stand (keine Gäste, kein Computer-Spiel). */
+export function brutalUnlocked(stand) {
+  return !!stand && unlockedFor(stand, DISS_PACK).some((d) => d.level === 'brutal');
+}
+
+/**
+ * Stufe der Stichelei zu dieser Aufnahme: 'mild' | 'hard' | 'brutal' – oder null, wenn jetzt keine kommt.
+ * mild bei 3 in Folge, hart ab 5, brutal ab 7 – brutal nur, wenn eingestellt UND vom Spieler freigeschaltet.
+ * Härte „mild“: nie über die milde Stufe hinaus. Schalter „Sticheleien“ aus: nie.
+ */
+export function tauntLevelFor(slump, stand = null, s = getSettings()) {
+  if (s.taunts === false || !slump || slump < 3 || slump === 4 || (slump > 5 && slump % 2 === 0)) return null;
+  const max = TAUNT_LEVELS.includes(s.tauntLevel) ? s.tauntLevel : 'normal';
+  if (slump === 3 || max === 'mild') return 'mild';
+  if (slump >= BRUTAL_FROM && max === 'brutal' && brutalUnlocked(stand)) return 'brutal';
+  return 'hard';
+}
+
+/**
+ * Stichelei bei Formtief (oder null). stand: Freischalt-Stand des Spielers (Rang …), rival: Duell-Angabe
+ * (siehe dissPacks.js), leg: Kennung des laufenden Legs – höchstens eine Rivalen-Stichelei je Leg und Spieler.
+ * Schalter „mit Rang und Rivalen“ aus: nur die bisherigen allgemeinen Sticheleien.
+ */
+export function pickTaunt({ slump = 0, name = '', stand = null, rival = null, leg = null, player = name } = {}, s = getSettings(), rnd = Math.random, T = t()) {
+  const level = tauntLevelFor(slump, stand, s);
+  if (!level) return null;
+  if (s.quipRate === 'rare' && rnd() >= RARE_TAUNT_CHANCE) return null;
+  const lang = T.voiceLang === 'en' ? 'en' : 'de';
+  const fill = { name: name || '', rank: stand ? stand.rank : null, rival, lang };
+  const smart = s.tauntSmart !== false;
+  const groups = { rival: [], rang: [], allg: ((T.taunts && T.taunts[level]) || []).map((fn) => ({ key: fn, text: fn(name || '') })) };
+  const rivalFree = !!rival && !!player && quipMem.rivalLeg.get(player) !== leg;
+  for (const d of unlockedFor(stand, DISS_PACK)) {
+    const tpl = dissText(d, lang);
+    if (!tpl || d.level !== level) continue;
+    const item = { key: d.de, text: fillDiss(tpl, fill) };
+    if (isRivalKind(d.kind)) { if (smart && rivalFree && dissFits(d.kind, rival)) groups.rival.push(item); }
+    else if (d.kind === 'rang') { if (smart && stand) groups.rang.push(item); }
+    else if (smart || level === 'brutal') groups.allg.push(item);
+  }
+  const r = rnd();
+  let cat = groups.rival.length && r < RIVAL_SHARE ? 'rival' : groups.rang.length && r < RIVAL_SHARE + RANK_SHARE ? 'rang' : 'allg';
+  if (!groups[cat].length) cat = ['allg', 'rang', 'rival'].find((k) => groups[k].length);
+  if (!cat) return null;
+  // Dieselbe Vorlage nicht kurz hintereinander; lange Sätze nur selten
+  const unused = groups[cat].filter((x) => !quipMem.dissLog.includes(x.key));
+  const pool = unused.length ? unused : groups[cat];
+  const any = (list) => list[Math.floor(rnd() * list.length)] || null;
+  let pick = any(pool);
+  if (isLongDiss(pick.text) && rnd() >= LONG_CHANCE) pick = any(pool.filter((x) => !isLongDiss(x.text))) || pick;
+  quipMem.dissLog.push(pick.key);
+  if (quipMem.dissLog.length > DISS_MEMORY) quipMem.dissLog.shift();
+  if (cat === 'rival') quipMem.rivalLeg.set(player, leg);
+  return pick.text;
 }
 
 export function speechSupported() {
@@ -517,42 +635,151 @@ export function dartText(hit) {
   return String(hit.segment);
 }
 
+// ---------- Einlauf-Ansage beim Spielstart (Texte: audio/intro.js) ----------
+// Der Einlauf darf den Spielfluss nie aufhalten: Jeder Dart, jede Summe und jede andere Ansage bricht ihn sofort ab.
+let introState = null; // { until }: läuft gerade (höchstens bis „until“, falls das Ende nicht gemeldet wird)
+/** Einlauf sprechen. Rückgabe false, wenn nichts gesprochen wird (Ruhe-Modus, keine Sprachausgabe). */
+export function sayIntro(text, opts = {}) {
+  const u = say(text, opts);
+  if (!u) return false;
+  // Geschätzte Sprechzeit als Obergrenze – manche Geräte (iOS) melden das Ende nicht zuverlässig
+  const st = { at: Date.now(), until: Date.now() + Math.min(8000, 1000 + String(text).length * 100) };
+  introState = st;
+  const done = () => { if (introState === st) introState = null; };
+  u.addEventListener('end', done);
+  u.addEventListener('error', done);
+  return true;
+}
+/** Läuft der Einlauf gerade noch? */
+export function introBusy() {
+  return introAlive() && Date.now() < introState.until;
+}
+/** Ist der Einlauf noch nicht sicher vorbei? (Ende gemeldet, Sprachausgabe still oder 15 Sekunden um = vorbei) */
+function introAlive() {
+  if (!introState) return false;
+  const synth = window.speechSynthesis;
+  const age = Date.now() - introState.at;
+  if (age > 15000 || (age > 500 && !synth.speaking && !synth.pending)) { introState = null; return false; }
+  return true;
+}
+/** Laufenden Einlauf sofort abbrechen (erster Dart, Summe, andere Ansage). Ohne Einlauf passiert nichts. */
+export function stopIntro() {
+  const running = introAlive();
+  introState = null;
+  if (running && speechSupported()) window.speechSynthesis.cancel();
+}
+
 export function announceDart(hit) {
+  stopIntro();
   // Ein neuer Dart überholt eine noch ausstehende Rest-Ansage
   restGen++;
   clearTimeout(restTimer);
   restPending = false;
   followUp = null;
+  dropExtra();
+  checkout = null;
   if (getSettings().announceDart) say(dartText(hit));
 }
 
-/** Summe der Aufnahme (und ggf. Rest) ansagen. */
-export function announceTurn({ points, bust, finished, remaining, legWon, setWon, matchWon, slump = 0, name = '' }) {
-  const s = getSettings();
+/**
+ * Was zu einer Aufnahme gesagt wird (ohne zu sprechen – so lässt es sich prüfen):
+ * { parts (sofort, am Stück), extra (Spruch nach dem Checkout, darf verworfen werden), restText, undo }.
+ * stand: Freischalt-Stand des Spielers (audio/quipPacks.js), null = nur Standard-Sprüche.
+ * player: woran der Spieler erkannt wird (Standard: der Name) – nie zwei Sprüche in Folge für denselben Spieler.
+ * rival / leg: Duell-Angabe und Kennung des Legs für die Sticheleien (siehe pickTaunt).
+ */
+export function turnParts({ points, bust, finished, remaining, legWon, setWon, matchWon, slump = 0, name = '', stand = null, player = name, rival = null, leg = null }, s = getSettings(), rnd = Math.random) {
   const T = t();
   const parts = [];
+  let extra = null;
+  let spoken = null; // Spruch oder Stichelei dieser Aufnahme
+  quipMem.turn++;
+  const rate = Math.max(0, QUIP_RATES.indexOf(s.quipRate || 'normal'));
+  const hadOne = !!player && quipMem.last.get(player) === true;
+  const roll = (kind) => !hadOne && rnd() < QUIP_CHANCE[kind][rate];
   if (finished) {
+    // Checkout: „Game shot und das Leg“ – der Spruch kommt nicht jedes Mal und ist ein eigener Satz danach,
+    // damit er verworfen werden kann, wenn etwas Wichtigeres ansteht (nächster Spieler, neuer Rang …)
     parts.push(T.game);
     if (matchWon) parts.push(T.match);
     else if (setWon) parts.push(T.set);
     else if (legWon) parts.push(T.leg);
-    parts.push(quip('game'));
+    if (roll(matchWon ? 'match' : 'game')) extra = spoken = pickQuip('game', { stand, short: !matchWon }, s, rnd);
   } else if (s.announceTurn) {
     // 26 („Bed and Breakfast“): auf Englisch, auch bei deutscher Ansage
     if (!bust && points === 26 && s.say26 !== false) parts.push({ text: 'Twenty fucking six!', lang: 'en' });
     else parts.push(bust ? T.bust : points === 0 ? T.noScore : String(points));
-    const sting = taunt(slump, name);
-    // Sprüche: bei 180, Überwerfen und 0 immer, sonst nur ab und zu (sonst nervt es).
+    const sting = pickTaunt({ slump, name, stand, rival, leg, player }, s, rnd, T);
+    // Sprüche: je nach Anlass und Einstellung mal mehr, mal weniger oft (sonst nervt es).
     // Eine Stichelei bei Formtief geht vor.
-    if (sting) parts.push(sting);
-    else if (bust) parts.push(quip('bust'));
-    else if (points === 180) parts.push(quip('s180'));
-    else if (points === 0) parts.push(quip('zero'));
-    else if (points >= 100 && Math.random() < 0.5) parts.push(quip('ton'));
-    else if (points <= 20 && Math.random() < 0.5) parts.push(quip('low'));
+    const kind = bust ? 'bust' : points === 180 ? 's180' : points === 0 ? 'zero' : points >= 100 ? 'ton' : points <= 20 ? 'low' : null;
+    if (sting) spoken = sting;
+    else if (kind && roll(kind)) spoken = pickQuip(kind, { stand }, s, rnd);
+    if (spoken) parts.push(spoken);
   }
+  if (player) quipMem.last.set(player, !!spoken);
+  if (spoken) quipMem.recent.set(spoken, quipMem.turn);
   const restText = !finished && s.announceRest && remaining > 0 ? T.youRequire(remaining) : null;
+  // undo: ein verworfener Spruch gilt als nicht gesagt
+  const undo = () => { if (player) quipMem.last.set(player, false); if (extra) quipMem.recent.delete(extra); };
+  return { parts, extra, restText, undo };
+}
+
+/** Summe der Aufnahme (und ggf. Rest) ansagen. */
+export function announceTurn(turn) {
+  const { parts, extra, restText, undo } = turnParts(turn);
   speakWithRest(parts, restText);
+  checkout = turn.finished ? { at: Date.now(), used: false } : null;
+  if (extra) holdExtra(extra, undo);
+}
+
+// ---------- Nach dem Checkout: höchstens EINE weitere kurze Ansage ----------
+// Der Spruch wartet kurz (EXTRA_HOLD_MS), während „Game shot und das Leg“ gesprochen wird. Kommt in der Zeit
+// die Ansage für den nächsten Spieler oder etwas Wichtigeres (Rang, Meilenstein, Bestwert), entfällt er.
+const EXTRA_HOLD_MS = 900;
+const CHECKOUT_WINDOW_MS = 8000;
+let checkout = null; // { at, used }: letzter Checkout und ob die eine Zusatz-Ansage schon vergeben ist
+let heldExtra = null;
+function holdExtra(text, undo) {
+  dropExtra();
+  const p = { text, undo };
+  p.timer = setTimeout(() => {
+    if (heldExtra !== p) return;
+    heldExtra = null;
+    if (checkout) checkout.used = true;
+    say(text);
+  }, EXTRA_HOLD_MS);
+  heldExtra = p;
+}
+function dropExtra() {
+  if (!heldExtra) return;
+  clearTimeout(heldExtra.timer);
+  if (heldExtra.undo) heldExtra.undo();
+  heldExtra = null;
+}
+
+/**
+ * Darf nach dem letzten Checkout noch eine Zusatz-Ansage kommen? Vergibt sie gleich (Rückgabe true).
+ * Ohne Checkout oder wenn er länger her ist als das Fenster: immer true.
+ */
+export function takeCheckoutSlot(state = checkout, now = Date.now()) {
+  if (!state || now - state.at > CHECKOUT_WINDOW_MS) return true;
+  if (state.used) return false;
+  state.used = true;
+  return true;
+}
+
+/**
+ * Besonderes Ereignis ansagen (neuer Rang, Meilenstein, Bestwert). Ein wartender Spruch entfällt dafür.
+ * Wurde nach dem Checkout schon etwas Zusätzliches gesagt, bleibt es stumm (Rückgabe false) – dann ist es nur zu sehen.
+ */
+export function announceEvent(text) {
+  if (!text) return false;
+  stopIntro();
+  dropExtra();
+  if (!takeCheckoutSlot()) return false;
+  say(text);
+  return true;
 }
 
 /** Eigene Ansage eines Spielmodus (Cricket, Training): parts sofort, rest nach der Pause. */
@@ -567,6 +794,8 @@ export function announceParts({ parts = [], rest = null } = {}) {
  */
 export function announceUpNext(text) {
   if (!text) return;
+  stopIntro();
+  dropExtra(); // der Spielfluss geht vor: ein noch nicht begonnener Spruch entfällt
   if (restPending) followUp = text;
   else say(text);
 }
@@ -579,10 +808,12 @@ export function speechHelpers() {
 function speakWithRest(parts, restText) {
   const s = getSettings();
   parts = parts.filter(Boolean);
+  stopIntro();
   clearTimeout(restTimer);
   const gen = ++restGen; // ältere, noch ausstehende Rest-Ansagen verfallen
   restPending = false;
   followUp = null;
+  dropExtra();
   if (!parts.length) { if (restText) say(restText); return; }
   const u = sayParts(parts);
   if (!restText) return;

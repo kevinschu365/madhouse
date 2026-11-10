@@ -3,9 +3,15 @@
 // Tipp auf einen Meilenstein öffnet die Details: Fortschritt, alle Stufen der Reihe, Vitrine – beim Doppel-Sammler alle 21 Doppel.
 import { h, toast, sheet } from '../dom.js';
 import { milestones, playerRank, RANKS, MILESTONE_CATEGORIES, MILESTONE_GROUPS, nextRankText, rankNeed, ELITE_PTS } from '../../stats/stats.js';
-import { crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, dayStatus, missionCounts } from '../../stats/progress.js';
+import { rivalries, crownHolder, weekStreak, dayStreak, getShowcase, toggleShowcase, seasonStatus, pastSeasons, SEASON_RANKS, SEASON_POINTS_NOTE, weekStatus, dayStatus, missionCounts } from '../../stats/progress.js';
 import { loadStatsData, pickDefault, playerPicker, date, sec, kpi, topbar } from '../statsData.js';
 import { showMatchDetail } from '../matchDetail.js';
+import { getSettings, getPlayers } from '../../core/settings.js';
+import { NICK_WHEN, nickUnlocked, nickFor, introSolo } from '../../audio/intro.js';
+import { editNick } from './players.js';
+import { say, unlock, standardQuips, t as speechText } from '../../audio/speech.js';
+import { QUIP_PACK, QUIP_KINDS, quipText, isUnlocked, whenText, whenOrder, standFrom } from '../../audio/quipPacks.js';
+import { DISS_PACK, DISS_LEVELS, dissText, fillDiss, isRivalKind } from '../../audio/dissPacks.js';
 
 const PTS_FILTERS = [['all', 'Alle Punkte'], ['low', 'bis 9 P.'], ['mid', '10–39 P.'], ['elite', `ab ${ELITE_PTS} P. (★ Elite)`]];
 const fmt = (n) => n.toLocaleString('de-DE');
@@ -19,7 +25,7 @@ export function render(root, params, nav) {
   loadStatsData().then((data) => {
     const { finished, realMatches, usable, names, ids } = data;
     let player = pickDefault(ids, params.player);
-    let scope = 'games'; // 'games' | 'training'
+    let scope = params.tab === 'quips' ? 'quips' : 'games'; // 'games' | 'trophies' | 'quips' | 'training'
 
     // Training: eigene Meilensteine (Trainings, Darts, Spieltage), zählen nicht für Rang und Saison
     const drawTraining = () => {
@@ -63,18 +69,80 @@ export function render(root, params, nav) {
       body.appendChild(h('p', { class: 'dim small' }, 'Antippen zeigt, wann und in welchem Spiel die Trophäe erreicht wurde. ⭐ In die Vitrine legen: erscheint neben deinem Namen.'));
     };
 
+    // 🗣️ Sprüche-Sammlung: Standard-Sprüche der gewählten Ansage (für alle frei) plus die freischaltbaren.
+    // Freigeschaltete lassen sich antippen (wird vorgesprochen); gesperrte zeigen nur die Bedingung, nicht den Text.
+    const drawQuips = (ms) => {
+      const st = getSettings();
+      const T = speechText();
+      const stand = standFrom(ms);
+      const std = standardQuips(T);
+      const pack = QUIP_PACK.filter((q) => quipText(q, T.voiceLang));
+      const open = pack.filter((q) => isUnlocked(q.when, stand));
+      const stdCount = QUIP_KINDS.reduce((a, [k]) => a + (std[k] || []).length, 0);
+      const locked = pack.filter((q) => !isUnlocked(q.when, stand)).sort((a, b) => whenOrder(a.when) - whenOrder(b.when));
+      body.appendChild(h('div', { class: 'card mshero', style: '--rc: var(--accent)' },
+        h('div', { class: 'kpis' }, kpi(`${stdCount + open.length} / ${stdCount + pack.length}`, 'Sprüche'), kpi(open.length, 'freigeschaltet'), kpi(locked.length, 'noch gesperrt')),
+        h('div', { class: 'small dim' }, `Ansage: ${T.label}. Neue Sprüche gibt es für höhere Ränge, Meilensteine und Wochen-Medaillen. Im Spiel kommen sie nur bei dem Spieler, der sie freigeschaltet hat.`),
+        locked.length ? h('div', { class: 'small' }, `🔓 Als Nächstes: ${whenText(locked[0].when)}`) : h('div', { class: 'small accent' }, 'Alles freigeschaltet!'),
+        st.quips === false ? h('div', { class: 'small', style: { color: 'var(--warn)' } }, 'Hinweis: „Witzige Sprüche“ ist gerade ausgeschaltet (Einstellungen › Ansagen & Töne).')
+          : st.quipUnlocks === false ? h('div', { class: 'small', style: { color: 'var(--warn)' } }, 'Hinweis: „Freischaltbare Sprüche“ ist gerade ausgeschaltet – im Spiel kommen nur die Standard-Sprüche (Einstellungen › Ansagen & Töne).') : null));
+      const speak = (text) => { unlock(); window.speechSynthesis && window.speechSynthesis.cancel(); say(text, { ignoreQuiet: true }); };
+      const tile = (icon, text, note, on) => h('div', { class: `ms ${on ? 'on tap' : ''}`, onclick: on ? () => speak(text) : null },
+        h('div', { class: 'msicon' }, icon),
+        h('div', { class: 'mstext' }, h('b', {}, on ? text : '???'), h('span', { class: 'num' }, note)));
+      for (const [kind, icon, title] of QUIP_KINDS) {
+        const mine = open.filter((q) => q.kind === kind);
+        const shut = locked.filter((q) => q.kind === kind);
+        const free = std[kind] || [];
+        if (!mine.length && !shut.length && !free.length) continue;
+        body.appendChild(sec(`${icon} ${title}`, h('span', { class: 'num dim' }, `${free.length + mine.length} / ${free.length + mine.length + shut.length}`)));
+        body.appendChild(h('div', { class: 'milestones' },
+          mine.map((q) => tile('🗣️', quipText(q, T.voiceLang), whenText(q.when), true)),
+          free.map((text) => tile('💬', text, 'für alle frei', true)),
+          shut.map((q) => tile('🔒', '', whenText(q.when), false))));
+      }
+      body.appendChild(h('p', { class: 'dim small' }, 'Antippen spricht den Spruch vor. Gesperrte Sprüche verraten ihren Text erst, wenn sie freigeschaltet sind. Gäste und Spiele gegen den Computer: nur die Standard-Sprüche.'));
+
+      // 😈 Sticheleien bei Formtief (audio/dissPacks.js): mit Rang und Rivalen, Stufe „brutal“ erst ab höherem Rang.
+      // Rivalen-Sticheleien werden mit Beispiel-Zahlen gezeigt (im Spiel stehen dort die echten).
+      const lang = T.voiceLang === 'en' ? 'en' : 'de';
+      const dpack = DISS_PACK.filter((d) => dissText(d, lang));
+      const dopen = dpack.filter((d) => isUnlocked(d.when, stand));
+      const topRival = rivalries(realMatches, player)[0];
+      const sample = { name: names.get(player) || '', rank: stand.rank, lang, rival: { opp: topRival ? topRival.name : 'Anna', today: [1, 4], wins: 3, losses: 7, lossStreak: 5 } };
+      const note = (d) => `${isRivalKind(d.kind) ? 'Rivalen · Beispiel-Zahlen · ' : d.kind === 'rang' ? 'Rang · ' : ''}${d.when ? whenText(d.when) : 'für alle frei'}`;
+      body.appendChild(sec('😈 Sticheleien bei Formtief', h('span', { class: 'num dim' }, `${dopen.length} / ${dpack.length}`)));
+      body.appendChild(h('div', { class: 'small dim' }, 'Kommen nur, wenn jemand mehrere Aufnahmen in Folge unter 40 bleibt (mild ab 3, hart ab 5, brutal ab 7) – und treffen den Spieler, der sie freigeschaltet hat: Wer oben steht, muss mehr aushalten. Dazu kommen die allgemeinen Sticheleien, die für alle frei sind.'));
+      const warn = (text) => body.appendChild(h('div', { class: 'small', style: { color: 'var(--warn)' } }, text));
+      if (st.taunts === false) warn('Hinweis: „Sticheleien bei Formtief“ ist gerade ausgeschaltet (Einstellungen › Ansagen & Töne).');
+      else if (st.tauntSmart === false) warn('Hinweis: „Sticheleien mit Rang und Rivalen“ ist gerade ausgeschaltet – im Spiel kommen nur die allgemeinen Sticheleien.');
+      for (const [level, icon, title] of DISS_LEVELS) {
+        const mine = dopen.filter((d) => d.level === level);
+        const shut = dpack.filter((d) => d.level === level && !isUnlocked(d.when, stand)).sort((a, b) => whenOrder(a.when) - whenOrder(b.when));
+        if (!mine.length && !shut.length) continue;
+        body.appendChild(sec(`${icon} ${title}`, h('span', { class: 'num dim' }, `${mine.length} / ${mine.length + shut.length}`)));
+        if (level === 'brutal' && st.taunts !== false && st.tauntLevel !== 'brutal') warn('Die Stufe „brutal“ kommt nur, wenn sie in den Einstellungen gewählt ist (Härte: brutal).');
+        body.appendChild(h('div', { class: 'milestones' },
+          mine.map((d) => tile(icon, fillDiss(dissText(d, lang), sample), note(d), true)),
+          shut.map((d) => tile('🔒', '', note(d), false))));
+      }
+    };
+
     const draw = () => {
       body.replaceChildren(topbar('Meilensteine', nav));
       if (!ids.length) { body.appendChild(h('p', { class: 'dim' }, 'Noch keine Spiele gespeichert.')); return; }
       body.appendChild(playerPicker(ids, names, player, (v) => { player = v; draw(); }));
       // Spiele (zählen für Rang und Saison) oder Training (eigene Ansicht, zählt nicht für den Rang)
       // 🏆 Trophäen: nur die erreichten Meilensteine als Schrank (je Kategorie, neueste zuerst)
-      body.appendChild(h('div', { class: 'seg', style: { gridTemplateColumns: 'repeat(3, 1fr)' } },
+      // 🗣️ Sprüche: Sammlung der freischaltbaren Sprüche (audio/quipPacks.js)
+      body.appendChild(h('div', { class: 'seg scopeseg', style: { gridTemplateColumns: 'repeat(4, 1fr)' } },
         h('button', { class: scope === 'games' ? 'on' : '', onclick: () => { scope = 'games'; draw(); } }, '🎯 Spiele'),
         h('button', { class: scope === 'trophies' ? 'on' : '', onclick: () => { scope = 'trophies'; draw(); } }, '🏆 Trophäen'),
+        h('button', { class: scope === 'quips' ? 'on' : '', onclick: () => { scope = 'quips'; draw(); } }, '🗣️ Sprüche'),
         h('button', { class: scope === 'training' ? 'on' : '', onclick: () => { scope = 'training'; draw(); } }, '🏋️ Training')));
       if (scope === 'training') { drawTraining(); return; }
       const ms = milestones(usable, realMatches, player);
+      if (scope === 'quips') { drawQuips(ms); return; }
       const rk = playerRank(ms);
       const me = names.get(player) || '?';
       const crown = crownHolder(usable, realMatches);
@@ -153,13 +221,32 @@ export function render(root, params, nav) {
       // ---------- 1) Kopf: Rang, Fortschritt, Kennzahlen, Serien, Vitrine ----------
       const vitrine = getShowcase(player).map((id) => ms.find((m) => m.id === id)).filter((m) => m && m.at);
       const hasCrown = crown && crown.playerId === player;
+      const stand = standFrom(ms);
+      const listed = getPlayers().find((p) => p.id === player) || null; // nur Spieler aus der Spielerliste können einen Kampfnamen haben
+      const nickOpen = nickUnlocked(stand);
+      const nick = nickFor(listed, stand);
       body.appendChild(h('div', { class: 'card mshero', style: `--rc: ${rk.rank.color}` },
         h('div', { class: 'rankhead' },
           h('div', { class: 'badge', style: `--rc: ${rk.rank.color}` }, rk.rank.icon),
           h('div', { class: 'rankinfo' },
             h('div', { class: 'heroname' }, `${hasCrown ? '👑 ' : ''}${me}`),
             h('div', { class: 'rankname' }, rk.rank.title),
+            nick ? h('div', { class: 'dim small' }, `🥊 „${nick}“`) : null,
             h('div', { class: 'dim small' }, `Rang ${rk.index + 1} von ${RANKS.length}`))),
+        // Kampfname (ab Stammtisch-Ass) und die eigene Einlauf-Ansage zum Anhören
+        h('div', { class: 'heropills' },
+          !listed ? null : nickOpen
+            ? h('button', { class: 'chip', onclick: async () => { if (await editNick(listed)) draw(); } }, nick ? '✎ Kampfname ändern' : '🥊 Kampfname wählen')
+            : h('span', { class: 'pill' }, `🔒 Kampfname ${whenText(NICK_WHEN)}`),
+          h('button', {
+            class: 'chip',
+            onclick: () => {
+              unlock();
+              window.speechSynthesis && window.speechSynthesis.cancel();
+              const T = speechText();
+              say(introSolo({ name: listed ? listed.name : me, rank: rk.index, nick, crown: hasCrown }, { lang: T.voiceLang, langKey: getSettings().speechLang }), { ignoreQuiet: true });
+            },
+          }, '🔊 Einlauf anhören')),
         h('div', { class: 'stack', style: { gap: '6px' } },
           h('div', { class: 'ratebar big' }, h('div', { style: { width: `${pctOf(rk)}%` } })),
           h('div', { class: 'small dim' }, nextRankText(rk))),

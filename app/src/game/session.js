@@ -66,6 +66,10 @@ export class GameSession {
       finished: ev.finished,
       remaining: ev.remaining,
       slump: slumpCount(closedMatch, p),
+      stand: this.quipStand ? this.quipStand(p) : null,
+      rival: this.tauntRival ? this.tauntRival(p) : null,
+      leg: this.state.legOverall,
+      player: this.match.players[p],
       name: this.match.playerNames[p],
       legWon: ev.finished,
       setWon: ev.finished && after.setsWon[p] > this.state.setsWon[p],
@@ -119,7 +123,8 @@ export class GameSession {
     const p = before.current;
     announceTurn({
       points: ev.points, bust: ev.bust, finished: ev.finished, remaining: ev.remaining,
-      slump: slumpCount(m, p), name: m.playerNames[p],
+      slump: slumpCount(m, p), name: m.playerNames[p], stand: this.quipStand ? this.quipStand(p) : null, player: m.players[p],
+      rival: this.tauntRival ? this.tauntRival(p) : null, leg: before.legOverall,
       legWon: ev.finished, setWon: ev.finished && after.setsWon[p] > before.setsWon[p], matchWon: after.finished,
     });
     this.announcedTurnKey = null;
